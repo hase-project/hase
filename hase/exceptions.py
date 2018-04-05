@@ -1,0 +1,2 @@
+class HaseException(Exception):
+    pass
