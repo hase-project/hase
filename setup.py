@@ -6,7 +6,7 @@ setup(
     version='0.1',
     description="Time-travel failures",
     packages=find_packages(),
-    install_requires=['angr', 'pwntools', 'r2pipe', 'monkeyhex'],
+    install_requires=['angr', 'pwntools', 'r2pipe', 'monkeyhex', 'qtconsole', 'pry.py', 'PyQt5'],
     entry_points={
         "console_scripts": ["hase = hase:main"],
     },
