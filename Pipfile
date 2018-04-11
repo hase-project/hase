@@ -18,3 +18,7 @@ qtconsole = "*"
 [dev-packages]
 
 nose = "*"
+
+[requires]
+# hopefully angr gets python3 support sometime...
+python_version = "2.7"
