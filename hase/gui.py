@@ -44,8 +44,6 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.jupiter_widget.kernel_client = self.kernel_client
         self.jupiter_widget.reset()
 
-        self.set_location(APP_ROOT.join("repl.cpp"), 27)
-
     def set_location(self, source_file, line):
         lexer = pygments.lexers.CppLexer()
         formatter = pygments.formatters.HtmlFormatter(
