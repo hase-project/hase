@@ -13,6 +13,15 @@ from pwn_wrapper import ELF
 l = logging.getLogger('hase.tracer')
 
 
+class Registers():
+    def __init__(self, state):
+        self.state = state
+
+    def __getattr__(self, k):
+        reg = getattr(self.state.simstate.regs, k)
+        return self.state.simstate.solver.eval(reg)
+
+
 class State():
     def __init__(self, branch, simstate):
         self.branch = branch
@@ -25,6 +34,9 @@ class State():
             return "State(0x%x -> End)" % (self.branch[0])
         else:
             return "State(0x%x -> 0x%x)" % (self.branch[0], self.branch[1])
+
+    def registers(self):
+        return Registers(self)
 
     def object(self):
         return self.simstate.project.loader.find_object_containing(self.simstate.addr)
