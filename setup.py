@@ -6,7 +6,22 @@ setup(
     version='0.1',
     description="Time-travel failures",
     packages=find_packages(),
-    install_requires=['angr', 'pwntools', 'r2pipe', 'monkeyhex', 'qtconsole', 'pry.py', 'PyQt5'],
+    install_requires=[
+        'angr',
+        'pwntools',
+        'r2pipe',
+        'monkeyhex',
+        'qtconsole',
+        'pry.py',
+        'pygdbmi',
+        # how to add PyQt5 here?
+        # 'pyqt5'
+    ],
+    tests_require=['nose'],
+    test_suite='nose.collector',
+    extras_require={
+        "test": ["nose"]
+    },
     entry_points={
         "console_scripts": ["hase = hase:main"],
     },
