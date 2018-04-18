@@ -5,14 +5,6 @@ from shlex import split as shsplit
 from hase.replay import replay
 
 
-class lines(str):
-    def __init__(self, val):
-        self.val = val
-
-    def __repr__(self):
-        return self.val
-
-
 @magics_class
 class HaseMagics(Magics):
     def __init__(self, shell, app, window):
@@ -35,12 +27,12 @@ class HaseMagics(Magics):
             addr2line.add_addr(s.object(), s.address())
 
         addr_map = addr2line.compute()
-        active_state = states[-1]
+        self.active_state = states[-1]
         user_ns["addr_map"] = addr_map
         user_ns["states"] = states
-        user_ns["active_state"] = active_state
+        user_ns["active_state"] = self.active_state
 
-        self.window.set_location(*addr_map[active_state.address()])
+        self.window.set_location(*addr_map[self.active_state.address()])
 
     @line_magic("p")
     def print_value(self, query):
@@ -54,8 +46,4 @@ class HaseMagics(Magics):
         """
         open current breakpoint in editor.
         """
-        return lines("""
-Backtrace:
-Func inspectorRunRepl, sp=0x7fffffffffeffd8, ret=0x4070a0
-Func main, sp=0x4070a0, ret=0x0
-""")
+        print(self.active_state.simstate.callstack)
