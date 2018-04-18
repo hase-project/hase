@@ -15,19 +15,12 @@ in stdenv.mkDerivation {
   buildInputs = [
     bashInteractive
     #pypy27
-    # avoid propagating python3 libraries to nix-shell
-    #(runCommand "pipenv" {} ''
-    #  mkdir -p $out/bin
-    #  ln -s ${pipenv}/bin/pipenv $out/bin/pipenv
-    #'')
-    (pipenv.override {
-      python3Packages = python2Packages;
-    })
     unicorn-emu
     git-lfs
     radare2
     openssl
     python2Packages.pyqt5
+    python2Packages.virtualenv
     python2
   ];
   #] ++ pypyVim;
