@@ -25,9 +25,13 @@ def dso_offsets_from_coredump(coredump):
         load_options={"except_missing_libs": True})
 
 
-def replay_command(args):
-    coredump = Coredump(os.path.realpath(args.coredump))
+def replay(executable, coredump, trace):
+    coredump = Coredump(os.path.realpath(coredump))
 
-    t = Tracer(args.executable, args.trace, args.coredump,
+    t = Tracer(executable, trace, coredump,
                dso_offsets_from_coredump(coredump))
     return t.run()
+
+
+def replay_command(args):
+    return replay(args.executable, args.coredump, args.trace)

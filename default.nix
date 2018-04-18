@@ -22,6 +22,8 @@ in stdenv.mkDerivation {
     python2Packages.pyqt5
     python2Packages.virtualenv
     python2
+    qt5.qttools
+    gdb
   ];
   #] ++ pypyVim;
   PYTHON="python2";

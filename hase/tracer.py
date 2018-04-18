@@ -6,6 +6,7 @@ from angr import sim_options as so
 from angr.state_plugins.sim_action import SimActionExit
 
 from .perf import TRACE_END, read_trace
+from .annotate import Addr2line
 
 from pwn_wrapper import ELF
 
@@ -24,6 +25,21 @@ class State():
             return "State(0x%x -> End)" % (self.branch[0])
         else:
             return "State(0x%x -> 0x%x)" % (self.branch[0], self.branch[1])
+
+    def object(self):
+        return self.simstate.project.loader.find_object_containing(self.simstate.addr)
+
+    def address(self):
+        return self.simstate.addr
+
+    def location(self):
+        """
+        Binary of current state
+        """
+        obj = self.object()
+        a = Addr2line()
+        a.add_addr(obj, self.simstate.addr)
+        return a.compute()[self.simstate.addr]
 
 
 class Tracer():
@@ -102,7 +118,8 @@ class Tracer():
                 ipdb.set_trace()
 
     def valid_address(self, address):
-        return address == TRACE_END or self.project.loader.find_object_containing(address)
+        return address == TRACE_END or self.project.loader.find_object_containing(
+            address)
 
     def run(self):
         state = self.simgr.active[0]
@@ -110,7 +127,8 @@ class Tracer():
         states.append(State(self.trace[0], state))
         for event in self.trace[1:]:
             l.debug("look for jump: 0x%x -> 0x%x" % (event[0], event[1]))
-            assert self.valid_address(event[0]) and self.valid_address(event[1])
+            assert self.valid_address(event[0]) and self.valid_address(
+                event[1])
             state = self.find_next_branch(state, event)
             states.append(State(event, state))
         return states
