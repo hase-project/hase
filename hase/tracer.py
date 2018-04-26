@@ -10,16 +10,37 @@ from .annotate import Addr2line
 
 from pwn_wrapper import ELF
 
-l = logging.getLogger('hase.tracer')
+l = logging.getLogger(__name__)
+
+
+class Register():
+    def __init__(self, name, value, size):
+        self.name = name
+        self.value = value
+        self.size = size
 
 
 class Registers():
     def __init__(self, state):
         self.state = state
 
-    def __getattr__(self, k):
-        reg = getattr(self.state.simstate.regs, k)
-        return self.state.simstate.solver.eval(reg)
+    def __getitem__(self, name):
+        reg = getattr(self.state.simstate.regs, name)
+        value = self.state.simstate.solver.eval(reg)
+        return Register(name, value, reg.size())
+
+
+class Memory():
+    def __init__(self, state):
+        self.state = state
+
+    def __getitem__(self, addr):
+        # good idea?
+        byte = self.state.simstate.mem[addr].byte
+        try:
+            return self.state.simstate.solver.eval(byte)
+        except:
+            return None
 
 
 class State():
@@ -35,8 +56,13 @@ class State():
         else:
             return "State(0x%x -> 0x%x)" % (self.branch[0], self.branch[1])
 
+    @property
     def registers(self):
         return Registers(self)
+
+    @property
+    def memory(self):
+        return Memory(self)
 
     def object(self):
         return self.simstate.project.loader.find_object_containing(self.simstate.addr)

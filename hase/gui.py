@@ -67,7 +67,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         user_ns["window"] = self
         config = shell.config
         config.TerminalIPythonApp.display_banner = ""
-        shell.register_magics(commands(shell, app, window))
+        shell.extension_manager.load_extension("hase.ipython_extension")
 
     def shutdown_kernel(self):
         print('Shutting down kernel...')

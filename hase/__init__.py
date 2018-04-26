@@ -1,8 +1,8 @@
 from hase.exceptions import *
 from .app import parse_arguments
-from . import path
+from . import path, gdb, annotate
+from .replay import replay_trace
 import sys
-
 
 def main(argv=sys.argv):
     args = parse_arguments(argv)
