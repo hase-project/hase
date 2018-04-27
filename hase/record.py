@@ -33,7 +33,7 @@ def record_command(args):
     coredump_path = "%s.coredump" % prefix
     with Handler(path, os.path.realpath(coredump_path)) as coredump:
         perf = "%s.perf" % prefix
-        cmd = ["perf", "record", "--output=%s" % perf, "-v", "-e", "intel_pt//u", path] + args.arguments
+        cmd = ["perf", "record", "-a", "--snapshot", "--output=%s" % perf, "-v", "-e", "intel_pt//u", path] + args.arguments
         subprocess.call(cmd)
         coredump.get()
         tsv_path = "%s.trace" % prefix

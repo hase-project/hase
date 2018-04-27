@@ -153,7 +153,6 @@ class GdbServer():
                 values += struct.pack(fmt, reg.value).encode("hex")
         return "".join(values)
 
-
     def set_thread(self, packet):
         return 'OK'
 

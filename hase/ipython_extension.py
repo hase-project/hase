@@ -32,16 +32,11 @@ class HaseMagics(Magics):
         module_path = os.path.dirname(__file__)
         for name, m in sys.modules.items():
             if isinstance(m, ModuleType) and hasattr(m, "__file__") and m.__file__.startswith(module_path):
-                #if m.__file__ == __file__:
-                #    continue
                 print("reload %s" % name)
                 try:
                     imp.reload(m)
                 except Exception:
                     pass
-            else:
-                pass
-                #print("skip %s" % name)
         self.shell.extension_manager.reload_extension("hase.ipython_extension")
 
     @line_magic("load")
