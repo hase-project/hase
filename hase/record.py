@@ -30,9 +30,7 @@ PROT_EXEC = 4
 
 def record(record_paths):
     # type: (RecordPaths) -> Tuple[coredumps.Coredump, perf.PerfData]
-    snapshot = perf.PTSnapshot(
-        build_id_path=str(record_paths.build_ids),
-        perf_file=str(record_paths.perf))
+    snapshot = perf.PTSnapshot(perf_file=str(record_paths.perf))
 
     try:
         handler = coredumps.Handler(snapshot.perf_pid,
@@ -110,11 +108,6 @@ class RecordPaths():
         return self.path.join("fifo.%d" % self.id)
 
     @property
-    def build_ids(self):
-        # type: () -> Path
-        return self.path.join("build-ids")
-
-    @property
     def manifest(self):
         # type: () -> Path
         return self.path.join("manifest.json")
@@ -133,8 +126,6 @@ def store_report(job):
     record_paths = job.record_paths
     state_dir = record_paths.state_dir
     manifest_path = str(record_paths.manifest)
-    # ids = job.perf_data.get_build_ids()
-    # build_id_path = record_paths.build_ids.join(".build-id")
 
     with NamedTemporaryFile() as template:
 
@@ -143,17 +134,6 @@ def store_report(job):
             template.write(str(state_dir.relpath(path)))
             template.write("\0")
 
-        # we cannot use build ids, since they are incomplete,
-        # instead we include mappings from /proc/<pid>/maps
-        # for build_id in ids:
-        #     path = str(build_id_path.join(build_id[:2], build_id[2:]))
-
-        #     if os.path.exists(path):
-        #         append_tar_path(template, state_dir, path)
-
-        #         append_tar_path(template, state_dir, os.path.realpath(path))
-        #         print(path)
-        #         print(os.path.realpath(path))
         append(manifest_path)
 
         manifest = json.load(open(manifest_path))

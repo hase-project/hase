@@ -13,20 +13,13 @@ except ImportError:
 TRACE_END = -1
 
 
-def perf_command(build_id_dir):
-    # type: (str) -> List[str]
-    return ["perf"]
-
-
 class PTSnapshot():
-    def __init__(self, perf_file="perf.data", build_id_path="~/.debug"):
-        # type: (str, str) -> None
-        
-        self.perf_command = perf_command(os.path.expanduser(build_id_path))
-        cmd = self.perf_command + [
-            "record", "--no-buildid-cache", "--output",
-            perf_file, "-m", "512,100000", "-a", "--snapshot", "-e",
-            "intel_pt//u"
+    def __init__(self, perf_file="perf.data"):
+        # type: (str) -> None
+
+        cmd = [
+            "perf", "record", "--no-buildid-cache", "--output", perf_file,
+            "-m", "512,100000", "-a", "--snapshot", "-e", "intel_pt//u"
         ]
         self.perf_file = perf_file
         self.process = subprocess.Popen(cmd)
@@ -34,7 +27,7 @@ class PTSnapshot():
     def get(self):
         # type: () -> PerfData
         self.process.wait()
-        return PerfData(self.perf_file, self.perf_command)
+        return PerfData(self.perf_file)
 
     def stop(self):
         # type: () -> None
@@ -104,29 +97,9 @@ def read_trace(sample_path, loader):
 
 
 class PerfData():
-    def __init__(self, path, perf_command):
-        # type: (str, List[str]) -> None
+    def __init__(self, path):
+        # type: (str) -> None
         self.path = path
-        self.perf_command = perf_command
-
-    def get_build_ids(self):
-        # type: () -> List[str]
-        cmd = self.perf_command + ["buildid-list", "-i", self.path, "--with-hits"]
-        output = subprocess.check_output(cmd)
-        libs = []
-        for line in output.split("\n"):
-            columns = line.split(" ", 1)
-            if len(columns) < 2:
-                continue
-
-            build_id, shared_object = columns
-            if not shared_object.startswith("/"):
-                # ignore kernel modules for the moment
-                continue
-
-            if os.access(shared_object, os.R_OK):
-                libs.append(build_id)
-        return libs
 
     def remove(self):
         # type: () -> None
