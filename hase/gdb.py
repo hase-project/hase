@@ -1,21 +1,28 @@
+from __future__ import absolute_import, division, print_function
+
 import pty
 import os
 import logging
 import tty
-import errno
 import threading
 import resource
 import termios
 import struct
-from subprocess import Popen, PIPE
-
 from pygdbmi.gdbcontroller import GdbController
+
+from . import tracer
+
+try:
+    from typing import Tuple, IO, Any
+except ImportError:
+    pass
 
 logging.basicConfig()
 l = logging.getLogger(__name__)
 
 
 def create_pty():
+    # type: () -> Tuple[IO[Any], str]
     master_fd, slave_fd = pty.openpty()
     # disable echoing
     tty.setraw(master_fd, termios.TCSANOW)
@@ -30,12 +37,13 @@ PAGESIZE = resource.getpagesize()
 
 
 def compute_checksum(data):
+    # type: (str) -> int
     return sum((ord(c) for c in data)) % 256
-
 
 
 class GdbServer():
     def __init__(self, active_state, binary):
+        # type: (tracer.State, str) -> None
         master, ptsname = create_pty()
         self.master = master
         self.COMMANDS = {
@@ -55,10 +63,12 @@ class GdbServer():
         self.gdb.write("-file-exec-and-symbols %s" % binary)
 
     def eval_expression(self, expr):
-        res = self.gdb.write("-data-evaluate-expression $rdi", timeout_sec=99999)
+        # type: (str) -> None
+        res = self.gdb.write("-data-evaluate-expression %s" % expr, timeout_sec=99999)
         print(res)
 
     def run(self):
+        # () -> None
         l.info("start server gdb server")
         buf = []
         while True:
@@ -75,13 +85,16 @@ class GdbServer():
 
     @property
     def active_state(self):
+        # type: () -> tracer.State
         return self.state
 
     @active_state.setter
     def active_state(self, state):
+        # type: (tracer.State) -> None
         self.state = state
 
     def process_data(self, buf):
+        # type: (str) -> str
         while len(buf):
             if buf[0] == "+" or buf[0] == "-":
                 buf = buf[1:]
@@ -101,10 +114,12 @@ class GdbServer():
         return buf
 
     def write_ack(self):
+        # type: () -> None
         self.master.write("+")
         self.master.flush()
 
     def process_packet(self, packet):
+        # type: (str) -> None
         handler = self.COMMANDS.get(packet[0], None)
 
         request = "".join(packet[1:])
@@ -122,9 +137,8 @@ class GdbServer():
         self.master.write("+$%s#%.2x" % (response, compute_checksum(response)))
         self.master.flush()
 
-
-
     def read_register(self, packet):
+        # type: (str) -> str
         """
         g
         """
@@ -154,9 +168,11 @@ class GdbServer():
         return "".join(values)
 
     def set_thread(self, packet):
+        # type: (str) -> str
         return 'OK'
 
     def read_memory(self, packet):
+        # type: (str) -> str
         """
         m addr,length
         """
@@ -169,7 +185,7 @@ class GdbServer():
         bytes = ""
         for offset in range(length):
             value = mem[addr + offset * 8]
-            if value == None:
+            if value is None:
                 bytes += "xx"
             else:
                 bytes += "%.2x" % value
@@ -177,10 +193,12 @@ class GdbServer():
         return bytes
 
     def stop_reason(self, packet):
+        # type: (str) -> str
         GDB_SIGNAL_TRAP = 5
         return "S%.2x" % GDB_SIGNAL_TRAP
 
     def handle_long_commands(self, packet):
+        # type: (str) -> str
         if packet.startswith('MustReplyEmpty'):
             return ""
         else:
@@ -188,6 +206,7 @@ class GdbServer():
             return ""
 
     def handle_query(self, packet):
+        # type: (str) -> str
         """
         qSupported|qAttached|qC
         """
@@ -209,7 +228,3 @@ class GdbServer():
         else:
             l.warning("unknown query: %s", packet)
             return ""
-
-
-if __name__ == "__main__":
-    server = GdbServer(None)

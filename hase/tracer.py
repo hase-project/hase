@@ -1,14 +1,19 @@
+from __future__ import absolute_import, division, print_function
+
 import r2pipe
 import angr
-import monkeyhex
 import logging
 from angr import sim_options as so
 from angr.state_plugins.sim_action import SimActionExit
 
 from .perf import TRACE_END, read_trace
 from .annotate import Addr2line
+from .pwn_wrapper import ELF
 
-from pwn_wrapper import ELF
+try:
+    from typing import List
+except ImportError:
+    pass
 
 l = logging.getLogger(__name__)
 
@@ -35,11 +40,12 @@ class Memory():
         self.state = state
 
     def __getitem__(self, addr):
+        # type: (int) -> int
         # good idea?
         byte = self.state.simstate.mem[addr].byte
         try:
             return self.state.simstate.solver.eval(byte)
-        except:
+        except Exception:
             return None
 
 
@@ -152,14 +158,15 @@ class Tracer():
                         state = choice
             else:
                 # There should be never more then dot!
-                import ipdb
-                ipdb.set_trace()
+                import pry
+                pry.set_trace()
 
     def valid_address(self, address):
         return address == TRACE_END or self.project.loader.find_object_containing(
             address)
 
     def run(self):
+        # type: () -> List[State]
         state = self.simgr.active[0]
         states = []
         states.append(State(self.trace[0], state))

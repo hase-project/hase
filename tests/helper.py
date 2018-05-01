@@ -1,4 +1,7 @@
+from __future__ import absolute_import, division, print_function
+
 import os
+
 from hase.path import Path
 
 TEST_ROOT = Path(os.path.dirname(os.path.realpath(__file__)))

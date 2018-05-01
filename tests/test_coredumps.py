@@ -1,7 +1,10 @@
+from __future__ import absolute_import, division, print_function
+
 import os
 import subprocess
 import nose
 import tempfile
+
 from hase.coredumps import Handler
 from nose.plugins.skip import SkipTest
 

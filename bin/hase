@@ -1,5 +1,11 @@
 #!/usr/bin/env python
-from hase import main
+import sys
+import os
+
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(os.path.realpath(__file__)))))
+
+from hase import main # NOQA
 
 if __name__ == "__main__":
     main()

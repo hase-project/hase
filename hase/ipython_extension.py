@@ -1,11 +1,15 @@
+from __future__ import absolute_import, division, print_function
+
 from IPython.core.magic import (magics_class, line_magic, Magics)
+from IPython import get_ipython
 import sys
 import os
 import imp
 from types import ModuleType
 from shlex import split as shsplit
 
-import hase
+from . import gdb, annotate
+from .replay import replay_trace
 
 
 @magics_class
@@ -46,10 +50,10 @@ class HaseMagics(Magics):
             print("USAGE: load <executable> <coredump> <trace>")
             return
         executable, coredump, trace = args
-        states = hase.replay_trace(executable, coredump, trace)
+        states = replay_trace(executable, coredump, trace)
 
         user_ns = self.shell.user_ns
-        addr2line = hase.annotate.Addr2line()
+        addr2line = annotate.Addr2line()
         for s in states:
             addr2line.add_addr(s.object(), s.address())
 
@@ -57,7 +61,7 @@ class HaseMagics(Magics):
         self.active_state = states[-1]
         user_ns["addr_map"] = addr_map
         user_ns["states"] = states
-        user_ns["gdb"] = hase.gdb.GdbServer(self.active_state, executable)
+        user_ns["gdb"] = gdb.GdbServer(self.active_state, executable)
 
         self.window.set_location(*addr_map[self.active_state.address()])
 
@@ -77,6 +81,6 @@ class HaseMagics(Magics):
 
 
 # get_ipython will be magically set by ipython
-ip = get_ipython() # NOQA
+ip = get_ipython()
 hase_magics = HaseMagics(ip)
 ip.register_magics(hase_magics)

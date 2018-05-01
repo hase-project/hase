@@ -1,16 +1,21 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, division, print_function
+
 import sys
 from PyQt5 import QtWidgets
 from PyQt5.uic import loadUiType
 import pygments
 import pygments.lexers
 import pygments.formatters
-
 from qtconsole.inprocess import QtInProcessKernelManager
 
-from hase.path import APP_ROOT
+from .path import APP_ROOT
 
-form_class, base_class = loadUiType(APP_ROOT.join('mainwindow.ui'))
+try:
+    from typing import Tuple, Any
+except ImportError:
+    pass
+
+form_class, base_class = loadUiType(APP_ROOT.join('mainwindow.ui'))  # type: Tuple[Any, Any]
 
 code_template = """
 <html>
@@ -24,11 +29,6 @@ code_template = """
 </body>
 </html>
 """
-
-
-def commands(shell, app, window):
-    from .ipython_extension import HaseMagics
-    return HaseMagics(shell, app, window)
 
 
 class MainWindow(form_class, QtWidgets.QMainWindow):

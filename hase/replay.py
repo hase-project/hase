@@ -1,15 +1,24 @@
-import os
-from pwn_wrapper import Coredump
+from __future__ import absolute_import, division, print_function
 
-from .tracer import Tracer
+import os
+import argparse
+
+from .pwn_wrapper import Coredump
+from .tracer import Tracer, State
+
+try:
+    from typing import List
+except ImportError:
+    pass
 
 
 def dso_offsets_from_coredump(coredump):
+    # type: (Coredump) -> dict
     """
     Extract shared object memory mapping from coredump
     """
     main = coredump.mappings[0]
-    lib_opts = {}
+    lib_opts = {}  # type: dict
     force_load_libs = []
     for mapping in coredump.mappings[1:]:
         if not mapping.name.startswith("/") or mapping.name in lib_opts:
@@ -26,6 +35,7 @@ def dso_offsets_from_coredump(coredump):
 
 
 def replay_trace(executable, coredump, trace):
+    # type: (str, str, str) -> List[State]
     coredump = Coredump(os.path.realpath(coredump))
 
     t = Tracer(executable, trace, coredump,
@@ -34,4 +44,5 @@ def replay_trace(executable, coredump, trace):
 
 
 def replay_command(args):
+    # type: (argparse.Namespace) -> List[State]
     return replay_trace(args.executable, args.coredump, args.trace)

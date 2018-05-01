@@ -1,7 +1,9 @@
+from __future__ import absolute_import, division, print_function
+
 import subprocess
 from collections import defaultdict
 
-from hase import HaseException
+from .exceptions import HaseException
 
 
 class Addr2line():

@@ -24,6 +24,11 @@ in stdenv.mkDerivation {
     python2
     qt5.qttools
     gdb
+    # avoid polluting PYTHONPATH
+    (runCommand "mypy" {} ''
+      mkdir -p $out/bin
+      ln -s "${mypy}/bin/mypy" $out/bin/mypy
+    '')
   ];
   #] ++ pypyVim;
   PYTHON="python2";
