@@ -12,7 +12,7 @@ import os
 import argparse  # NOQA
 
 from . import coredumps, perf
-from .path import make_tempdir, Path
+from .path import Path, Tempdir
 
 from . import pwn_wrapper
 
@@ -196,23 +196,19 @@ def report_worker(queue):
             job.remove()
 
 
-def record_command(args):
-    # type: (argparse.Namespace) -> None
-    temp_dir = make_tempdir()
+def record_loop(record_path, log_path):
+    # type: (Path, Path) -> None
 
     job_queue = Queue()  # type: Queue
     post_process_thread = Thread(target=report_worker, args=(job_queue, ))
     post_process_thread.start()
-
-    log_path = Path(args.log_dir)
-    log_path.mkdir_p()
 
     try:
         i = 0
         while True:
             i += 1
             # TODO ratelimit
-            record_paths = RecordPaths(temp_dir, i, log_path)
+            record_paths = RecordPaths(record_path, i, log_path)
             ret = record(record_paths)
             if ret is None:
                 # TODO figure out why python returns None on KeyboardInterrupt
@@ -226,4 +222,12 @@ def record_command(args):
         job_queue.put(Job(exit=True))
         l.info("Wait for child")
         post_process_thread.join()
-        shutil.rmtree(str(temp_dir))
+
+
+def record_command(args):
+    # type: (argparse.Namespace) -> None
+    log_path = Path(args.log_dir)
+    log_path.mkdir_p()
+
+    with Tempdir() as tempdir:
+        record_loop(tempdir, log_path)

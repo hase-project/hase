@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 import os
 import tempfile
 import errno
+import shutil
 
 try:
     from typing import Union, AnyStr
@@ -10,9 +11,6 @@ except ImportError:
     pass
 
 
-def make_tempdir():
-    # type: () -> Path
-    return Path(tempfile.mkdtemp())
 
 
 def which(program):
@@ -33,7 +31,7 @@ def which(program):
     return None
 
 
-class Path():
+class Path(object):
     """
     Poor mans pathlib
     """
@@ -69,6 +67,18 @@ class Path():
     def __repr__(self):
         # type: () -> str
         return repr(self._path)
+
+
+class Tempdir(Path):
+    def __init__(self):
+        super(Tempdir, self).__init__(tempfile.mkdtemp())
+
+    def __enter__(self):
+        # type: () -> Tempdir
+        return self
+
+    def __exit__(self, type, value, traceback):
+        shutil.rmtree(str(self))
 
 
 APP_ROOT = Path(os.path.dirname(os.path.realpath(__file__)))
