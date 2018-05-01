@@ -11,8 +11,6 @@ except ImportError:
     pass
 
 
-
-
 def which(program):
     # type: (str) -> Path
     def is_exe(fpath):

@@ -4,8 +4,10 @@ import sys
 import shutil
 import errno
 import json
-
+import datetime
 from collections import OrderedDict, defaultdict
+
+from . import timestamp
 
 RECV_MESSAGE = "GOT COREDUMP"
 
@@ -32,11 +34,16 @@ def process_coredump(os_args, core_file, manifest_file):
     shutil.copyfileobj(sys.stdin, core_file)
 
     metadata = defaultdict(dict)  # type: DefaultDict[str, Any]
+    coredump = metadata["coredump"]
+
     for name, arg in zip(EXTRA_CORE_DUMP_PARAMETER.keys(), os_args):
-        metadata["coredump"][name] = arg
-
-    pid = int(metadata["coredump"]["global_pid"])
-
+        if name == "executable":
+            # strip trailing slash
+            coredump[name] = arg[1:]
+        elif name == "time":
+            coredump[name] = timestamp.from_unix_time(int(arg))
+        else:
+            coredump[name] = int(arg)
     json.dump(metadata, manifest_file, indent=4, sort_keys=True)
 
 

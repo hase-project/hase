@@ -89,16 +89,13 @@ exec 2>&1
 {kill} -SIGUSR2 "{perf_pid}"
 {kill} -SIGTERM "{perf_pid}"
 
-exec {python} {handler} {fifo_path} {core_file} {manifest_path} "$@"
+exec {python} -m hase.coredump_handler {fifo_path} {core_file} {manifest_path} "$@"
 """
 
-        handler = os.path.join(
-            os.path.dirname(__file__), "coredump_handler.py")
         script_content = script_template.format(
             kill=kill_command,
             perf_pid=self.perf_pid,
             python=quote(sys.executable),
-            handler=quote(handler),
             fifo_path=quote(self.fifo_path),
             core_file=quote(self.core_file),
             manifest_path=quote(self.manifest_path))

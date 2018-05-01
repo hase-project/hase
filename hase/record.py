@@ -84,8 +84,6 @@ class RecordPaths():
         # type: (Path, int, Path) -> None
         self.path = path
         self.id = id
-        now = datetime.now().replace(microsecond=0).strftime("%Y%m%dT%H%M%S")
-        self.report_archive = log_path.join("%s.tar.bz2" % now)
 
     @property
     def state_dir(self):
@@ -112,12 +110,9 @@ class RecordPaths():
         # type: () -> Path
         return self.path.join("manifest.json")
 
-    @property
-    def report_archive(self):
-        # type: () -> Path
-        return self.report_archive
-
-
+    def report_archive(self, executable, timestamp):
+        # type: (str, str) -> Path
+        return self.path.join("%s-%s.tar.bz2" % (executable, timestamp))
 
 
 def store_report(job):
@@ -158,7 +153,8 @@ def store_report(job):
             binaries.append(str(state_dir.relpath(str(archive_path))))
             append(str(archive_path))
 
-        manifest["coredump"] = str(state_dir.relpath(core_file))
+        coredump = manifest["coredump"]
+        coredump["path"] = str(state_dir.relpath(core_file))
         append(core_file)
 
         manifest["perf_data"] = str(state_dir.relpath(job.perf_data.path))
@@ -169,6 +165,8 @@ def store_report(job):
 
         template.flush()
 
+        archive_path = record_paths.report_archive(coredump["executable"], coredump["time"])
+
         subprocess.check_call([
             "tar",
             "--null",
@@ -177,7 +175,7 @@ def store_report(job):
             "-T",
             str(template.name),
             "-cjf",
-            str(record_paths.report_archive),
+            str(archive_path),
         ])
 
 
