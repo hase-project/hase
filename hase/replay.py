@@ -6,21 +6,22 @@ import subprocess
 import json
 from typing import List
 
-from .symbex.tracer import Tracer, State
+from .symbex.tracer import Tracer, State, Any, Dict
 from .mapping import Mapping
 from .path import Tempdir
 
 
 def load_manifest(path):
+    # type: (str) -> Dict[str, Any]
     with open(path) as f:
-        data = json.load(f)
+        return json.load(f)
 
 
 def replay_trace(report):
     # type: (str) -> List[State]
 
     with Tempdir() as tempdir:
-        subprocess.check_call(["tar", "-xcvf", report, "-C", str(tempdir)])
+        subprocess.check_call(["tar", "-xzf", report, "-C", str(tempdir)])
 
         manifest = load_manifest(str(tempdir.join("manifest.json")))
 
