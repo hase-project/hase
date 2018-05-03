@@ -1,100 +1,58 @@
 from __future__ import absolute_import, division, print_function
 
-import r2pipe
 import angr
 import logging
 from angr import sim_options as so
 from angr.state_plugins.sim_action import SimActionExit
+from angr import SimState
+from typing import List, Any, Dict, Tuple
 
-from .perf import TRACE_END, read_trace
-from .annotate import Addr2line
-from .pwn_wrapper import ELF
+from ..perf import TRACE_END, read_trace
+from ..pwn_wrapper import ELF
+from ..mapping import Mapping
+
+from .state import State
 
 try:
-    from typing import List
+    import r2pipe
 except ImportError:
-    pass
+    r2pipe = None
+
 
 l = logging.getLogger(__name__)
 
 
-class Register():
-    def __init__(self, name, value, size):
-        self.name = name
-        self.value = value
-        self.size = size
+def build_load_options(mappings):
+    # type: (List[Mapping]) -> dict
+    """
+    Extract shared object memory mapping from coredump
+    """
+    main = mappings[0]
+    lib_opts = {}  # type: dict
+    force_load_libs = []
+    for m in mappings[1:]:
+        if not m.path.startswith("/") or m.path in lib_opts:
+            continue
+        lib_opts[m.path] = dict(custom_base_addr=m.start)
+        force_load_libs.append(m.path)
 
-
-class Registers():
-    def __init__(self, state):
-        self.state = state
-
-    def __getitem__(self, name):
-        reg = getattr(self.state.simstate.regs, name)
-        value = self.state.simstate.solver.eval(reg)
-        return Register(name, value, reg.size())
-
-
-class Memory():
-    def __init__(self, state):
-        self.state = state
-
-    def __getitem__(self, addr):
-        # type: (int) -> int
-        # good idea?
-        byte = self.state.simstate.mem[addr].byte
-        try:
-            return self.state.simstate.solver.eval(byte)
-        except Exception:
-            return None
-
-
-class State():
-    def __init__(self, branch, simstate):
-        self.branch = branch
-        self.simstate = simstate
-
-    def __repr__(self):
-        if self.branch[0] == 0:
-            return "State(Start -> 0x%x)" % (self.branch[1])
-        elif self.branch[1] == TRACE_END:
-            return "State(0x%x -> End)" % (self.branch[0])
-        else:
-            return "State(0x%x -> 0x%x)" % (self.branch[0], self.branch[1])
-
-    @property
-    def registers(self):
-        return Registers(self)
-
-    @property
-    def memory(self):
-        return Memory(self)
-
-    def object(self):
-        return self.simstate.project.loader.find_object_containing(self.simstate.addr)
-
-    def address(self):
-        return self.simstate.addr
-
-    def location(self):
-        """
-        Binary of current state
-        """
-        obj = self.object()
-        a = Addr2line()
-        a.add_addr(obj, self.simstate.addr)
-        return a.compute()[self.simstate.addr]
+    # TODO: extract libraries from core dump instead ?
+    return dict(
+        main_opts={"custom_base_addr": main.start},
+        force_load_libs=force_load_libs,
+        lib_opts=lib_opts,
+        load_options={"except_missing_libs": True})
 
 
 class Tracer():
-    def __init__(self, executable, trace_path, coredump, dso_offsets):
+    def __init__(self, executable, trace_path, mappings):
+        # type: (str, str, List[Mapping]) -> None
         self.executable = executable
-        self.coredump = coredump
-        self.dso_offsets = dso_offsets
-        self.project = angr.Project(executable, **dso_offsets)
+        self.mappings = mappings
+        options = build_load_options(mappings)
+        self.project = angr.Project(executable, **options)
         trace = read_trace(trace_path, self.project.loader)
         self.trace = trace
-        self.states = {}
 
         assert self.project.loader.main_object.os.startswith('UNIX')
 
@@ -121,9 +79,12 @@ class Tracer():
             save_unsat=True,
             hierarchy=False,
             save_unconstrained=True)
-        self.r2 = r2pipe.open(executable)
+     
+        # only for interactive debugging
+        if r2pipe is not None:
+            self.r2 = r2pipe.open(executable)
         # For debugging
-        self.project.pt = self
+        #self.project.pt = self
 
     def print_addr(self, addr):
         print(self.r2.cmd("pd -2 @ %s; pd 2 @ %s" % (addr, addr)))
@@ -137,6 +98,7 @@ class Tracer():
         return (new_state.addr - size) == old_state.addr
 
     def find_next_branch(self, state, branch):
+        # type: (SimState, Tuple[int,int]) -> SimState
         while True:
             l.debug("0x%x", state.addr)
             choices = self.project.factory.successors(
@@ -162,6 +124,7 @@ class Tracer():
                 pry.set_trace()
 
     def valid_address(self, address):
+        # type: (int) -> bool
         return address == TRACE_END or self.project.loader.find_object_containing(
             address)
 

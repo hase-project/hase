@@ -7,14 +7,13 @@ import resource
 import fcntl
 # TODO python3
 from pipes import quote
+from typing import Optional, IO, Any
+import logging
 
 from .coredump_handler import RECV_MESSAGE, EXTRA_CORE_DUMP_PARAMETER
 from .path import which
 
-try:
-    from typing import Optional, IO, Any
-except ImportError:
-    pass
+l = logging.getLogger(__name__)
 
 HANDLER_PATH = "/proc/sys/kernel/core_pattern"
 
@@ -46,6 +45,7 @@ class Coredump():
 
     def get(self):
         # type: () -> str
+        l.info("wait for fifo %s", self.fifo_path)
         self.fifo_file = open(self.fifo_path)
         msg = self.fifo_file.read(len(RECV_MESSAGE))
         assert msg == RECV_MESSAGE, "got '%s' from fifo, expected: '%s'" % (msg, RECV_MESSAGE)
@@ -60,14 +60,15 @@ class Coredump():
 
 
 class Handler():
-    def __init__(self, perf_pid, core_file, fifo_path, manifest_path):
-        # type: (int, str, str, str) -> None
+    def __init__(self, perf_pid, core_file, fifo_path, manifest_path, log_path="/tmp/coredump.log"):
+        # type: (int, str, str, str, str) -> None
         self.previous_pattern = None
         self.old_core_rlimit = None
         self.handler_script = None
         self.core_file = core_file
         self.fifo_path = fifo_path
         self.manifest_path = manifest_path
+        self.log_path = log_path
         os.mkfifo(fifo_path)
 
         self.perf_pid = perf_pid
@@ -83,11 +84,13 @@ class Handler():
         assert len(self.handler_script.name) < 128
 
         script_template = """#!/bin/sh
-exec 1>/tmp/coredump-log
+exec 1>{log_path}
 exec 2>&1
 
 {kill} -SIGUSR2 "{perf_pid}"
 {kill} -SIGTERM "{perf_pid}"
+
+export PYTHONPATH={pythonpath}
 
 exec {python} -m hase.coredump_handler {fifo_path} {core_file} {manifest_path} "$@"
 """
@@ -96,8 +99,10 @@ exec {python} -m hase.coredump_handler {fifo_path} {core_file} {manifest_path} "
             kill=kill_command,
             perf_pid=self.perf_pid,
             python=quote(sys.executable),
+            pythonpath=":".join(sys.path),
             fifo_path=quote(self.fifo_path),
             core_file=quote(self.core_file),
+            log_path=quote(self.log_path),
             manifest_path=quote(self.manifest_path))
 
         self.handler_script.write(script_content)

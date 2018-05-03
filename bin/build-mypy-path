@@ -1,0 +1,27 @@
+#!/usr/bin/env python
+
+import os
+import shutil
+
+import angr
+import cle
+import pyvex
+import claripy
+import pygdbmi
+import pygments
+import archinfo
+import pwn
+
+# only import the most important libraries here to avoid slowdown
+
+
+if __name__ == "__main__":
+    mypy_path = os.path.join(os.path.dirname(__file__), "..", ".mypy-path")
+    try:
+        shutil.rmtree(mypy_path)
+    except OSError:
+        pass
+    os.mkdir(mypy_path)
+    for m in [angr, cle, pyvex, claripy, pygdbmi, archinfo, pygments, pwn]:
+        path = os.path.dirname(m.__file__)
+        os.symlink(path, os.path.join(mypy_path, m.__name__))

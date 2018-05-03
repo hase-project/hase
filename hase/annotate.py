@@ -2,6 +2,8 @@ from __future__ import absolute_import, division, print_function
 
 import subprocess
 from collections import defaultdict
+from typing import Dict, Tuple
+from cle import ELF
 
 from .exceptions import HaseException
 
@@ -17,9 +19,11 @@ class Addr2line():
             return dso.address_to_offset(addr)
 
     def add_addr(self, dso, absolute_addr):
+        # type: (ELF, int) -> None
         self.dsos[dso].add(absolute_addr)
 
     def compute(self):
+        # type: () -> Dict[int, Tuple[str, int]]
         addr_map = {}
         for dso, addresses in self.dsos.items():
             relative_addrs = []

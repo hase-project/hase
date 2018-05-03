@@ -2,14 +2,16 @@ from __future__ import absolute_import, division, print_function
 
 from IPython.core.magic import (magics_class, line_magic, Magics)
 from IPython import get_ipython
+from PyQt5 import QtWidgets
+from . import MainWindow
 import sys
 import os
 import imp
 from types import ModuleType
 from shlex import split as shsplit
 
-from . import gdb, annotate
-from .replay import replay_trace
+from .. import gdb, annotate
+from ..replay import replay_trace
 
 
 @magics_class
@@ -25,10 +27,12 @@ class HaseMagics(Magics):
 
     @property
     def app(self):
+        # type: () -> QtWidgets.QApplication
         return self.user_ns["app"]
 
     @property
     def window(self):
+        # type: () -> MainWindow
         return self.user_ns["window"]
 
     @line_magic("reload_hase")
@@ -41,13 +45,13 @@ class HaseMagics(Magics):
                     imp.reload(m)
                 except Exception:
                     pass
-        self.shell.extension_manager.reload_extension("hase.ipython_extension")
+        self.shell.extension_manager.reload_extension(__name__)
 
     @line_magic("load")
     def load(self, query):
         args = shsplit(query)
-        if len(args) < 3:
-            print("USAGE: load <executable> <coredump> <trace>")
+        if len(args) < 1:
+            print("USAGE: load <report_archive>")
             return
         executable, coredump, trace = args
         states = replay_trace(executable, coredump, trace)

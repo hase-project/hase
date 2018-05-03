@@ -7,15 +7,12 @@ import pygments
 import pygments.lexers
 import pygments.formatters
 from qtconsole.inprocess import QtInProcessKernelManager
+from typing import Tuple, Any
 
-from .path import APP_ROOT
+from ..path import APP_ROOT
 
-try:
-    from typing import Tuple, Any
-except ImportError:
-    pass
 
-form_class, base_class = loadUiType(APP_ROOT.join('mainwindow.ui'))  # type: Tuple[Any, Any]
+form_class, base_class = loadUiType(str(APP_ROOT.join('frontend', 'mainwindow.ui')))  # type: Tuple[Any, Any]
 
 code_template = """
 <html>
@@ -45,9 +42,10 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.jupiter_widget.reset()
 
     def set_location(self, source_file, line):
-        lexer = pygments.lexers.CppLexer()
-        formatter = pygments.formatters.HtmlFormatter(
-            linenos="inline", linespans="line", hl_lines=[line])
+        # type: (str, int) -> None
+        lexer = pygments.lexers.get_lexer_for_filename(source_file)
+        html_formatter = pygments.formatters.get_formatter_by_name("html")
+        formatter = html_formatter(linenos="inline", linespans="line", hl_lines=[line])
         css = formatter.get_style_defs('.highlight')
         with open(source_file) as f:
             tokens = lexer.get_tokens(f.read())
@@ -56,6 +54,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.code_view.scrollToAnchor("line-%d" % max(0, line - 10))
 
     def setup_ipython(self, app, window):
+        # type: (QtWidgets.QApplication, MainWindow) -> None
         """
         Might break with future versions of IPython, but nobody got time for
         this!
@@ -67,7 +66,8 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         user_ns["window"] = self
         config = shell.config
         config.TerminalIPythonApp.display_banner = ""
-        shell.extension_manager.load_extension("hase.ipython_extension")
+        from . import ipython_extension
+        shell.extension_manager.load_extension(ipython_extension.__name__)
 
     def shutdown_kernel(self):
         print('Shutting down kernel...')
@@ -83,6 +83,5 @@ def start_window():
     window.setup_ipython(app, window)
     return app.exec_()
 
-
-if __name__ == "__main__":
+def main():
     sys.exit(start_window())

@@ -20,15 +20,13 @@ in stdenv.mkDerivation {
     radare2
     openssl
     python2Packages.pyqt5
-    python2Packages.virtualenv
-    python2
     qt5.qttools
     gdb
     # avoid polluting PYTHONPATH
-    (runCommand "mypy" {} ''
-      mkdir -p $out/bin
-      ln -s "${mypy}/bin/mypy" $out/bin/mypy
-    '')
+    (buildEnv {
+      name = "python-tools";
+      paths = [ mypy python2Packages.virtualenv ]; 
+    })
   ];
   #] ++ pypyVim;
   PYTHON="python2";

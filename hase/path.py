@@ -5,10 +5,7 @@ import tempfile
 import errno
 import shutil
 
-try:
-    from typing import Union, AnyStr
-except ImportError:
-    pass
+from typing import Union, AnyStr
 
 
 def which(program):

@@ -8,11 +8,11 @@ setup(
     install_requires=[
         'angr',
         'pwntools',
-        'r2pipe',
         'monkeyhex',
         'qtconsole',
         'pry.py',
         'pygdbmi',
+        'typing'
         # how to add PyQt5 here?
         # 'pyqt5'
     ],

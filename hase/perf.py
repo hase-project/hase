@@ -4,11 +4,7 @@ import csv
 import subprocess
 import sys
 import os
-
-try:
-    from typing import List, Tuple, Any, Union
-except ImportError:
-    pass
+from typing import List, Tuple, Any, Union
 
 TRACE_END = -1
 
@@ -28,6 +24,15 @@ class PTSnapshot():
         # type: () -> PerfData
         self.process.wait()
         return PerfData(self.perf_file)
+
+    def __enter__(self):
+        # type: () -> PTSnapshot
+        return self
+
+    def __exit__(self, type, value, traceback):
+        # type: (Any, Any, Any) -> bool
+        self.stop()
+        return False
 
     def stop(self):
         # type: () -> None
@@ -64,7 +69,7 @@ class IncreasePerfBuffer():
         # type: (Any, Any, Any) -> bool
         if self.old_size is not None:
             self.update(self.old_size)
-        return True
+        return False
 
 
 def parse_row(row):

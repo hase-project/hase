@@ -102,5 +102,6 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+/.mypy-path/
 
 /.direnv

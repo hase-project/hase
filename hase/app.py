@@ -1,13 +1,9 @@
 from __future__ import absolute_import, division, print_function
 
 import argparse
+from typing import List
 
 from .record import record_command, DEFAULT_LOG_DIR
-
-try:
-    from typing import List
-except ImportError:
-    pass
 
 
 def parse_arguments(argv):
@@ -33,7 +29,7 @@ def parse_arguments(argv):
         help="where to store crash reports")
 
     replay = subparsers.add_parser('replay')
-    replay.add_argument("report-archive")
+    replay.add_argument("report")
 
     def lazy_import_replay_command(args):
         from .replay import replay_command

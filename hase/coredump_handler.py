@@ -1,20 +1,17 @@
 from __future__ import absolute_import, division, print_function
 
+import os
 import sys
 import shutil
 import errno
 import json
 import datetime
 from collections import OrderedDict, defaultdict
+from typing import List, Any, IO, DefaultDict, Dict
 
 from . import timestamp
 
 RECV_MESSAGE = "GOT COREDUMP"
-
-try:
-    from typing import List, Any, IO, DefaultDict, Dict
-except ImportError:
-    pass
 
 EXTRA_CORE_DUMP_PARAMETER = OrderedDict([
     ("executable", "%E"),  # path of executable
@@ -38,13 +35,18 @@ def process_coredump(os_args, core_file, manifest_file):
 
     for name, arg in zip(EXTRA_CORE_DUMP_PARAMETER.keys(), os_args):
         if name == "executable":
-            # strip trailing slash
-            coredump[name] = arg[1:]
+            # strip trailing slash and unescape
+            coredump[name] = arg[1:].replace("!", "/")
         elif name == "time":
             coredump[name] = timestamp.from_unix_time(int(arg))
         else:
             coredump[name] = int(arg)
     json.dump(metadata, manifest_file, indent=4, sort_keys=True)
+
+
+def creat(path):
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    return os.fdopen(os.open(path, flags), "w")
 
 
 def main(args):
@@ -62,17 +64,16 @@ def main(args):
 
     write_response = True
     try:
-        with open(core_dump_path, "wbx") as core_file, \
-                open(manifest_path, "wbx") as manifest_file:
+        with creat(manifest_path) as manifest_file, \
+                creat(core_dump_path) as core_file:
             process_coredump(args[4:], core_file, manifest_file)
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise
         # a second exception was thrown while we are still busy collecting the
         # current one, ignore this one
-        print(
-            "%s already exists, this means another coredump was generated while we are processing the first one!",
-            file=sys.stderr)
+        msg = "%s already exists, this means another coredump was generated while we are processing the first one!"
+        print(msg % core_dump_path, file=sys.stderr)
         write_response = False
     finally:
         if write_response:

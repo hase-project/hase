@@ -9,13 +9,9 @@ import resource
 import termios
 import struct
 from pygdbmi.gdbcontroller import GdbController
+from typing import Tuple, IO, Any
 
-from . import tracer
-
-try:
-    from typing import Tuple, IO, Any
-except ImportError:
-    pass
+from .symbex.state import State
 
 logging.basicConfig()
 l = logging.getLogger(__name__)
@@ -43,7 +39,7 @@ def compute_checksum(data):
 
 class GdbServer():
     def __init__(self, active_state, binary):
-        # type: (tracer.State, str) -> None
+        # type: (State, str) -> None
         master, ptsname = create_pty()
         self.master = master
         self.COMMANDS = {
@@ -85,12 +81,12 @@ class GdbServer():
 
     @property
     def active_state(self):
-        # type: () -> tracer.State
+        # type: () -> State
         return self.state
 
     @active_state.setter
     def active_state(self, state):
-        # type: (tracer.State) -> None
+        # type: (State) -> None
         self.state = state
 
     def process_data(self, buf):

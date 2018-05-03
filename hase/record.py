@@ -3,23 +3,21 @@ from __future__ import absolute_import, division, print_function
 import shutil
 import json
 from tempfile import NamedTemporaryFile
-from Queue import Queue
 from threading import Thread
 import subprocess
 import logging
 from datetime import datetime
+from Queue import Queue
 import os
 import argparse  # NOQA
 
 from . import coredumps, perf
 from .path import Path, Tempdir
+from .mapping import Mapping
 
 from . import pwn_wrapper
 
-try:
-    from typing import Optional, IO, Any, Tuple
-except ImportError:
-    pass
+from typing import Optional, IO, Any, Tuple
 
 l = logging.getLogger(__name__)
 
@@ -30,19 +28,17 @@ PROT_EXEC = 4
 
 def record(record_paths):
     # type: (RecordPaths) -> Tuple[coredumps.Coredump, perf.PerfData]
-    snapshot = perf.PTSnapshot(perf_file=str(record_paths.perf))
 
-    try:
+    with perf.PTSnapshot(perf_file=str(record_paths.perf)) as snapshot:
         handler = coredumps.Handler(snapshot.perf_pid,
                                     str(record_paths.coredump),
                                     str(record_paths.fifo),
-                                    str(record_paths.manifest))
+                                    str(record_paths.manifest),
+                                    log_path=str(record_paths.log_path.join("coredump.log")))
         with handler as coredump, \
                 perf.IncreasePerfBuffer(100 * 1024 * 1024):
             c = coredump  # type: coredumps.Coredump
             return (c, snapshot.get())
-    finally:
-        snapshot.stop()
 
 
 class Job():
@@ -59,7 +55,6 @@ class Job():
         self.record_paths = record_paths
         self.exit = exit
 
-    @property
     def core_file(self):
         # type: () -> str
         return self.coredump.get()
@@ -68,6 +63,7 @@ class Job():
         # type: () -> None
         try:
             if self.coredump:
+                l.info("remove coredump %s", self.coredump.fifo_path)
                 self.coredump.remove()
         except OSError:
             pass
@@ -83,6 +79,7 @@ class RecordPaths():
     def __init__(self, path, id, log_path):
         # type: (Path, int, Path) -> None
         self.path = path
+        self.log_path = log_path
         self.id = id
 
     @property
@@ -112,12 +109,12 @@ class RecordPaths():
 
     def report_archive(self, executable, timestamp):
         # type: (str, str) -> Path
-        return self.path.join("%s-%s.tar.bz2" % (executable, timestamp))
+        return self.log_path.join("%s-%s.tar.gz" % (os.path.basename(executable), timestamp))
 
 
 def store_report(job):
     # type: (Job) -> None
-    core_file = job.core_file
+    core_file = job.core_file()
     record_paths = job.record_paths
     state_dir = record_paths.state_dir
     manifest_path = str(record_paths.manifest)
@@ -140,8 +137,7 @@ def store_report(job):
             path = obj.path
             if (obj.flags & PROT_EXEC) and path.startswith("/") and os.path.exists(path):
                 paths.add(path)
-            serialized = dict(start="%x" % obj.start, stop="%x" % obj.stop, path="%s" % obj.path, flags="%d" % obj.flags)
-            mappings.append(serialized)
+            mappings.append(Mapping(start=obj.start, stop=obj.stop, path=obj.path, flags=obj.flags))
 
         for path in paths:
             # FIXME check if elf, only create parent directory once
@@ -167,6 +163,7 @@ def store_report(job):
 
         archive_path = record_paths.report_archive(coredump["executable"], coredump["time"])
 
+        l.info("creating archive %s", archive_path)
         subprocess.check_call([
             "tar",
             "--null",
@@ -174,13 +171,16 @@ def store_report(job):
             str(record_paths.state_dir),
             "-T",
             str(template.name),
-            "-cjf",
+            "-czf",
             str(archive_path),
         ])
+        l.info("built archive %s", archive_path)
+        os.unlink(manifest_path)
 
 
 def report_worker(queue):
     # type: (Queue) -> None
+    l.info("start worker")
     while True:
         job = queue.get()  # type: Job
         if job.exit:
@@ -188,9 +188,11 @@ def report_worker(queue):
 
         try:
             store_report(job)
+            l.info("processed job")
         except OSError:
             l.exception("Error while creating report")
         finally:
+            l.info("remove job")
             job.remove()
 
 
@@ -207,12 +209,7 @@ def record_loop(record_path, log_path):
             i += 1
             # TODO ratelimit
             record_paths = RecordPaths(record_path, i, log_path)
-            ret = record(record_paths)
-            if ret is None:
-                # TODO figure out why python returns None on KeyboardInterrupt
-                # pwntools again?
-                return
-            (coredump, perf_data) = ret
+            (coredump, perf_data) = record(record_paths)
             job_queue.put(Job(coredump, perf_data, record_paths))
     except KeyboardInterrupt:
         pass
@@ -224,8 +221,11 @@ def record_loop(record_path, log_path):
 
 def record_command(args):
     # type: (argparse.Namespace) -> None
+
     log_path = Path(args.log_dir)
     log_path.mkdir_p()
+
+    logging.basicConfig(filename=str(log_path.join("hase.log")), level=logging.INFO)
 
     with Tempdir() as tempdir:
         record_loop(tempdir, log_path)

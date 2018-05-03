@@ -2,47 +2,45 @@ from __future__ import absolute_import, division, print_function
 
 import os
 import argparse
+import subprocess
+import json
+from typing import List
 
-from .pwn_wrapper import Coredump
-from .tracer import Tracer, State
-
-try:
-    from typing import List
-except ImportError:
-    pass
-
-
-def dso_offsets_from_coredump(coredump):
-    # type: (Coredump) -> dict
-    """
-    Extract shared object memory mapping from coredump
-    """
-    main = coredump.mappings[0]
-    lib_opts = {}  # type: dict
-    force_load_libs = []
-    for mapping in coredump.mappings[1:]:
-        if not mapping.name.startswith("/") or mapping.name in lib_opts:
-            continue
-        lib_opts[mapping.name] = dict(custom_base_addr=mapping.start)
-        force_load_libs.append(mapping.name)
-
-    # TODO: extract libraries from core dump instead ?
-    return dict(
-        main_opts={"custom_base_addr": main.start},
-        force_load_libs=force_load_libs,
-        lib_opts=lib_opts,
-        load_options={"except_missing_libs": True})
+from .symbex.tracer import Tracer, State
+from .mapping import Mapping
+from .path import Tempdir
 
 
-def replay_trace(executable, coredump, trace):
-    # type: (str, str, str) -> List[State]
-    coredump = Coredump(os.path.realpath(coredump))
+def load_manifest(path):
+    with open(path) as f:
+        data = json.load(f)
 
-    t = Tracer(executable, trace, coredump,
-               dso_offsets_from_coredump(coredump))
+
+def replay_trace(report):
+    # type: (str) -> List[State]
+
+    with Tempdir() as tempdir:
+        subprocess.check_call(["tar", "-xcvf", report, "-C", str(tempdir)])
+
+        manifest = load_manifest(str(tempdir.join("manifest.json")))
+
+        coredump = manifest["coredump"]
+        executable = str(tempdir.join(coredump["executable"]))
+        trace = manifest["perf_data"]
+
+        mappings = []
+        for m in manifest["mappings"]:
+            mappings.append(
+                Mapping(
+                    path=m["path"],
+                    start=m["start"],
+                    stop=m["stop"],
+                    flags=m["flags"]))
+
+        t = Tracer(executable, trace, mappings)
     return t.run()
 
 
 def replay_command(args):
     # type: (argparse.Namespace) -> List[State]
-    return replay_trace(args.executable, args.coredump, args.trace)
+    return replay_trace(args.report)
