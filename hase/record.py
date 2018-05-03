@@ -37,8 +37,11 @@ def record(record_paths):
                                     log_path=str(record_paths.log_path.join("coredump.log")))
         with handler as coredump, \
                 perf.IncreasePerfBuffer(100 * 1024 * 1024):
-            c = coredump  # type: coredumps.Coredump
-            return (c, snapshot.get())
+                    if record_paths.pid_file is not None:
+                        with open(record_paths.pid_file, "w") as f:
+                            f.write(str(os.getpid()))
+                    c = coredump  # type: coredumps.Coredump
+                    return (c, snapshot.get())
 
 
 class Job():
@@ -76,10 +79,11 @@ class Job():
 
 
 class RecordPaths():
-    def __init__(self, path, id, log_path):
-        # type: (Path, int, Path) -> None
+    def __init__(self, path, id, log_path, pid_file):
+        # type: (Path, int, Path, str) -> None
         self.path = path
         self.log_path = log_path
+        self.pid_file = pid_file
         self.id = id
 
     @property
@@ -196,8 +200,8 @@ def report_worker(queue):
             job.remove()
 
 
-def record_loop(record_path, log_path):
-    # type: (Path, Path) -> None
+def record_loop(record_path, log_path, pid_file=None, limit=0):
+    # type: (Path, Path, str, int) -> None
 
     job_queue = Queue()  # type: Queue
     post_process_thread = Thread(target=report_worker, args=(job_queue, ))
@@ -205,10 +209,10 @@ def record_loop(record_path, log_path):
 
     try:
         i = 0
-        while True:
+        while limit == 0 or limit > i:
             i += 1
             # TODO ratelimit
-            record_paths = RecordPaths(record_path, i, log_path)
+            record_paths = RecordPaths(record_path, i, log_path, pid_file)
             (coredump, perf_data) = record(record_paths)
             job_queue.put(Job(coredump, perf_data, record_paths))
     except KeyboardInterrupt:
@@ -228,4 +232,4 @@ def record_command(args):
     logging.basicConfig(filename=str(log_path.join("hase.log")), level=logging.INFO)
 
     with Tempdir() as tempdir:
-        record_loop(tempdir, log_path)
+        record_loop(tempdir, log_path, pid_file=args.pid_file, limit=args.limit)

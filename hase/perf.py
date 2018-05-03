@@ -18,7 +18,7 @@ class PTSnapshot():
             "-m", "512,100000", "-a", "--snapshot", "-e", "intel_pt//u"
         ]
         self.perf_file = perf_file
-        self.process = subprocess.Popen(cmd)
+        self.process = subprocess.Popen(cmd, stdin=subprocess.PIPE)
 
     def get(self):
         # type: () -> PerfData

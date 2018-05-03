@@ -1,5 +1,5 @@
 from __future__ import absolute_import, division, print_function
-from .app import parse_arguments
+from .cli import parse_arguments
 import sys
 
 

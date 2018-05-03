@@ -28,6 +28,17 @@ def parse_arguments(argv):
         type=str,
         help="where to store crash reports")
 
+    record.add_argument(
+        "--pid-file",
+        default=str(DEFAULT_LOG_DIR.join("hase-record.pid")),
+        help="pid file to be created when recording is started")
+
+    record.add_argument(
+        "--limit",
+        default=0,
+        type=int,
+        help="Maximum crashes to record (0 for unlimited crashes)")
+
     replay = subparsers.add_parser('replay')
     replay.add_argument("report")
 
