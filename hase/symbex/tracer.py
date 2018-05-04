@@ -73,7 +73,7 @@ class Tracer():
         main = self.elf.symbols.get('main')
 
         for (idx, event) in enumerate(self.trace):
-            if event[1] == start or event[1] == main:
+            if event.ip == start or event.ip == main:
                 self.trace = trace[idx:]
 
         remove_simplications = {
@@ -116,14 +116,14 @@ class Tracer():
                 state, num_inst=1).successors
             old_state = state
 
-            if branch.ip == TRACE_END:
+            if branch.trace_end():
                 for choice in choices:
-                    if choice.addr == branch[0]:
+                    if choice.addr == branch.addr:
                         return choice
 
             if len(choices) <= 2:
                 for choice in choices:
-                    if old_state.addr == branch.addr and choice.addr == branch[1]:
+                    if old_state.addr == branch.addr and choice.addr == branch.ip:
                         l.debug("jump 0%x -> 0%x", old_state.addr, choice.addr)
                         return choice
                     if len(choices) == 1 or self.jump_was_not_taken(

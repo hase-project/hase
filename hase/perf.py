@@ -1,11 +1,8 @@
 from __future__ import absolute_import, division, print_function
 
-import csv
 import subprocess
-import sys
 import os
-from typing import List, Tuple, Any, Union, Callable, NamedTuple, Optional
-from cle import Loader
+from typing import List, Tuple, Any, Union, Callable
 
 from .path import APP_ROOT
 
@@ -97,7 +94,16 @@ def parse_row(row):
     return (int(row[0], 16), int(row[1], 16))
 
 
-class Branch(NamedTuple("Branch", [("ip", int), ("addr", int)])):
+class Branch():
+    def __init__(self, ip, addr):
+        # type: (int, int) -> None
+        self.ip = ip
+        self.addr = addr
+
+    def trace_end(self):
+        # () -> bool
+        return self.ip == TRACE_END
+
     def __repr__(self):
         # () -> str
         if self.addr == 0:
@@ -138,6 +144,7 @@ def read_trace(perf_data, thread_id, command, executable_root=None):
 
     # also append last instruction, if it was a syscall
     if branch.ip == 0:
+        branch.ip = TRACE_END
         branches.append(branch)
 
     return branches

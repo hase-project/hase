@@ -13,6 +13,8 @@ from multiprocessing import Process
 from hase import main
 from hase.path import Tempdir, which
 
+from .helper import TEST_BIN
+
 
 def stop_hase():
     global process
@@ -41,8 +43,8 @@ def test_record_command():
 
         nose.tools.assert_true(process.is_alive())
 
-        # coredump
-        subprocess.call([str(which("sh")), "-c", "kill -ABRT $$"])
+        # generate coredump
+        subprocess.call([str(TEST_BIN.join("loopy/loopy"))])
 
         process.join()
         archives = glob(str(tempdir.join("*.tar.gz")))
