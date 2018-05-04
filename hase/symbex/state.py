@@ -3,7 +3,7 @@ from angr import SimState
 from cle import ELF
 from typing import Dict, Tuple
 
-from ..perf import TRACE_END
+from ..perf import TRACE_END, Branch
 from ..annotate import Addr2line
 
 
@@ -26,6 +26,7 @@ class RegisterSet():
         value = self.state.simstate.solver.eval(reg)
         return Register(name, value, reg.size())
 
+
 class Memory():
     def __init__(self, state):
         # type: (State) -> None
@@ -43,18 +44,18 @@ class Memory():
 
 class State():
     def __init__(self, branch, simstate):
-        # type: (Tuple[int, int], SimState) -> None
+        # type: (Branch, SimState) -> None
         self.branch = branch
         self.simstate = simstate
 
     def __repr__(self):
         # () -> str
-        if self.branch[0] == 0:
-            return "State(Start -> 0x%x)" % (self.branch[1])
-        elif self.branch[1] == TRACE_END:
-            return "State(0x%x -> End)" % (self.branch[0])
+        if self.branch.addr == 0:
+            return "State(Start -> 0x%x)" % (self.branch.ip)
+        elif self.branch.ip == TRACE_END:
+            return "State(0x%x -> End)" % (self.branch.addr)
         else:
-            return "State(0x%x -> 0x%x)" % (self.branch[0], self.branch[1])
+            return "State(0x%x -> 0x%x)" % (self.branch.addr, self.branch.ip)
 
     @property
     def registers(self):

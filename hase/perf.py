@@ -4,7 +4,10 @@ import csv
 import subprocess
 import sys
 import os
-from typing import List, Tuple, Any, Union
+from typing import List, Tuple, Any, Union, Callable, NamedTuple, Optional
+from cle import Loader
+
+from .path import APP_ROOT
 
 TRACE_END = -1
 
@@ -14,11 +17,28 @@ class PTSnapshot():
         # type: (str) -> None
 
         cmd = [
-            "perf", "record", "--no-buildid-cache", "--output", perf_file,
-            "-m", "512,100000", "-a", "--snapshot", "-e", "intel_pt//u"
+            "perf",
+            "record",
+            "--no-buildid-cache",
+            "--output",
+            perf_file,
+            "-m",
+            "512,10000",
+            "-a",
+            "--snapshot",
+            "-e",
+            "intel_pt//u",
+        ]
+
+        dummy_process = [
+            "sh", "-c", "echo ready; while true; do sleep 999999; done"
         ]
         self.perf_file = perf_file
-        self.process = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+        self.process = subprocess.Popen(
+            cmd + dummy_process, stdout=subprocess.PIPE)
+        line = self.process.stdout.readline().strip()
+        assert line == "ready", "expected perf to return 'ready', got '%s'" % (
+            line)
 
     def get(self):
         # type: () -> PerfData
@@ -77,27 +97,49 @@ def parse_row(row):
     return (int(row[0], 16), int(row[1], 16))
 
 
-def read_trace(sample_path, loader):
-    with open(sample_path) as f:
-        reader = csv.reader(f, delimiter='\t')
-        branches = []
+class Branch(NamedTuple("Branch", [("ip", int), ("addr", int)])):
+    def __repr__(self):
+        # () -> str
+        if self.addr == 0:
+            return "Branch(Start -> 0x%x)" % (self.ip)
+        elif self.ip == TRACE_END:
+            return "Branch(0x%x -> End)" % (self.addr)
+        else:
+            return "Branch(0x%x -> 0x%x)" % (self.addr, self.ip)
 
-        # record the entrypoint
-        try:
-            line = next(reader)
-            branches.append(parse_row(line))
-        except StopIteration:
-            return
+# current format:
+#    .perf-wrapped 0 =>     7f478672bb57\n
 
-        for row in reader:
-            (address, ip) = parse_row(row)
-            # skip syscalls until we support it in tracer
-            if address == 0 or ip == 0:
-                continue
-            branches.append((address, ip))
+
+def read_trace(perf_data, thread_id, command, executable_root=None):
+    # type: (str, int, str, str) -> List[Branch]
+
+    args = [
+        "perf", "script",
+        "--input=%s" % perf_data, "--tid",
+        str(thread_id), "--itrace=b", "--fields", "comm,ip,addr", "-s",
+        str(APP_ROOT.join("perf_script.py")), command
+    ]
+
+    if executable_root is not None:
+        args.append("--symfs")
+        args.append(executable_root)
+    cmd = subprocess.Popen(args, stdout=subprocess.PIPE)
+    branches = []
+    for line in cmd.stdout:
+        columns = line.strip().split()
+
+        branch = Branch(int(columns[0]), int(columns[1]))
+        # skip syscalls until we support it in tracer
+
+        if branch.addr == 0 or branch.ip == 0:
+            continue
+        branches.append(branch)
+
     # also append last instruction, if it was a syscall
-    if ip == 0:
-        branches.append((address, TRACE_END))
+    if branch.ip == 0:
+        branches.append(branch)
+
     return branches
 
 
@@ -109,23 +151,3 @@ class PerfData():
     def remove(self):
         # type: () -> None
         os.unlink(self.path)
-
-
-def dump_trace(perf_data, tsv_path):
-    # type: (str, str) -> None
-    args = [
-        "perf", "script",
-        "--input=%s" % perf_data, "--itrace=b", "--fields", "ip,addr"
-    ]
-    cmd = subprocess.Popen(args, stdout=subprocess.PIPE)
-    with open(tsv_path, "w") as tsv_file:
-        tsv_writer = csv.writer(tsv_file, delimiter='\t')
-        for line in cmd.stdout:
-            address = line.split()[0]
-            ip = line.split()[2]
-            tsv_writer.writerow((address, ip))
-
-
-if __name__ == '__main__':
-    sample_file = sys.argv[1] if len(sys.argv) > 1 else "perf.data"
-    dump_trace(sample_file, "trace.tsv")

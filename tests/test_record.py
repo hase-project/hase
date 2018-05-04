@@ -4,6 +4,8 @@ import os
 import subprocess
 import nose
 import tempfile
+import pry
+from glob import glob
 from nose.plugins.skip import SkipTest
 from time import sleep
 from multiprocessing import Process
@@ -18,7 +20,11 @@ def stop_hase():
         process.terminate()
 
 
+@nose.tools.with_setup(teardown=stop_hase)
 def test_record_command():
+    """
+    Full integration test
+    """
     if os.geteuid() != 0:
         raise SkipTest("Requires root")
     with Tempdir() as tempdir:
@@ -39,5 +45,8 @@ def test_record_command():
         subprocess.call([str(which("sh")), "-c", "kill -ABRT $$"])
 
         process.join()
+        archives = glob(str(tempdir.join("*.tar.gz")))
+        nose.tools.assert_equal(len(archives), 1)
 
-test_record_command.teardown = stop_hase
+        with pry:
+            state = main(["hase", "replay", archives[0]])

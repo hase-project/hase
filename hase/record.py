@@ -36,7 +36,7 @@ def record(record_paths):
                                     str(record_paths.manifest),
                                     log_path=str(record_paths.log_path.join("coredump.log")))
         with handler as coredump, \
-                perf.IncreasePerfBuffer(100 * 1024 * 1024):
+                perf.IncreasePerfBuffer(100 * 1024):
                     if record_paths.pid_file is not None:
                         with open(record_paths.pid_file, "w") as f:
                             f.write(str(os.getpid()))
@@ -141,7 +141,9 @@ def store_report(job):
             path = obj.path
             if (obj.flags & PROT_EXEC) and path.startswith("/") and os.path.exists(path):
                 paths.add(path)
-            mappings.append(Mapping(start=obj.start, stop=obj.stop, path=obj.path, flags=obj.flags))
+                path = os.path.join("binaries", path[1:])
+
+            mappings.append(vars(Mapping(start=obj.start, stop=obj.stop, path=path, flags=obj.flags)))
 
         for path in paths:
             # FIXME check if elf, only create parent directory once
@@ -154,7 +156,8 @@ def store_report(job):
             append(str(archive_path))
 
         coredump = manifest["coredump"]
-        coredump["path"] = str(state_dir.relpath(core_file))
+        coredump["executable"] = os.path.join("binaries", coredump["executable"])
+        coredump["file"] = str(state_dir.relpath(core_file))
         append(core_file)
 
         manifest["perf_data"] = str(state_dir.relpath(job.perf_data.path))

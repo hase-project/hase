@@ -27,6 +27,9 @@ in stdenv.mkDerivation {
       name = "python-tools";
       paths = [ mypy python2Packages.virtualenv ]; 
     })
+    (linuxPackages.perf.overrideAttrs(old: {
+      patches = [ ./perf-script-sample-addr.patch ];
+    }))
   ];
   #] ++ pypyVim;
   PYTHON="python2";

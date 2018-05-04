@@ -4,7 +4,7 @@ import nose
 
 from hase import main
 
-from .helper import TEST_ROOT
+from .helper import TEST_BIN
 
 
 def argc(simstate):
@@ -17,7 +17,7 @@ def argc(simstate):
 
 
 def test_control_loopy():
-    control_flow = TEST_ROOT.bin.join("loopy")
+    control_flow = TEST_BIN.join("loopy")
     exe = str(control_flow.join("loopy"))
     trace = str(control_flow.join("loopy-20180404T162955.trace"))
     core = str(control_flow.join("loopy-20180404T162955.coredump"))
@@ -30,7 +30,7 @@ def test_control_loopy():
 
 
 def test_control_flow():
-    control_flow = TEST_ROOT.bin.join("control_flow")
+    control_flow = TEST_BIN.join("control_flow")
     exe = str(control_flow.join("control_flow"))
     core = str(control_flow.join("control_flow-20180404T163033.coredump"))
     trace = str(control_flow.join("control_flow-20180404T163033.trace"))

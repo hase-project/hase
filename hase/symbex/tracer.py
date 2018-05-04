@@ -2,13 +2,14 @@ from __future__ import absolute_import, division, print_function
 
 import angr
 import logging
+import os
 from angr import sim_options as so
 from angr.state_plugins.sim_action import SimActionExit
 from angr import SimState
-from typing import List, Any, Dict, Tuple
+from typing import List, Any, Dict, Tuple, Optional
 
-from ..perf import TRACE_END, read_trace
-from ..pwn_wrapper import ELF
+from ..perf import TRACE_END, read_trace, Branch
+from ..pwn_wrapper import ELF, Coredump
 from ..mapping import Mapping
 
 from .state import State
@@ -18,8 +19,9 @@ try:
 except ImportError:
     r2pipe = None
 
-
 l = logging.getLogger(__name__)
+
+ELF_MAGIC = b"\x7fELF"
 
 
 def build_load_options(mappings):
@@ -33,6 +35,10 @@ def build_load_options(mappings):
     for m in mappings[1:]:
         if not m.path.startswith("/") or m.path in lib_opts:
             continue
+        with open(m.path, "rb") as f:
+            magic = f.read(len(ELF_MAGIC))
+            if magic != ELF_MAGIC:
+                continue
         lib_opts[m.path] = dict(custom_base_addr=m.start)
         force_load_libs.append(m.path)
 
@@ -45,13 +51,18 @@ def build_load_options(mappings):
 
 
 class Tracer():
-    def __init__(self, executable, trace_path, mappings):
-        # type: (str, str, List[Mapping]) -> None
+    def __init__(self, executable, thread_id, trace_path, coredump, mappings, executable_root=None):
+        # type: (str, int, str, str, List[Mapping], Optional[str]) -> None
         self.executable = executable
         self.mappings = mappings
         options = build_load_options(mappings)
         self.project = angr.Project(executable, **options)
-        trace = read_trace(trace_path, self.project.loader)
+
+        self.coredump = Coredump(coredump)
+
+        command = os.path.basename(self.coredump.string(self.coredump.argv[0]))
+
+        trace = read_trace(trace_path, thread_id, command, executable_root=executable_root)
         self.trace = trace
 
         assert self.project.loader.main_object.os.startswith('UNIX')
@@ -70,7 +81,7 @@ class Tracer():
             so.TRACK_CONSTRAINT_ACTIONS
         } | so.simplification
         self.start_state = self.project.factory.blank_state(
-            addr=self.trace[0][1],
+            addr=self.trace[0].ip,
             add_options=set([so.TRACK_JMP_ACTIONS]),
             remove_options=remove_simplications)
 
@@ -79,12 +90,12 @@ class Tracer():
             save_unsat=True,
             hierarchy=False,
             save_unconstrained=True)
-     
+
         # only for interactive debugging
         if r2pipe is not None:
             self.r2 = r2pipe.open(executable)
         # For debugging
-        #self.project.pt = self
+        # self.project.pt = self
 
     def print_addr(self, addr):
         print(self.r2.cmd("pd -2 @ %s; pd 2 @ %s" % (addr, addr)))
@@ -98,21 +109,21 @@ class Tracer():
         return (new_state.addr - size) == old_state.addr
 
     def find_next_branch(self, state, branch):
-        # type: (SimState, Tuple[int,int]) -> SimState
+        # type: (SimState, Branch) -> SimState
         while True:
             l.debug("0x%x", state.addr)
             choices = self.project.factory.successors(
                 state, num_inst=1).successors
             old_state = state
 
-            if branch[1] == TRACE_END:
+            if branch.ip == TRACE_END:
                 for choice in choices:
                     if choice.addr == branch[0]:
                         return choice
 
             if len(choices) <= 2:
                 for choice in choices:
-                    if old_state.addr == branch[0] and choice.addr == branch[1]:
+                    if old_state.addr == branch.addr and choice.addr == branch[1]:
                         l.debug("jump 0%x -> 0%x", old_state.addr, choice.addr)
                         return choice
                     if len(choices) == 1 or self.jump_was_not_taken(
@@ -134,9 +145,9 @@ class Tracer():
         states = []
         states.append(State(self.trace[0], state))
         for event in self.trace[1:]:
-            l.debug("look for jump: 0x%x -> 0x%x" % (event[0], event[1]))
-            assert self.valid_address(event[0]) and self.valid_address(
-                event[1])
+            l.debug("look for jump: 0x%x -> 0x%x" % (event.addr, event.ip))
+            assert self.valid_address(event.addr) and self.valid_address(
+                event.ip)
             state = self.find_next_branch(state, event)
             states.append(State(event, state))
         return states

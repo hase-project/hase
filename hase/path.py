@@ -39,6 +39,10 @@ class Path(object):
         # type: (*AnyStr) -> Path
         return Path(os.path.join(self._path, *(map(str, args))))
 
+    def exists(self):
+        # type: () -> bool
+        return os.path.exists(self._path)
+
     def relpath(self, path):
         # type: (AnyStr) -> Path
         return Path(os.path.relpath(path, self._path))
