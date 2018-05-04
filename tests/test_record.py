@@ -3,15 +3,13 @@ from __future__ import absolute_import, division, print_function
 import os
 import subprocess
 import nose
-import tempfile
-import pry
 from glob import glob
 from nose.plugins.skip import SkipTest
 from time import sleep
 from multiprocessing import Process
 
 from hase import main
-from hase.path import Tempdir, which
+from hase.path import Tempdir
 
 from .helper import TEST_BIN
 
@@ -50,5 +48,4 @@ def test_record_command():
         archives = glob(str(tempdir.join("*.tar.gz")))
         nose.tools.assert_equal(len(archives), 1)
 
-        with pry:
-            state = main(["hase", "replay", archives[0]])
+        state = main(["hase", "replay", archives[0]])
