@@ -2,14 +2,23 @@
 
 # INSTALL
 
+1. Setup virtualenv
+
 ```console
-$ pip install -r requirements_freeze.txt
+$ virtualenv venv
+$ . venv/bin/activate
+```
+
+2. Install project into virtualenv
+
+```console
+$ pip install -e .
 ```
 
 Additionally pyqt5 is required and cannot be installed via pip.
 
-To update `requirements_freeze.txt` use:
+3. Install test dependencies
 
 ```console
-$ pip freeze --exclude-editable > requirements_freeze.txt
+$ pip install -e '.[test]'
 ```
