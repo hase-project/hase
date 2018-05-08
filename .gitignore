@@ -105,3 +105,8 @@ venv.bak/
 /.mypy-path/
 
 /.direnv
+
+# generated data
+perf.data
+
+.vscode/*
