@@ -23,15 +23,14 @@ Additionally pyqt5 is required and cannot be installed via pip.
 $ pip install -e '.[test]'
 ```
 
-
 # Record crashes
-
 
 ```console
 $ sudo ./bin/hase record
 ```
 
 Example crash
+
 ```console
 $ ./tests/bin/loopy/loopy
 $ ls -la /var/lib/hase
