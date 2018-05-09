@@ -108,8 +108,11 @@ venv.bak/
 
 # generated data
 perf.data*
+perf.data
+perf.data.old
 
 .vscode/*
 auseless/
+# redis
 *.rdb
-tests/benchmark/bench_result
+tests/benchmark/results

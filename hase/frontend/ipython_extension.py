@@ -83,7 +83,8 @@ class HaseMagics(Magics):
         self.active_state = states[-1]
         user_ns["addr_map"] = addr_map
         user_ns["states"] = states
-        user_ns["gdb"] = gdb.GdbServer(self.active_state, executable)
+        # FIXME later
+        #user_ns["gdb"] = gdb.GdbServer(self.active_state, executable)
 
         self.window.set_location(*addr_map[self.active_state.address()])
 

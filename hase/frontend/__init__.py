@@ -86,6 +86,7 @@ def start_window():
     window.setup_ipython(app, window)
     return app.exec_()
 
+
 def main():
     while start_window() == EXIT_REBOOT:
         pass

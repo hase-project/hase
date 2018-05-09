@@ -20,6 +20,7 @@ in stdenv.mkDerivation {
     radare2
     openssl
     python2Packages.pyqt5
+    python2Packages.pandas
     qt5.qttools
     gdb
     # avoid polluting PYTHONPATH

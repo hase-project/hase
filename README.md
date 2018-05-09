@@ -67,3 +67,9 @@ $ ls -la /var/lib/hase
 ```console
 $ sudo ./bin/hase record ls -al
 ```
+
+# Benchmarks
+
+Benchmarks require Pandas, which cannot be installed via pip.
+Use https://pandas.pydata.org/pandas-docs/stable/install.html instead or install
+it using your system package manager.
