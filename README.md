@@ -15,7 +15,9 @@ $ . venv/bin/activate
 $ pip install -e .
 ```
 
-Additionally pyqt5 is required and cannot be installed via pip.
+Note: you may need to upgrade your pip >= 9.0.1
+
+Additionally pyqt5 is required and cannot be installed via pip. 
 
 3. Install test dependencies
 
