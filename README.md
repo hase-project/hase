@@ -34,6 +34,7 @@ cp path-to-your-hase-folder/perf-script-sample-addr.patch .
 patch -p3 < perf-script-sample-addr.patch
 make
 sudo cp perf /usr/bin
+```
 
 Note: some new parse rules are applied recent days, so if you have intel_pt//u parse error, check this patch https://lkml.org/lkml/2018/5/7/94 and solve by git checkout an-eariler-commit-id
 
@@ -61,4 +62,8 @@ $ ls -la /var/lib/hase
 .rw-rw-rw- 244 root  9 May  3:22 coredump.log
 .rw-r--r--   4 root  9 May  3:22 hase-record.pid
 .rw-r--r-- 41M root  9 May  3:22 loopy-20180509T022227.tar.gz
+```
+
+```console
+$ sudo ./bin/hase record ls -al
 ```
