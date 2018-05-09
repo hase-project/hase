@@ -60,14 +60,14 @@ class HaseMagics(Magics):
     @args()
     @line_magic("reload_hase")
     def reload_hase(self, query):
-        module_path = os.path.dirname(__file__)
+        module_path = os.path.dirname(os.path.dirname(__file__))
         for name, m in sys.modules.items():
             if isinstance(m, ModuleType) and hasattr(m, "__file__") and m.__file__.startswith(module_path):
                 print("reload %s" % name)
                 try:
                     imp.reload(m)
-                except Exception:
-                    pass
+                except Exception as e:
+                    print("error while loading %s" % e)
         self.shell.extension_manager.reload_extension(__name__)
 
     @args("<report_archive>")

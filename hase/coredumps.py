@@ -84,7 +84,7 @@ class Handler():
         assert len(self.handler_script.name) < 128
 
         script_template = """#!/bin/sh
-exec 1>{log_path}
+exec 1>>{log_path}
 exec 2>&1
 
 {kill} -SIGUSR2 "{perf_pid}"

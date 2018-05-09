@@ -14,11 +14,6 @@ from ..mapping import Mapping
 
 from .state import State
 
-try:
-    import r2pipe
-except ImportError:
-    r2pipe = None
-
 l = logging.getLogger(__name__)
 
 ELF_MAGIC = b"\x7fELF"
@@ -91,14 +86,8 @@ class Tracer():
             hierarchy=False,
             save_unconstrained=True)
 
-        # only for interactive debugging
-        if r2pipe is not None:
-            self.r2 = r2pipe.open(executable)
         # For debugging
         # self.project.pt = self
-
-    def print_addr(self, addr):
-        print(self.r2.cmd("pd -2 @ %s; pd 2 @ %s" % (addr, addr)))
 
     def jump_was_not_taken(self, old_state, new_state):
         # was the last control flow change an exit vs call/jump?
