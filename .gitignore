@@ -108,5 +108,7 @@ venv.bak/
 
 # generated data
 perf.data
+perf.data.old
 
 .vscode/*
+auseless/

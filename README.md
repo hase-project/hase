@@ -18,7 +18,9 @@ $ pip install -e .
 Note: you may need to upgrade your pip >= 9.0.1
 
 Additionally pyqt5 and radare2 is required and cannot be installed via pip. 
+
 (A guide for Python2.7 to install PyQt5 here https://github.com/pyqt/python-qt5/wiki/Compiling-PyQt5-on-Ubuntu-12.04)
+
 (Must compile radare2 from github source code)
 
 3. Install test dependencies
