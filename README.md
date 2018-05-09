@@ -40,3 +40,9 @@ $ ls -la /var/lib/hase
 .rw-r--r--   4 root  9 May  3:22 hase-record.pid
 .rw-r--r-- 41M root  9 May  3:22 loopy-20180509T022227.tar.gz
 ```
+
+# Benchmarks
+
+Benchmarks require Pandas, which cannot be installed via pip.
+Use https://pandas.pydata.org/pandas-docs/stable/install.html instead or install
+it using your system package manager.

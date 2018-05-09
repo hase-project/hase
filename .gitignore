@@ -105,3 +105,14 @@ venv.bak/
 /.mypy-path/
 
 /.direnv
+
+# generated data
+perf.data*
+perf.data
+perf.data.old
+
+.vscode/*
+auseless/
+# redis
+*.rdb
+tests/benchmark/results
