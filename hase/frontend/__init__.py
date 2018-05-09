@@ -11,6 +11,9 @@ from typing import Tuple, Any
 
 from ..path import APP_ROOT
 
+EXIT_REBOOT = -1
+EXIT_NORMAL = 0
+
 
 form_class, base_class = loadUiType(str(APP_ROOT.join('frontend', 'mainwindow.ui')))  # type: Tuple[Any, Any]
 
@@ -44,12 +47,12 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
     def set_location(self, source_file, line):
         # type: (str, int) -> None
         lexer = pygments.lexers.get_lexer_for_filename(source_file)
-        html_formatter = pygments.formatters.get_formatter_by_name("html")
-        formatter = html_formatter(linenos="inline", linespans="line", hl_lines=[line])
-        css = formatter.get_style_defs('.highlight')
+        formatter_opts = dict(linenos="inline", linespans="line", hl_lines=[line])
+        html_formatter = pygments.formatters.get_formatter_by_name("html", **formatter_opts)
+        css = html_formatter.get_style_defs('.highlight')
         with open(source_file) as f:
             tokens = lexer.get_tokens(f.read())
-        source = pygments.format(tokens, formatter)
+        source = pygments.format(tokens, html_formatter)
         self.code_view.setHtml(code_template.format(css, source))
         self.code_view.scrollToAnchor("line-%d" % max(0, line - 10))
 
@@ -83,5 +86,7 @@ def start_window():
     window.setup_ipython(app, window)
     return app.exec_()
 
+
 def main():
-    sys.exit(start_window())
+    while start_window() == EXIT_REBOOT:
+        pass

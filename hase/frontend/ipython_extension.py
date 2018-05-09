@@ -3,7 +3,7 @@ from __future__ import absolute_import, division, print_function
 from IPython.core.magic import (magics_class, line_magic, Magics)
 from IPython import get_ipython
 from PyQt5 import QtWidgets
-from . import MainWindow
+from . import MainWindow, EXIT_REBOOT, EXIT_NORMAL
 import sys
 import os
 import imp
@@ -12,6 +12,23 @@ from shlex import split as shsplit
 
 from .. import gdb, annotate
 from ..replay import replay_trace
+
+# only for function in Magics class
+# FIXME: inherit documentation (maybe by functools.wraps)
+# TODO: is there same way to get line_magic name instead of manually setting?
+def args(*param_names, **kwargs):
+    def func_wrapper(func):
+        name = kwargs.pop('name', func.__name__)
+        def recv_args(inst, query):
+            param = shsplit(query)
+            if len(param) != len(param_names):
+                print("USAGE: {} {}".format(name, ''.join(param_names)))
+                return
+            func(inst, query)
+        recv_args.__name__ = func.__wrapped__.__name__
+        recv_args.__doc__ = func.__wrapped__.__doc__
+        return recv_args
+    return func_wrapper
 
 
 @magics_class
@@ -35,6 +52,12 @@ class HaseMagics(Magics):
         # type: () -> MainWindow
         return self.user_ns["window"]
 
+    @args("<source_code>", name="show")
+    @line_magic("show")
+    def show_source(self, query):
+        self.window.set_location(query, 0)
+
+    @args()
     @line_magic("reload_hase")
     def reload_hase(self, query):
         module_path = os.path.dirname(os.path.dirname(__file__))
@@ -47,13 +70,10 @@ class HaseMagics(Magics):
                     print("error while loading %s" % e)
         self.shell.extension_manager.reload_extension(__name__)
 
+    @args("<report_archive>")
     @line_magic("load")
     def load(self, query):
-        args = shsplit(query)
-        if len(args) < 1:
-            print("USAGE: load <report_archive>")
-            return
-        states = replay_trace(args[0])
+        states = replay_trace(query)
 
         user_ns = self.shell.user_ns
         addr2line = annotate.Addr2line()
@@ -64,7 +84,8 @@ class HaseMagics(Magics):
         self.active_state = states[-1]
         user_ns["addr_map"] = addr_map
         user_ns["states"] = states
-        user_ns["gdb"] = gdb.GdbServer(self.active_state, executable)
+        # FIXME later
+        #user_ns["gdb"] = gdb.GdbServer(self.active_state, executable)
 
         self.window.set_location(*addr_map[self.active_state.address()])
 
