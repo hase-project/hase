@@ -6,14 +6,11 @@ import sys
 import pandas
 import socket
 from time import sleep
-from collections import defaultdict
 
 from typing import IO, Any, Optional
 
 perf_cmd = [
-    "perf", "record", "-g", "-e", "cycles", "-e",
-    "raw_syscalls:*/call-graph=no/", "-e", "sched:sched_switch/call-graph=no/",
-    "--switch-output", "--overwrite", "-a"
+    "perf", "record", "--no-buildid", "--no-buildid-cache", "-e", "raw_syscalls:*", "--switch-output", "--overwrite", "-a", "--tail-synthesize"
 ]
 
 server_cmd = ["redis-server", "--port"]
