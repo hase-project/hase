@@ -107,8 +107,9 @@ venv.bak/
 /.direnv
 
 # generated data
-perf.data
-perf.data.old
+perf.data*
 
 .vscode/*
 auseless/
+*.rdb
+tests/benchmark/bench_result

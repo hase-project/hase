@@ -10,7 +10,7 @@ TRACE_END = -1
 
 
 class PTSnapshot():
-    def __init__(self, perf_file="perf.data"):
+    def __init__(self, perf_file="perf.data", cmds=None):
         # type: (str) -> None
 
         cmd = [
@@ -27,12 +27,15 @@ class PTSnapshot():
             "intel_pt//u",
         ]
 
-        dummy_process = [
-            "sh", "-c", "echo ready; while true; do sleep 999999; done"
-        ]
+        if cmds:
+            cmds_process = cmds
+        else:
+            cmds_process = [
+                "sh", "-c", "echo ready; while true; do sleep 999999; done"
+            ]
         self.perf_file = perf_file
         self.process = subprocess.Popen(
-            cmd + dummy_process, stdout=subprocess.PIPE)
+            cmd + cmds_process, stdout=subprocess.PIPE)
         line = self.process.stdout.readline().strip()
         assert line == "ready", "expected perf to return 'ready', got '%s'" % (
             line)

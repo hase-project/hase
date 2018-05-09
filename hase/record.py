@@ -26,10 +26,10 @@ DEFAULT_LOG_DIR = Path("/var/lib/hase")
 PROT_EXEC = 4
 
 
-def record(record_paths):
-    # type: (RecordPaths) -> Tuple[coredumps.Coredump, perf.PerfData]
+def record(record_paths, cmds=None):
+    # type: (RecordPaths, List[Str]) -> Tuple[coredumps.Coredump, perf.PerfData]
 
-    with perf.PTSnapshot(perf_file=str(record_paths.perf)) as snapshot:
+    with perf.PTSnapshot(perf_file=str(record_paths.perf), cmds=cmds) as snapshot:
         handler = coredumps.Handler(snapshot.perf_pid,
                                     str(record_paths.coredump),
                                     str(record_paths.fifo),
@@ -203,8 +203,8 @@ def report_worker(queue):
             job.remove()
 
 
-def record_loop(record_path, log_path, pid_file=None, limit=0):
-    # type: (Path, Path, str, int) -> None
+def record_loop(record_path, log_path, pid_file=None, limit=0, cmds=None):
+    # type: (Path, Path, str, int, List[Str]) -> None
 
     job_queue = Queue()  # type: Queue
     post_process_thread = Thread(target=report_worker, args=(job_queue, ))
@@ -216,7 +216,7 @@ def record_loop(record_path, log_path, pid_file=None, limit=0):
             i += 1
             # TODO ratelimit
             record_paths = RecordPaths(record_path, i, log_path, pid_file)
-            (coredump, perf_data) = record(record_paths)
+            (coredump, perf_data) = record(record_paths, cmds)
             job_queue.put(Job(coredump, perf_data, record_paths))
     except KeyboardInterrupt:
         pass
@@ -235,4 +235,4 @@ def record_command(args):
     logging.basicConfig(filename=str(log_path.join("hase.log")), level=logging.INFO)
 
     with Tempdir() as tempdir:
-        record_loop(tempdir, log_path, pid_file=args.pid_file, limit=args.limit)
+        record_loop(tempdir, log_path, pid_file=args.pid_file, limit=args.limit, cmds=args.args)

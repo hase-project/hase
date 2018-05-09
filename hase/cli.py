@@ -39,6 +39,12 @@ def parse_arguments(argv):
         type=int,
         help="Maximum crashes to record (0 for unlimited crashes)")
 
+    record.add_argument(
+        "args",
+        nargs="*",
+        help="Executable and arguments for perf tracing"
+    )
+
     replay = subparsers.add_parser('replay')
     replay.add_argument("report")
 
