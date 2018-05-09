@@ -14,6 +14,12 @@ def main(argv):
     tsv = argv[1]
     df = pandas.read_csv(tsv, sep="\t")
     print(df.groupby([df.Name, df.Type]).describe())
+    for t in df.Type.unique():
+        df_by_type = df[df.Type == t]
+        df_perf = df_by_type[df_by_type.Name == "perf"]
+        df_no_perf = df_by_type[df_by_type.Name == "no-perf"]
+        overhead = df_no_perf['Req/s'].mean() / df_perf['Req/s'].mean() * 100
+        print("Overhead %s: %.2f%%" % (t, overhead))
 
 
 if __name__ == "__main__":

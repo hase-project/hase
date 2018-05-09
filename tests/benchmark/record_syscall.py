@@ -54,7 +54,7 @@ def bench_redis(repeat=3, n=1000000):
         return df
 
     bench_cmd = [
-        "redis-benchmark", "-r", "100000", "-n",
+        "redis-benchmark", "-r", "100000", "-t", "set,lpush", "-n",
         str(n), "--csv", "-p"
     ]
 
