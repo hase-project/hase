@@ -37,14 +37,14 @@ class HaseMagics(Magics):
 
     @line_magic("reload_hase")
     def reload_hase(self, query):
-        module_path = os.path.dirname(__file__)
+        module_path = os.path.dirname(os.path.dirname(__file__))
         for name, m in sys.modules.items():
             if isinstance(m, ModuleType) and hasattr(m, "__file__") and m.__file__.startswith(module_path):
                 print("reload %s" % name)
                 try:
                     imp.reload(m)
-                except Exception:
-                    pass
+                except Exception as e:
+                    print("error while loading %s" % e)
         self.shell.extension_manager.reload_extension(__name__)
 
     @line_magic("load")
@@ -53,8 +53,7 @@ class HaseMagics(Magics):
         if len(args) < 1:
             print("USAGE: load <report_archive>")
             return
-        executable, coredump, trace = args
-        states = replay_trace(executable, coredump, trace)
+        states = replay_trace(args[0])
 
         user_ns = self.shell.user_ns
         addr2line = annotate.Addr2line()
