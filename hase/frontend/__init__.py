@@ -46,15 +46,18 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
     def set_location(self, source_file, line):
         # type: (str, int) -> None
-        lexer = pygments.lexers.get_lexer_for_filename(source_file)
-        formatter_opts = dict(linenos="inline", linespans="line", hl_lines=[line])
-        html_formatter = pygments.formatters.get_formatter_by_name("html", **formatter_opts)
-        css = html_formatter.get_style_defs('.highlight')
-        with open(source_file) as f:
-            tokens = lexer.get_tokens(f.read())
-        source = pygments.format(tokens, html_formatter)
-        self.code_view.setHtml(code_template.format(css, source))
-        self.code_view.scrollToAnchor("line-%d" % max(0, line - 10))
+        # FIXME: how to robust deal with ??
+        print(source_file, line)
+        if source_file != '??':
+            lexer = pygments.lexers.get_lexer_for_filename(source_file)
+            formatter_opts = dict(linenos="inline", linespans="line", hl_lines=[line])
+            html_formatter = pygments.formatters.get_formatter_by_name("html", **formatter_opts)
+            css = html_formatter.get_style_defs('.highlight')
+            with open(source_file) as f:
+                tokens = lexer.get_tokens(f.read())
+            source = pygments.format(tokens, html_formatter)
+            self.code_view.setHtml(code_template.format(css, source))
+            self.code_view.scrollToAnchor("line-%d" % max(0, line - 10))
 
     def setup_ipython(self, app, window):
         # type: (QtWidgets.QApplication, MainWindow) -> None

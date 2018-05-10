@@ -116,3 +116,5 @@ auseless/
 # redis
 *.rdb
 tests/benchmark/results
+
+tests/bin/*

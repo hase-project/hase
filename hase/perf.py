@@ -16,6 +16,7 @@ class PTSnapshot():
         cmd = [
             "perf",
             "record",
+            "--no-buildid",
             "--no-buildid-cache",
             "--output",
             perf_file,
@@ -27,21 +28,23 @@ class PTSnapshot():
             "intel_pt//u",
         ]
 
-        if cmds:
-            cmds_process = cmds
-        else:
-            cmds_process = [
-                "sh", "-c", "echo ready; while true; do sleep 999999; done"
-            ]
+        self.test_cmds = cmds
+
+        dummy_process = [
+            "sh", "-c", "echo ready; while true; do sleep 999999; done"
+        ]
         self.perf_file = perf_file
         self.process = subprocess.Popen(
-            cmd + cmds_process, stdout=subprocess.PIPE)
+            cmd + dummy_process, stdout=subprocess.PIPE)
         line = self.process.stdout.readline().strip()
         assert line == "ready", "expected perf to return 'ready', got '%s'" % (
-            line)
+        line)
 
     def get(self):
         # type: () -> PerfData
+        if self.test_cmds:
+            test_process = subprocess.Popen(self.test_cmds)
+            test_process.wait()
         self.process.wait()
         return PerfData(self.perf_file)
 

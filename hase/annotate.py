@@ -42,5 +42,11 @@ class Addr2line():
 
             for addr, line in zip(addresses, lines):
                 file, line = line.split(":")
+                # TODO: file:line (discriminator n)
+                # TODO: file:?
+                print(file, line)
+                line = line.split(" ")[0]
+                if line == "?":
+                    line = 0
                 addr_map[addr] = (file, int(line))
         return addr_map

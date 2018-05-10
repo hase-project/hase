@@ -34,27 +34,27 @@ def load_manifest(archive_root):
 
     return manifest
 
+# FIXME: since ipython-addr2line needs binary to exist, add tempdir parameter?
+def replay_trace(report, tempdir):
+    # type: (str, Tempdir) -> List[State]
 
-def replay_trace(report):
-    # type: (str) -> List[State]
+    subprocess.check_call(["tar", "-xzf", report, "-C", str(tempdir)])
 
-    with Tempdir() as tempdir:
-        subprocess.check_call(["tar", "-xzf", report, "-C", str(tempdir)])
+    manifest = load_manifest(tempdir)
 
-        manifest = load_manifest(tempdir)
+    coredump = manifest["coredump"]
 
-        coredump = manifest["coredump"]
-
-        t = Tracer(
-            coredump["executable"],
-            coredump["global_tid"],
-            manifest["perf_data"],
-            coredump["file"],
-            manifest["mappings"],
-            executable_root=str(tempdir.join("binaries")))
-        return t.run()
+    t = Tracer(
+        coredump["executable"],
+        coredump["global_tid"],
+        manifest["perf_data"],
+        coredump["file"],
+        manifest["mappings"],
+        executable_root=str(tempdir.join("binaries")))
+    return t.run()
 
 
 def replay_command(args):
     # type: (argparse.Namespace) -> List[State]
-    return replay_trace(args.report)
+    with Tempdir() as tempdir:
+        return replay_trace(args.report, tempdir)

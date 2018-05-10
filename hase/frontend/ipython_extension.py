@@ -12,6 +12,7 @@ from shlex import split as shsplit
 
 from .. import gdb, annotate
 from ..replay import replay_trace
+from ..path import Tempdir
 
 # only for function in Magics class
 # FIXME: inherit documentation (maybe by functools.wraps)
@@ -73,13 +74,14 @@ class HaseMagics(Magics):
     @args("<report_archive>")
     @line_magic("load")
     def load(self, query):
-        states = replay_trace(query)
-        user_ns = self.shell.user_ns
-        addr2line = annotate.Addr2line()
-        for s in states:
-            addr2line.add_addr(s.object(), s.address())
+        with Tempdir() as tempdir:
+            states = replay_trace(query, tempdir)
+            user_ns = self.shell.user_ns
+            addr2line = annotate.Addr2line()
+            for s in states:
+                addr2line.add_addr(s.object(), s.address())
 
-        addr_map = addr2line.compute()
+            addr_map = addr2line.compute()
         self.active_state = states[-1]
         user_ns["addr_map"] = addr_map
         user_ns["states"] = states
