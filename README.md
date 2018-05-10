@@ -1,5 +1,7 @@
 # HASE
 
+[![Build Status](https://travis-ci.org/hase-project/hase.svg?branch=master)](https://travis-ci.org/hase-project/hase)
+
 # INSTALL
 
 1. Setup virtualenv
