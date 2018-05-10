@@ -45,7 +45,7 @@ def bench_redis(repeat=3, n=1000000):
     # type: (int, int) -> pandas.DataFrame
 
     def read_result(name, file):
-        # type: (Optional[IO[Any]]) -> pandas.DataFrame
+        # type: (str, Optional[IO[Any]]) -> pandas.DataFrame
         df = pandas.read_csv(file, names=['Type', 'Req/s'])
         df["Name"] = name
         return df
