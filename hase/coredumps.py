@@ -56,7 +56,7 @@ class Coredump():
         os.unlink(self.core_file)
         if self.fifo_file is not None:
             self.fifo_file.close()
-            os.unlink(self.fifo_path)
+        os.unlink(self.fifo_path)
 
 
 class Handler():
