@@ -10,6 +10,8 @@ import claripy
 import pygdbmi
 import pygments
 import archinfo
+# stop pwnlib from doing fancy things
+os.environ["PWNLIB_NOTERM"] = "1"
 import pwn
 
 # only import the most important libraries here to avoid slowdown
