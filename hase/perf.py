@@ -139,6 +139,8 @@ def read_trace(perf_data, thread_id, command, executable_root=None):
         args.append(executable_root)
     cmd = subprocess.Popen(args, stdout=subprocess.PIPE)
     branches = []
+
+    assert cmd.stdout is not None
     for line in cmd.stdout:
         columns = line.strip().split()
 

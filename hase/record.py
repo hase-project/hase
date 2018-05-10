@@ -54,12 +54,25 @@ class Job():
     ):
         # type: (...) -> None
         self.coredump = coredump
-        self.perf_data = perf_data
-        self.record_paths = record_paths
+        self._perf_data = perf_data
+        self._record_paths = record_paths
         self.exit = exit
+
+    @property
+    def perf_data(self):
+        # type: () -> perf.PerfData
+        assert self._perf_data is not None
+        return self._perf_data
+
+    @property
+    def record_paths(self):
+        # type: () -> RecordPaths
+        assert self._record_paths is not None
+        return self._record_paths
 
     def core_file(self):
         # type: () -> str
+        assert self.coredump is not None
         return self.coredump.get()
 
     def remove(self):
@@ -80,7 +93,7 @@ class Job():
 
 class RecordPaths():
     def __init__(self, path, id, log_path, pid_file):
-        # type: (Path, int, Path, str) -> None
+        # type: (Path, int, Path, Optional[str]) -> None
         self.path = path
         self.log_path = log_path
         self.pid_file = pid_file

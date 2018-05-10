@@ -54,8 +54,8 @@ class Coredump():
     def remove(self):
         # type: () -> None
         os.unlink(self.core_file)
-        self.fifo_file.close()
         if self.fifo_file is not None:
+            self.fifo_file.close()
             os.unlink(self.fifo_path)
 
 
