@@ -43,8 +43,6 @@ Note: some new parse rules are applied recent days, so if you have intel_pt//u p
 
 
 ```console
-# Since we need sudo, we have to install the packages in system
-pip install -r requirements_freeze.txt
 sudo nosetests -w tests/test_record.py
 ```
 
