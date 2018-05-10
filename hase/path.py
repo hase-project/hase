@@ -5,11 +5,11 @@ import tempfile
 import errno
 import shutil
 
-from typing import Union, AnyStr
+from typing import Union, AnyStr, Optional
 
 
 def which(program):
-    # type: (str) -> Path
+    # type: (str) -> Optional[Path]
     def is_exe(fpath):
         return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
 

@@ -17,7 +17,7 @@ from .mapping import Mapping
 
 from . import pwn_wrapper
 
-from typing import Optional, IO, Any, Tuple
+from typing import Optional, IO, Any, Tuple, List
 
 l = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ PROT_EXEC = 4
 
 
 def record(record_paths, cmds=None):
-    # type: (RecordPaths, List[Str]) -> Tuple[coredumps.Coredump, perf.PerfData]
+    # type: (RecordPaths, List[str]) -> Tuple[coredumps.Coredump, perf.PerfData]
 
     with perf.PTSnapshot(perf_file=str(record_paths.perf), cmds=cmds) as snapshot:
         handler = coredumps.Handler(snapshot.perf_pid,
@@ -204,7 +204,7 @@ def report_worker(queue):
 
 
 def record_loop(record_path, log_path, pid_file=None, limit=0, cmds=None):
-    # type: (Path, Path, str, int, List[Str]) -> None
+    # type: (Path, Path, str, int, List[str]) -> None
 
     job_queue = Queue()  # type: Queue
     post_process_thread = Thread(target=report_worker, args=(job_queue, ))

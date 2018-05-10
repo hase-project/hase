@@ -4,7 +4,7 @@ from typing import Any
 
 class RegisterSig():
     def __init__(self, signum, handler = signal.SIG_IGN):
-        # type: (int, Any) -> ()
+        # type: (int, Any) -> None
         self.signum = signum
         self.handler = handler
         self.original_handler = signal.getsignal(signum)

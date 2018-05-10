@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import subprocess
 import os
-from typing import List, Tuple, Any, Union, Callable
+from typing import List, Tuple, Any, Union, Callable, Optional
 
 from .path import APP_ROOT
 
@@ -11,7 +11,7 @@ TRACE_END = -1
 
 class PTSnapshot():
     def __init__(self, perf_file="perf.data", cmds=None):
-        # type: (str) -> None
+        # type: (str, Optional[List[str]]) -> None
 
         cmd = [
             "perf",
@@ -36,9 +36,10 @@ class PTSnapshot():
         self.perf_file = perf_file
         self.process = subprocess.Popen(
             cmd + dummy_process, stdout=subprocess.PIPE)
-        line = self.process.stdout.readline().strip()
-        assert line == "ready", "expected perf to return 'ready', got '%s'" % (
-        line)
+        if self.process.stdout:
+            line = self.process.stdout.readline().strip()
+            assert line == "ready", "expected perf to return 'ready', got '%s'" % (
+            line)
 
     def get(self):
         # type: () -> PerfData

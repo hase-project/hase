@@ -1,7 +1,7 @@
 from __future__ import absolute_import, division, print_function
 from angr import SimState
 from cle import ELF
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 from ..perf import TRACE_END, Branch
 from ..annotate import Addr2line
@@ -33,7 +33,7 @@ class Memory():
         self.state = state
 
     def __getitem__(self, addr):
-        # type: (int) -> int
+        # type: (int) -> Optional[int]
         # good idea?
         byte = self.state.simstate.mem[addr].byte
         try:
