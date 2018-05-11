@@ -4,6 +4,7 @@ import os
 import argparse
 import subprocess
 import json
+import shutil
 from typing import List
 
 from .symbex.tracer import Tracer, State, Any, Dict
@@ -12,55 +13,81 @@ from .path import Tempdir, Path
 
 
 class Replay():
-    def __init__(self):
+    def __init__(self, report):
+        # type: (str) -> None
+        self.report = report
+        self.tempdir = Tempdir()
+
+    def __enter__(self):
+        # type: () -> Replay
+        self.prepare_tracer()
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.cleanup()
+
+    def prepare_tracer(self):
         # type: () -> None
-        pass
+        subprocess.check_call(["tar", "-xzf", self.report, "-C", str(self.tempdir)])
+
+        manifest = self.load_manifest()
+
+        coredump = manifest["coredump"]
+
+        self.tracer = Tracer(
+            coredump["executable"],
+            coredump["global_tid"],
+            manifest["perf_data"],
+            coredump["file"],
+            manifest["mappings"],
+            executable_root=str(self.tempdir.join("binaries")))
+        
+    def run(self):
+        # type: () -> List[State]
+        if not self.tracer:
+            self.prepare_tracer()
+        return self.tracer.run()
+
+    def cleanup(self):
+        # type: () -> None
+        shutil.rmtree(str(self.tempdir))
+
+    @property
+    def tracer(self):
+        # type: () -> Tracer
+        return self.tracer
 
 
-def load_manifest(archive_root):
-    # type: (Path) -> Dict[str, Any]
-    manifest_path = archive_root.join("manifest.json")
-    with open(str(manifest_path)) as f:
-        manifest = json.load(f)
+    def load_manifest(self):
+        # type: () -> Dict[str, Any]
+        archive_root = self.tempdir
+        manifest_path = archive_root.join("manifest.json")
+        with open(str(manifest_path)) as f:
+            manifest = json.load(f)
 
-    mappings = []
-    for m in manifest["mappings"]:
-        if m["path"] != "":
-            path = archive_root.join(m["path"])
-            if path.exists():
-                m["path"] = str(path)
-        m = Mapping(**m)
-        mappings.append(m)
-    manifest["mappings"] = mappings
-    manifest["perf_data"] = str(archive_root.join(manifest["perf_data"]))
+        mappings = []
+        for m in manifest["mappings"]:
+            if m["path"] != "":
+                path = archive_root.join(m["path"])
+                if path.exists():
+                    m["path"] = str(path)
+            m = Mapping(**m)
+            mappings.append(m)
+        manifest["mappings"] = mappings
+        manifest["perf_data"] = str(archive_root.join(manifest["perf_data"]))
 
-    coredump = manifest["coredump"]
-    coredump["executable"] = str(archive_root.join(coredump["executable"]))
-    coredump["file"] = str(archive_root.join(coredump["file"]))
+        coredump = manifest["coredump"]
+        coredump["executable"] = str(archive_root.join(coredump["executable"]))
+        coredump["file"] = str(archive_root.join(coredump["file"]))
 
-    return manifest
+        return manifest
 
-# FIXME: since ipython-addr2line needs binary to exist, add tempdir parameter?
-def replay_trace(report, tempdir):
-    # type: (str, Tempdir) -> List[State]
-
-    subprocess.check_call(["tar", "-xzf", report, "-C", str(tempdir)])
-
-    manifest = load_manifest(tempdir)
-
-    coredump = manifest["coredump"]
-
-    t = Tracer(
-        coredump["executable"],
-        coredump["global_tid"],
-        manifest["perf_data"],
-        coredump["file"],
-        manifest["mappings"],
-        executable_root=str(tempdir.join("binaries")))
-    return t.run()
+def replay_trace(report):
+    # type: (str) -> Replay
+    return Replay(report)
 
 
 def replay_command(args):
     # type: (argparse.Namespace) -> List[State]
-    with Tempdir() as tempdir:
-        return replay_trace(args.report, tempdir)
+    with replay_trace(args.report) as rt:
+        return rt.run()

@@ -74,8 +74,8 @@ class HaseMagics(Magics):
     @args("<report_archive>")
     @line_magic("load")
     def load(self, query):
-        with Tempdir() as tempdir:
-            states = replay_trace(query, tempdir)
+        with replay_trace(query) as rep:
+            states = rep.run()
             user_ns = self.shell.user_ns
             addr2line = annotate.Addr2line()
             for s in states:
