@@ -28,12 +28,13 @@ class Addr2line():
         # type: (str, Optional[List[str]]) -> str
         basename = os.path.basename(filename)
         if relative_root:
-            search_path = relative_root + sys.path
+            search_path = relative_root + os.environ['HASESRC'].split(':')
         else:
-            search_path = sys.path
+            search_path = os.environ['HASESRC'].split(':')
         for path in search_path:
-            if os.path.exists(path + "/" + basename):
-                return path + "/" + basename
+            for root, dirs, files in os.walk(path):
+                if basename in files:
+                    return os.path.join(root, basename)
         return filename
 
     def compute(self):
@@ -65,10 +66,10 @@ class Addr2line():
                 file, line = line.split(":")
                 # TODO: file:line (discriminator n)
                 # TODO: file:?
-                print(file, line)
                 line = line.split(" ")[0]
                 if not os.path.exists(file):
                     file = self.find_in_path(file, relative_root)
+                print(file, line)
                 if line == '?':
                     line = 0
                 addr_map[addr] = [file, int(line)]

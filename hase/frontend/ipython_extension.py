@@ -103,9 +103,19 @@ class HaseMagics(Magics):
         user_ns['active_state'] = self.active_state
         for k, v in addr_map.items():
             if not os.path.exists(v[0]):
-                print("\nCannot resolve filename: {}".format(v[0]))
-                d = raw_input("Try to manually set file path for {}: ".format(os.path.basename(v[0])))
-                addr_map[k][0] = d + os.path.basename(v[0])
+                origin_f = v[0]
+                print("\nCannot resolve filename: {}".format(origin_f))
+                d = raw_input("Try to manually set file path for {}: ".format(os.path.basename(origin_f)))
+                new_f = os.path.join(d, origin_f)
+                for root, dirs, files in os.walk(d):
+                    if os.path.basename(origin_f) in files:
+                        new_f = os.path.join(root, os.path.basename(origin_f))
+                for i, p in addr_map.items():
+                    if not os.path.exists(p[0]):
+                        if p[0] == origin_f and i != k:
+                            addr_map[i][0] = new_f
+                addr_map[k][0] = new_f
+                
 
         # FIXME later
         user_ns["gdb"] = gdb.GdbServer(self.active_state, executable)
