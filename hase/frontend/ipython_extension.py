@@ -87,7 +87,7 @@ class HaseMagics(Magics):
         user_ns["states"] = states
         # FIXME later
         #user_ns["gdb"] = gdb.GdbServer(self.active_state, executable)
-
+        # FIXME set default path and prompt asking unsolved path
         self.window.set_location(*addr_map[self.active_state.address()])
 
     @line_magic("p")

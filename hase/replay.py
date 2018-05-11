@@ -11,6 +11,12 @@ from .mapping import Mapping
 from .path import Tempdir, Path
 
 
+class Replay():
+    def __init__(self):
+        # type: () -> None
+        pass
+
+
 def load_manifest(archive_root):
     # type: (Path) -> Dict[str, Any]
     manifest_path = archive_root.join("manifest.json")

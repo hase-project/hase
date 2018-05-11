@@ -31,6 +31,7 @@ class Addr2line():
             for addr in addresses:
                 relative_addrs.append("0x%x" % self._relative_addr(dso, addr))
 
+            # FIXME: relative path with -s (strip directory names)
             subproc = subprocess.Popen(
                 ["addr2line", '-e', dso.binary],
                 stdin=subprocess.PIPE,

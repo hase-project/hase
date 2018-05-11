@@ -1,5 +1,9 @@
+# NOTE: modify the example from https://github.com/iovisor/bcc/blob/master/examples/tracing/hello_perf_output.py
 from __future__ import absolute_import, division, print_function
 
+from bcc import BPF
+import ctypes as ct
+from time import sleep
 import subprocess
 import os
 import sys
@@ -9,9 +13,30 @@ from time import sleep
 
 from typing import IO, Any, Optional
 
-perf_cmd = [
-    "perf", "record", "--no-buildid", "--no-buildid-cache", "-e", "raw_syscalls:*", "--switch-output", "--overwrite", "-a", "--tail-synthesize"
-]
+
+def read_syscall():
+    # type: () -> list, str
+
+    prog = """
+    BPF_PERF_OUTPUT(events);
+    int dumb(void *ctx) {
+        return 0;
+    }
+    """
+
+    syscalls = []
+
+    with open("syscall_64.tbl") as sf:
+        for line in sf:
+            line = line.strip()
+            if line.startswith('#'):
+                continue
+            args = line.split()
+            if args:
+                syscalls.append(args[-1])
+    
+    return syscalls, prog
+
 
 server_cmd = ["redis-server", "--port"]
 
@@ -44,25 +69,13 @@ def bench_redis(repeat=3, n=1000000):
 
     results = []
 
+    syscalls, bpf_prog = read_syscall()
+
+
     with open(os.devnull, 'w') as fnull:
+
         for i in range(repeat):
-
-            print("\nRunning the {}th benchmark\n".format(i + 1))
-            print("Record performance with perf")
-
-            while check_port_inuse(init_port):
-                init_port += 1
-
-            serv = subprocess.Popen(
-                perf_cmd + server_cmd + [str(init_port)], stdout=fnull)
-            sleep(1)  # for setup
-            bench = subprocess.Popen(
-                bench_cmd + [str(init_port)], stdout=subprocess.PIPE)
-            bench.wait()
-            serv.terminate()
-            results.append(read_result("perf", bench.stdout))
-
-            print("Record performance without perf")
+            print("Record {}th performance without bpf".format(i))
 
             while check_port_inuse(init_port):
                 init_port += 1
@@ -74,7 +87,31 @@ def bench_redis(repeat=3, n=1000000):
                 bench_cmd + [str(init_port)], stdout=subprocess.PIPE)
             bench.wait()
             serv.terminate()
-            results.append(read_result("no-perf", bench.stdout))
+            results.append(read_result("no-bpf", bench.stdout))
+
+
+        b = BPF(text = bpf_prog)
+        for sysc in syscalls:
+            try:
+                b.attach_kprobe(event=sysc, fn_name='dumb')
+            except Exception as e:
+                print(str(e) + ", syscall: {}".format(sysc))
+
+        for i in range(repeat):
+            print("Record {}th performance with bpf".format(i))
+
+            while check_port_inuse(init_port):
+                init_port += 1
+
+            serv = subprocess.Popen(
+                server_cmd + [str(init_port)], stdout=fnull)
+            sleep(1)  # for setup
+            bench = subprocess.Popen(
+                bench_cmd + [str(init_port)], stdout=subprocess.PIPE)
+            bench.wait()
+            serv.terminate()
+            results.append(read_result("bpf", bench.stdout))
+
 
     df = pandas.concat(results)
     path = os.path.join(os.path.dirname(__file__), "results", "syscall.tsv")
