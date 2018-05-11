@@ -1,0 +1,9 @@
+language: python
+cache: pip
+install:
+  - pip install -e '.[test]' 
+  - bin/build-mypy-path 
+  - source ~/virtualenv/python3.6/bin/activate
+  - pip install mypy
+script:
+  - mypy .
