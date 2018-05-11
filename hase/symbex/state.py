@@ -1,7 +1,7 @@
 from __future__ import absolute_import, division, print_function
 from angr import SimState
 from cle import ELF
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, List, Union
 
 from ..perf import TRACE_END, Branch
 from ..annotate import Addr2line
@@ -59,27 +59,27 @@ class State():
 
     @property
     def registers(self):
-        # () -> Registers
+        # type: () -> RegisterSet
         return RegisterSet(self)
 
     @property
     def memory(self):
-        # () -> Memory
+        # type: () -> Memory
         return Memory(self)
 
     def object(self):
-        # () -> ELF
+        # type: () -> ELF
         return self.simstate.project.loader.find_object_containing(self.simstate.addr)
 
     def address(self):
-        # () -> int
+        # type: () -> int
         return self.simstate.addr
 
     def location(self):
+        # type: () -> List[Union[str, int]]
         """
         Binary of current state
         """
-        # () -> Dict[str, int]
         obj = self.object()
         a = Addr2line()
         a.add_addr(obj, self.simstate.addr)

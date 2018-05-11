@@ -6,7 +6,10 @@ from PyQt5 import QtWidgets
 from . import MainWindow, EXIT_REBOOT, EXIT_NORMAL
 import sys
 import os
+import os.path
+import operator
 import imp
+import subprocess
 from types import ModuleType
 from shlex import split as shsplit
 
@@ -17,13 +20,23 @@ from ..path import Tempdir
 # only for function in Magics class
 # FIXME: inherit documentation (maybe by functools.wraps)
 # TODO: is there same way to get line_magic name instead of manually setting?
+def op_restrict(low = 0, high = 65536):
+    def comp(actual, given):
+        return low <= actual <= high
+    return comp
+
 def args(*param_names, **kwargs):
     def func_wrapper(func):
         name = kwargs.pop('name', func.__name__)
+        comp = kwargs.pop('comp', operator.eq)
+        info = kwargs.pop('usage', None)
         def recv_args(inst, query):
             param = shsplit(query)
-            if len(param) != len(param_names):
-                print("USAGE: {} {}".format(name, ''.join(param_names)))
+            if not comp(len(param), len(param_names)):
+                if not info:
+                    print("USAGE: {} {}".format(name, ''.join(param_names)))
+                else:
+                    print("USAGE: {}".format(info))
                 return
             func(inst, query)
         recv_args.__name__ = func.__wrapped__.__name__
@@ -74,9 +87,10 @@ class HaseMagics(Magics):
     @args("<report_archive>")
     @line_magic("load")
     def load(self, query):
+        user_ns = self.shell.user_ns
         with replay_trace(query) as rep:
+            executable = rep.executable
             states = rep.run()
-            user_ns = self.shell.user_ns
             addr2line = annotate.Addr2line()
             for s in states:
                 addr2line.add_addr(s.object(), s.address())
@@ -85,8 +99,17 @@ class HaseMagics(Magics):
         self.active_state = states[-1]
         user_ns["addr_map"] = addr_map
         user_ns["states"] = states
+        user_ns['executable'] = executable
+        user_ns['active_state'] = self.active_state
+        for k, v in addr_map.items():
+            if not os.path.exists(v[0]):
+                print("\nCannot resolve filename: {}".format(v[0]))
+                d = raw_input("Try to manually set file path for {}: ".format(os.path.basename(v[0])))
+                addr_map[k][0] = d + os.path.basename(v[0])
+
         # FIXME later
-        #user_ns["gdb"] = gdb.GdbServer(self.active_state, executable)
+        user_ns["gdb"] = gdb.GdbServer(self.active_state, executable)
+        user_ns['gdb-thread'] = user_ns['gdb'].thread
         # FIXME set default path and prompt asking unsolved path
         self.window.set_location(*addr_map[self.active_state.address()])
 
@@ -104,6 +127,11 @@ class HaseMagics(Magics):
         """
         print(self.active_state.simstate.callstack)
 
+    @args(comp=op_restrict(1), usage="gdb run|eval|...")
+    @line_magic("gdb")
+    def gdb(self, query):
+        query = query.strip()
+        
 
 # get_ipython will be magically set by ipython
 ip = get_ipython()

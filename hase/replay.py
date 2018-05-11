@@ -57,6 +57,10 @@ class Replay():
         # type: () -> Tracer
         return self.tracer
 
+    @property
+    def executable(self):
+        # type: () -> str
+        return self.executable
 
     def load_manifest(self):
         # type: () -> Dict[str, Any]
@@ -77,6 +81,7 @@ class Replay():
         manifest["perf_data"] = str(archive_root.join(manifest["perf_data"]))
 
         coredump = manifest["coredump"]
+        self.executable = '/' + coredump['executable'].partition('/')[2]
         coredump["executable"] = str(archive_root.join(coredump["executable"]))
         coredump["file"] = str(archive_root.join(coredump["file"]))
 

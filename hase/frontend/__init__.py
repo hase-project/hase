@@ -47,7 +47,6 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
     def set_location(self, source_file, line):
         # type: (str, int) -> None
         # FIXME: how to robust deal with ??
-        print(source_file, line)
         if source_file != '??':
             lexer = pygments.lexers.get_lexer_for_filename(source_file)
             formatter_opts = dict(linenos="inline", linespans="line", hl_lines=[line])

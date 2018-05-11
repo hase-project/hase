@@ -70,6 +70,7 @@ class GdbServer():
         while True:
             try:
                 data = os.read(self.master.fileno(), PAGESIZE)
+                print(data)
             except OSError as e:
                 l.info("gdb connection was closed: %s", e)
                 return
@@ -149,9 +150,11 @@ class GdbServer():
         # return struct.pack('<I' * len(regs), 'xx' * len(regs))
         # return 'xx' * len(regs)
         values = ""
+        reg_values = []
         for name in regs:
             if name in ["cs", "ss", "ds", "es"]:
                 values += "xx"
+                reg_values.append((name, 'xx'))
             else:
                 reg = self.active_state.registers[name]
                 if reg.size == 32:
@@ -161,6 +164,7 @@ class GdbServer():
                 else:
                     raise Exception("Unsupported bit width %d" % reg.size)
                 values += struct.pack(fmt, reg.value).encode("hex")
+                reg_values.append((name, struct.pack(fmt, reg.value).encode("hex")))
         return "".join(values)
 
     def set_thread(self, packet):
