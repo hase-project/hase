@@ -31,11 +31,18 @@ class Addr2line():
             search_path = relative_root + os.environ['HASESRC'].split(':')
         else:
             search_path = os.environ['HASESRC'].split(':')
+        collected_root = ['']
         for path in search_path:
             for root, dirs, files in os.walk(path):
                 if basename in files:
-                    return os.path.join(root, basename)
-        return filename
+                    collected_root.append(root)
+
+        def intersect_judge(root):
+            elems_f = filename.split('/')
+            elems_r = os.path.join(root, basename).split('/')
+            return len([v for v in elems_f if v in elems_r])
+
+        return os.path.join(max(collected_root, key=intersect_judge), basename)
 
     def compute(self):
         # type: () -> Dict[int, List[Union[str, int]]]
@@ -68,7 +75,9 @@ class Addr2line():
                 # TODO: file:?
                 line = line.split(" ")[0]
                 if not os.path.exists(file):
-                    file = self.find_in_path(file, relative_root)
+                    new_file = self.find_in_path(file, relative_root)
+                    print("Redirect: {} -> {}".format(file, new_file))
+                    file = new_file
                 print(file, line)
                 if line == '?':
                     line = 0

@@ -101,15 +101,25 @@ class HaseMagics(Magics):
         user_ns["states"] = states
         user_ns['executable'] = executable
         user_ns['active_state'] = self.active_state
+
+        # FIXME: dumb code, duplicate of annotate.py
         for k, v in addr_map.items():
             if not os.path.exists(v[0]):
                 origin_f = v[0]
                 print("\nCannot resolve filename: {}".format(origin_f))
                 d = raw_input("Try to manually set file path for {}: ".format(os.path.basename(origin_f)))
-                new_f = os.path.join(d, origin_f)
+                collected_root = [d]
                 for root, dirs, files in os.walk(d):
                     if os.path.basename(origin_f) in files:
-                        new_f = os.path.join(root, os.path.basename(origin_f))
+                        collected_root.append(root)
+
+                def intersect_judge(root):
+                    elems_f = origin_f.split('/')
+                    elems_r = os.path.join(root, os.path.basename(origin_f)).split('/')
+                    return len([v for v in elems_f if v in elems_r])
+
+                new_f = os.path.join(max(collected_root, key=intersect_judge), os.path.basename(origin_f))
+
                 for i, p in addr_map.items():
                     if not os.path.exists(p[0]):
                         if p[0] == origin_f and i != k:

@@ -62,6 +62,11 @@ class Replay():
         # type: () -> str
         return self.executable
 
+    @executable.setter
+    def executable(self, value):
+        # type: (str) -> None
+        self.executable = value
+
     def load_manifest(self):
         # type: () -> Dict[str, Any]
         archive_root = self.tempdir
