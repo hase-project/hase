@@ -128,6 +128,7 @@ class GdbServer():
             'p': self.read_register,
             'P': self.write_register,
             'v': self.handle_long_commands,
+            'X': self.write_memory_bin,
             'Z': self.insert_breakpoint,
             'z': self.remove_breakpoint,
             '?': self.stop_reason,
@@ -293,6 +294,13 @@ class GdbServer():
         self.mem.write(addr, length, value)
         return "OK"
 
+    def write_memory_bin(self, packet):
+        # type: (str) -> str
+        """
+        X addr,length:XX(bin)
+        """
+        pass
+
     def insert_breakpoint(self, packet):
         # type: (str) -> str
         """
@@ -352,7 +360,35 @@ class GdbServer():
         """
 
         if packet.startswith('Supported'):
-            return 'PacketSize=%x' % PAGESIZE
+            features = ['qXfer:libraries:read+', 'qXfer:memory-map:read+']
+            features.append('PacketSize=%x' % PAGESIZE)
+            return ';'.join(features)
+        elif packet.startswith('Xfer'):
+            reqs = packet.split(':')
+            # FIXME: not working now
+            if reqs[1] == 'libraries' and reqs[2] == 'read':
+                return """
+                    <library-list>
+                        <library name="/lib/libc.so.6">
+                            <segment address="0x10000000"/>
+                        </library>
+                    </library-list>
+                """
+            if reqs[1] == 'memory-map' and reqs[2] == 'read':
+                offset_, length_ = reqs[4].split(',')
+                offset = int(offset_, 16)
+                length = int(length_, 16)
+                # FIXME: not working now
+                return """
+                    <?xml version="1.0"?>
+                    <!DOCTYPE memory-map
+                            PUBLIC "+//IDN gnu.org//DTD GDB Memory Map V1.0//EN"
+                                    "http://sourceware.org/gdb/gdb-memory-map.dtd">
+                    <memory-map>
+                        <memory type="ram" start="0" length="ff"/>
+                    </memory-map>
+                """
+            return ''
         elif packet.startswith('Attached'):
             return '1'
         elif packet.startswith("C"):
