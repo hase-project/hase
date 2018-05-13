@@ -76,7 +76,7 @@ class Addr2line():
                 line = line.split(" ")[0]
                 if not os.path.exists(file):
                     new_file = self.find_in_path(file, relative_root)
-                    print("Redirect: {} -> {}".format(file, new_file))
+                    # print("Redirect: {} -> {}".format(file, new_file))
                     file = new_file
                 print(file, line)
                 if line == '?':

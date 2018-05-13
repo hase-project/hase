@@ -7,8 +7,8 @@ from . import MainWindow, EXIT_REBOOT, EXIT_NORMAL
 import sys
 import os
 import os.path
-import operator
 import imp
+import json
 import subprocess
 from types import ModuleType
 from shlex import split as shsplit
@@ -17,18 +17,21 @@ from .. import gdb, annotate
 from ..replay import replay_trace
 from ..path import Tempdir
 
-# only for function in Magics class
-# FIXME: inherit documentation (maybe by functools.wraps)
-# TODO: is there same way to get line_magic name instead of manually setting?
 def op_restrict(low = 0, high = 65536):
     def comp(actual, given):
         return low <= actual <= high
     return comp
 
+def op_eq(actual, given):
+    return actual == given
+
+# only for function in Magics class
+# FIXME: inherit documentation (maybe by functools.wraps)
+# TODO: is there same way to get line_magic name instead of manually setting?
 def args(*param_names, **kwargs):
     def func_wrapper(func):
         name = kwargs.pop('name', func.__name__)
-        comp = kwargs.pop('comp', operator.eq)
+        comp = kwargs.pop('comp', op_eq)
         info = kwargs.pop('usage', None)
         def recv_args(inst, query):
             param = shsplit(query)
@@ -128,8 +131,7 @@ class HaseMagics(Magics):
                 
 
         # FIXME later
-        user_ns["gdb"] = gdb.GdbServer(self.active_state, executable)
-        user_ns['gdb-thread'] = user_ns['gdb'].thread
+        user_ns["gdbs"] = gdb.GdbServer(self.active_state, executable)
         # FIXME set default path and prompt asking unsolved path
         self.window.set_location(*addr_map[self.active_state.address()])
 
@@ -147,10 +149,17 @@ class HaseMagics(Magics):
         """
         print(self.active_state.simstate.callstack)
 
-    @args(comp=op_restrict(1), usage="gdb run|eval|...")
+    @args(comp=op_restrict(1), info="USAGE: gdb ...")
     @line_magic("gdb")
     def gdb(self, query):
-        query = query.strip()
+        try:
+            resp = self.shell.user_ns['gdbs'].write_request(query)
+            for r in resp:
+                if r['payload']:
+                    print(r['payload'].replace('\\n', '\n').replace('\\t', '\t'))
+        except Exception:
+            pass    
+
         
 
 # get_ipython will be magically set by ipython
