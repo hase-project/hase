@@ -9,18 +9,16 @@ import os
 import sys
 import pandas
 import socket
-from time import sleep
 
-from typing import IO, Any, Optional
+from typing import IO, Any, Optional, List, Tuple
 
 
 def read_syscall():
-    # type: () -> list, str
+    # type: () -> Tuple[List[str], str]
 
     prog = """
-    BPF_PERF_OUTPUT(events);
-    int dumb(void *ctx) {
-        return 0;
+    int dump(void *ctx) {
+      return 0;
     }
     """
 
@@ -34,7 +32,7 @@ def read_syscall():
             args = line.split()
             if args:
                 syscalls.append(args[-1])
-    
+
     return syscalls, prog
 
 
@@ -50,6 +48,7 @@ def check_port_inuse(port):
         return True
     except socket.error:
         return False
+
 
 def bench_redis(repeat=3, n=1000000):
     # type: (int, int) -> pandas.DataFrame
@@ -71,9 +70,7 @@ def bench_redis(repeat=3, n=1000000):
 
     syscalls, bpf_prog = read_syscall()
 
-
     with open(os.devnull, 'w') as fnull:
-
         for i in range(repeat):
             print("Record {}th performance without bpf".format(i))
 
@@ -89,11 +86,11 @@ def bench_redis(repeat=3, n=1000000):
             serv.terminate()
             results.append(read_result("no-bpf", bench.stdout))
 
-
-        b = BPF(text = bpf_prog)
+        b = BPF(text=bpf_prog)
         for sysc in syscalls:
             try:
-                b.attach_kprobe(event=sysc, fn_name='dumb')
+                b.attach_kprobe(event=sysc, fn_name="dump")
+                b.attach_kretprobe(event=sysc, fn_name="dump")
             except Exception as e:
                 print(str(e) + ", syscall: {}".format(sysc))
 
@@ -111,7 +108,6 @@ def bench_redis(repeat=3, n=1000000):
             bench.wait()
             serv.terminate()
             results.append(read_result("bpf", bench.stdout))
-
 
     df = pandas.concat(results)
     path = os.path.join(os.path.dirname(__file__), "results", "syscall.tsv")
