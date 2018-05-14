@@ -46,7 +46,13 @@ def build_load_options(mappings):
 
 
 class Tracer():
-    def __init__(self, executable, thread_id, trace_path, coredump, mappings, executable_root=None):
+    def __init__(self,
+                 executable,
+                 thread_id,
+                 trace_path,
+                 coredump,
+                 mappings,
+                 executable_root=None):
         # type: (str, int, str, str, List[Mapping], Optional[str]) -> None
         self.executable = executable
         self.mappings = mappings
@@ -57,7 +63,8 @@ class Tracer():
 
         command = os.path.basename(self.coredump.string(self.coredump.argv[0]))
 
-        trace = read_trace(trace_path, thread_id, command, executable_root=executable_root)
+        trace = read_trace(
+            trace_path, thread_id, command, executable_root=executable_root)
         self.trace = trace
 
         assert self.project.loader.main_object.os.startswith('UNIX')

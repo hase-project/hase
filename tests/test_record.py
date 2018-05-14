@@ -32,10 +32,12 @@ def test_record_command():
         pid_file = str(tempdir.join("record.pid"))
         # generate coredump
         loopy = str(TEST_BIN.join("loopy/loopy"))
-        argv = ["hase", "record", "--log-dir", str(tempdir), "--limit", "1",
-                "--pid-file", pid_file, loopy]
+        argv = [
+            "hase", "record", "--log-dir",
+            str(tempdir), "--limit", "1", "--pid-file", pid_file, loopy
+        ]
         global process
-        process = Process(target=main, args=(argv,))
+        process = Process(target=main, args=(argv, ))
         process.start()
 
         while not os.path.exists(pid_file):

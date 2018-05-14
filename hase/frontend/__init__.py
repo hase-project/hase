@@ -14,8 +14,8 @@ from ..path import APP_ROOT
 EXIT_REBOOT = -1
 EXIT_NORMAL = 0
 
-
-form_class, base_class = loadUiType(str(APP_ROOT.join('frontend', 'mainwindow.ui')))  # type: Tuple[Any, Any]
+form_class, base_class = loadUiType(
+    str(APP_ROOT.join('frontend', 'mainwindow.ui')))  # type: Tuple[Any, Any]
 
 code_template = """
 <html>
@@ -49,8 +49,10 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         # FIXME: how to robust deal with ??
         if source_file != '??':
             lexer = pygments.lexers.get_lexer_for_filename(source_file)
-            formatter_opts = dict(linenos="inline", linespans="line", hl_lines=[line])
-            html_formatter = pygments.formatters.get_formatter_by_name("html", **formatter_opts)
+            formatter_opts = dict(
+                linenos="inline", linespans="line", hl_lines=[line])
+            html_formatter = pygments.formatters.get_formatter_by_name(
+                "html", **formatter_opts)
             css = html_formatter.get_style_defs('.highlight')
             with open(source_file) as f:
                 tokens = lexer.get_tokens(f.read())

@@ -17,13 +17,17 @@ from .. import gdb, annotate
 from ..replay import replay_trace
 from ..path import Tempdir
 
-def op_restrict(low = 0, high = 65536):
+
+def op_restrict(low=0, high=65536):
     def comp(actual, given):
         return low <= actual <= high
+
     return comp
+
 
 def op_eq(actual, given):
     return actual == given
+
 
 # only for function in Magics class
 # FIXME: inherit documentation (maybe by functools.wraps)
@@ -33,6 +37,7 @@ def args(*param_names, **kwargs):
         name = kwargs.pop('name', func.__name__)
         comp = kwargs.pop('comp', op_eq)
         info = kwargs.pop('usage', None)
+
         def recv_args(inst, query):
             param = shsplit(query)
             if not comp(len(param), len(param_names)):
@@ -42,9 +47,11 @@ def args(*param_names, **kwargs):
                     print("USAGE: {}".format(info))
                 return
             func(inst, query)
+
         recv_args.__name__ = func.__wrapped__.__name__
         recv_args.__doc__ = func.__wrapped__.__doc__
         return recv_args
+
     return func_wrapper
 
 
@@ -79,7 +86,8 @@ class HaseMagics(Magics):
     def reload_hase(self, query):
         module_path = os.path.dirname(os.path.dirname(__file__))
         for name, m in sys.modules.items():
-            if isinstance(m, ModuleType) and hasattr(m, "__file__") and m.__file__.startswith(module_path):
+            if isinstance(m, ModuleType) and hasattr(
+                    m, "__file__") and m.__file__.startswith(module_path):
                 print("reload %s" % name)
                 try:
                     imp.reload(m)
@@ -110,7 +118,8 @@ class HaseMagics(Magics):
             if not os.path.exists(v[0]):
                 origin_f = v[0]
                 print("\nCannot resolve filename: {}".format(origin_f))
-                d = raw_input("Try to manually set file path for {}: ".format(os.path.basename(origin_f)))
+                d = raw_input("Try to manually set file path for {}: ".format(
+                    os.path.basename(origin_f)))
                 collected_root = [d]
                 for root, dirs, files in os.walk(d):
                     if os.path.basename(origin_f) in files:
@@ -118,17 +127,19 @@ class HaseMagics(Magics):
 
                 def intersect_judge(root):
                     elems_f = origin_f.split('/')
-                    elems_r = os.path.join(root, os.path.basename(origin_f)).split('/')
+                    elems_r = os.path.join(
+                        root, os.path.basename(origin_f)).split('/')
                     return len([v for v in elems_f if v in elems_r])
 
-                new_f = os.path.join(max(collected_root, key=intersect_judge), os.path.basename(origin_f))
+                new_f = os.path.join(
+                    max(collected_root, key=intersect_judge),
+                    os.path.basename(origin_f))
 
                 for i, p in addr_map.items():
                     if not os.path.exists(p[0]):
                         if p[0] == origin_f and i != k:
                             addr_map[i][0] = new_f
                 addr_map[k][0] = new_f
-                
 
         # FIXME later
         user_ns["gdbs"] = gdb.GdbServer(self.active_state, executable)
@@ -156,11 +167,11 @@ class HaseMagics(Magics):
             resp = self.shell.user_ns['gdbs'].write_request(query)
             for r in resp:
                 if r['payload']:
-                    print(r['payload'].replace('\\n', '\n').replace('\\t', '\t'))
+                    print(r['payload'].replace('\\n', '\n').replace(
+                        '\\t', '\t'))
         except Exception:
-            pass    
+            pass
 
-        
 
 # get_ipython will be magically set by ipython
 ip = get_ipython()

@@ -17,6 +17,7 @@ from .symbex.state import State
 logging.basicConfig()
 l = logging.getLogger(__name__)
 
+
 class GdbRegSpace():
     def __init__(self, active_state):
         # https://github.com/radare/radare2/blob/fe6372339da335bd08a8b568d95bb0bd29f24406/shlr/gdb/src/arch.c#L5
@@ -68,7 +69,8 @@ class GdbMemSpace():
         value = self.active_state.memory[addr]
         if value is None:
             try:
-                value = ord(self.active_state.simstate.project.loader.memory[addr])
+                value = ord(
+                    self.active_state.simstate.project.loader.memory[addr])
             except:
                 value = None
             if value is None:
@@ -146,7 +148,8 @@ class GdbServer():
 
     def eval_expression(self, expr):
         # type: (str) -> None
-        res = self.gdb.write("-data-evaluate-expression %s" % expr, timeout_sec=99999)
+        res = self.gdb.write(
+            "-data-evaluate-expression %s" % expr, timeout_sec=99999)
         print(res)
 
     def write_request(self, expr):
@@ -333,7 +336,8 @@ class GdbServer():
             return "S05"
 
         if packet.startswith('Cont'):
-            supported_action = ['', 'c', 's', 't'] # TODO: C sig/S sig/r start,end
+            supported_action = ['', 'c', 's',
+                                't']  # TODO: C sig/S sig/r start,end
             packet = packet[4:]
             if packet == '?':
                 return ';'.join(supported_action)

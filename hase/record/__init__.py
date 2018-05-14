@@ -20,7 +20,6 @@ from .signal_handler import SignalHandler
 from .. import pwn_wrapper
 from .perf_record import PerfData, PTSnapshot, IncreasePerfBuffer
 
-
 l = logging.getLogger(__name__)
 
 DEFAULT_LOG_DIR = Path("/var/lib/hase")
@@ -32,11 +31,12 @@ def record(record_paths, cmds=None):
     # type: (RecordPaths, Optional[List[str]]) -> Optional[Tuple[coredumps.Coredump, PerfData]]
 
     with PTSnapshot(perf_file=str(record_paths.perf), cmds=cmds) as snapshot:
-        handler = coredumps.Handler(snapshot.perf_pid,
-                                    str(record_paths.coredump),
-                                    str(record_paths.fifo),
-                                    str(record_paths.manifest),
-                                    log_path=str(record_paths.log_path.join("coredump.log")))
+        handler = coredumps.Handler(
+            snapshot.perf_pid,
+            str(record_paths.coredump),
+            str(record_paths.fifo),
+            str(record_paths.manifest),
+            log_path=str(record_paths.log_path.join("coredump.log")))
 
         # work around missing nonlocal keyword in python2 with a list
         got_coredump = [False]
@@ -51,15 +51,15 @@ def record(record_paths, cmds=None):
         with handler as coredump, \
                 IncreasePerfBuffer(100 * 1024), \
                 SignalHandler(SIGUSR2, received_coredump):
-                    if record_paths.pid_file is not None:
-                        with open(record_paths.pid_file, "w") as f:
-                            f.write(str(os.getpid()))
-                    c = coredump  # type: coredumps.Coredump
-                    perf_data = snapshot.get()
-                    if got_coredump[0]:
-                        return (c, perf_data)
-                    else:
-                        return None
+            if record_paths.pid_file is not None:
+                with open(record_paths.pid_file, "w") as f:
+                    f.write(str(os.getpid()))
+            c = coredump  # type: coredumps.Coredump
+            perf_data = snapshot.get()
+            if got_coredump[0]:
+                return (c, perf_data)
+            else:
+                return None
 
 
 class Job():
@@ -144,7 +144,8 @@ class RecordPaths():
 
     def report_archive(self, executable, timestamp):
         # type: (str, str) -> Path
-        return self.log_path.join("%s-%s.tar.gz" % (os.path.basename(executable), timestamp))
+        return self.log_path.join("%s-%s.tar.gz" %
+                                  (os.path.basename(executable), timestamp))
 
 
 def store_report(job):
@@ -170,11 +171,18 @@ def store_report(job):
         paths = set()
         for obj in pwn_wrapper.Coredump(str(core_file)).mappings:
             path = obj.path
-            if (obj.flags & PROT_EXEC) and path.startswith("/") and os.path.exists(path):
+            if (obj.flags & PROT_EXEC
+                ) and path.startswith("/") and os.path.exists(path):
                 paths.add(path)
                 path = os.path.join("binaries", path[1:])
 
-            mappings.append(vars(Mapping(start=obj.start, stop=obj.stop, path=path, flags=obj.flags)))
+            mappings.append(
+                vars(
+                    Mapping(
+                        start=obj.start,
+                        stop=obj.stop,
+                        path=path,
+                        flags=obj.flags)))
 
         for path in paths:
             # FIXME check if elf, only create parent directory once
@@ -187,7 +195,8 @@ def store_report(job):
             append(str(archive_path))
 
         coredump = manifest["coredump"]
-        coredump["executable"] = os.path.join("binaries", coredump["executable"])
+        coredump["executable"] = os.path.join("binaries",
+                                              coredump["executable"])
         coredump["file"] = str(state_dir.relpath(core_file))
         append(core_file)
 
@@ -199,7 +208,8 @@ def store_report(job):
 
         template.flush()
 
-        archive_path = record_paths.report_archive(coredump["executable"], coredump["time"])
+        archive_path = record_paths.report_archive(coredump["executable"],
+                                                   coredump["time"])
 
         l.info("creating archive %s", archive_path)
         subprocess.check_call([
@@ -272,7 +282,13 @@ def record_command(args):
     log_path = Path(args.log_dir)
     log_path.mkdir_p()
 
-    logging.basicConfig(filename=str(log_path.join("hase.log")), level=logging.INFO)
+    logging.basicConfig(
+        filename=str(log_path.join("hase.log")), level=logging.INFO)
 
     with Tempdir() as tempdir:
-        record_loop(tempdir, log_path, pid_file=args.pid_file, limit=args.limit, cmds=args.args)
+        record_loop(
+            tempdir,
+            log_path,
+            pid_file=args.pid_file,
+            limit=args.limit,
+            cmds=args.args)

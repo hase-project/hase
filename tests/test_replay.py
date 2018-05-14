@@ -38,4 +38,6 @@ def test_control_flow():
 
     state = main(["hase", "replay", exe, trace, core])
     last_state = state[-1]
-    nose.tools.eq_(last_state.simstate.solver.eval(last_state.simstate.regs.rip), 0x400a05)
+    nose.tools.eq_(
+        last_state.simstate.solver.eval(last_state.simstate.regs.rip),
+        0x400a05)

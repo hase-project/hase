@@ -10,7 +10,9 @@ from time import sleep
 from typing import IO, Any, Optional
 
 perf_cmd = [
-    "perf", "record", "--no-buildid", "--no-buildid-cache", "-e", "raw_syscalls:*", "--switch-output", "--overwrite", "-a", "--tail-synthesize"
+    "perf", "record", "--no-buildid", "--no-buildid-cache", "-e",
+    "raw_syscalls:*", "--switch-output", "--overwrite", "-a",
+    "--tail-synthesize"
 ]
 
 server_cmd = ["redis-server", "--port"]
@@ -25,6 +27,7 @@ def check_port_inuse(port):
         return True
     except socket.error:
         return False
+
 
 def bench_redis(repeat=3, n=1000000):
     # type: (int, int) -> pandas.DataFrame

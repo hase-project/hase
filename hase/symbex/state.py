@@ -69,7 +69,8 @@ class State():
 
     def object(self):
         # type: () -> ELF
-        return self.simstate.project.loader.find_object_containing(self.simstate.addr)
+        return self.simstate.project.loader.find_object_containing(
+            self.simstate.addr)
 
     def address(self):
         # type: () -> int

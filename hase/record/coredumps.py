@@ -47,7 +47,8 @@ class Coredump():
         l.info("wait for fifo %s", self.fifo_path)
         self.fifo_file = open(self.fifo_path)
         msg = self.fifo_file.read(len(RECV_MESSAGE))
-        assert msg == RECV_MESSAGE, "got '%s' from fifo, expected: '%s'" % (msg, RECV_MESSAGE)
+        assert msg == RECV_MESSAGE, "got '%s' from fifo, expected: '%s'" % (
+            msg, RECV_MESSAGE)
         return self.core_file
 
     def remove(self):
@@ -59,7 +60,12 @@ class Coredump():
 
 
 class Handler():
-    def __init__(self, perf_pid, core_file, fifo_path, manifest_path, log_path="/tmp/coredump.log"):
+    def __init__(self,
+                 perf_pid,
+                 core_file,
+                 fifo_path,
+                 manifest_path,
+                 log_path="/tmp/coredump.log"):
         # type: (int, str, str, str, str) -> None
         self.previous_pattern = None
         self.old_core_rlimit = None
@@ -78,7 +84,8 @@ class Handler():
         kill_command = which("kill")
         assert kill_command is not None
 
-        self.handler_script = tempfile.NamedTemporaryFile(prefix="core_handler", delete=False)
+        self.handler_script = tempfile.NamedTemporaryFile(
+            prefix="core_handler", delete=False)
         os.chmod(self.handler_script.name, 0o755)
         assert len(self.handler_script.name) < 128
 
