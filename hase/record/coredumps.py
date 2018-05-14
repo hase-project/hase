@@ -4,14 +4,13 @@ import sys
 import os
 import tempfile
 import resource
-import fcntl
 # TODO python3
 from pipes import quote
 from typing import Optional, IO, Any
 import logging
 
 from .coredump_handler import RECV_MESSAGE, EXTRA_CORE_DUMP_PARAMETER
-from .path import which
+from ..path import which
 
 l = logging.getLogger(__name__)
 
@@ -87,17 +86,18 @@ class Handler():
 exec 1>>{log_path}
 exec 2>&1
 
-{kill} -SIGUSR2 "{perf_pid}"
+{kill} -SIGUSR2 "{perf_pid}" "{hase_pid}"
 {kill} -SIGTERM "{perf_pid}"
 
 export PYTHONPATH={pythonpath}
 
-exec {python} -m hase.coredump_handler {fifo_path} {core_file} {manifest_path} "$@"
+exec {python} -m hase.record.coredump_handler {fifo_path} {core_file} {manifest_path} "$@"
 """
 
         script_content = script_template.format(
             kill=kill_command,
             perf_pid=self.perf_pid,
+            hase_pid=os.getpid(),
             python=quote(sys.executable),
             pythonpath=":".join(sys.path),
             fifo_path=quote(self.fifo_path),

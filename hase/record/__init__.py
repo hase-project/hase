@@ -6,18 +6,20 @@ from tempfile import NamedTemporaryFile
 from threading import Thread
 import subprocess
 import logging
-from datetime import datetime
 from Queue import Queue
 import os
 import argparse  # NOQA
-
-from . import coredumps, perf
-from .path import Path, Tempdir
-from .mapping import Mapping
-
-from . import pwn_wrapper
-
+from types import FrameType
+from signal import SIGUSR2
 from typing import Optional, IO, Any, Tuple, List
+
+from . import coredumps, processor_trace
+from ..path import Path, Tempdir
+from ..mapping import Mapping
+from .signal_handler import SignalHandler
+from .. import pwn_wrapper
+from .perf_record import PerfData, PTSnapshot, IncreasePerfBuffer
+
 
 l = logging.getLogger(__name__)
 
@@ -27,28 +29,44 @@ PROT_EXEC = 4
 
 
 def record(record_paths, cmds=None):
-    # type: (RecordPaths, List[str]) -> Tuple[coredumps.Coredump, perf.PerfData]
+    # type: (RecordPaths, Optional[List[str]]) -> Optional[Tuple[coredumps.Coredump, PerfData]]
 
-    with perf.PTSnapshot(perf_file=str(record_paths.perf), cmds=cmds) as snapshot:
+    with PTSnapshot(perf_file=str(record_paths.perf), cmds=cmds) as snapshot:
         handler = coredumps.Handler(snapshot.perf_pid,
                                     str(record_paths.coredump),
                                     str(record_paths.fifo),
                                     str(record_paths.manifest),
                                     log_path=str(record_paths.log_path.join("coredump.log")))
+
+        # work around missing nonlocal keyword in python2 with a list
+        got_coredump = [False]
+
+        def received_coredump(signum, frame_type):
+            # Type (int FrameType) -> None
+            # Relying on receiving the SIGUSR2 in time is potentially buggy,
+            # since we sent the signal first to perf. This is however not very
+            # likely. In the worst case this will make us miss events.
+            got_coredump[0] = True
+
         with handler as coredump, \
-                perf.IncreasePerfBuffer(100 * 1024):
+                IncreasePerfBuffer(100 * 1024), \
+                SignalHandler(SIGUSR2, received_coredump):
                     if record_paths.pid_file is not None:
                         with open(record_paths.pid_file, "w") as f:
                             f.write(str(os.getpid()))
                     c = coredump  # type: coredumps.Coredump
-                    return (c, snapshot.get())
+                    perf_data = snapshot.get()
+                    if got_coredump[0]:
+                        return (c, perf_data)
+                    else:
+                        return None
 
 
 class Job():
     def __init__(
             self,
             coredump=None,  # type: Optional[coredumps.Coredump]
-            perf_data=None,  # type: Optional[perf.PerfData]
+            perf_data=None,  # type: Optional[PerfData]
             record_paths=None,  # type: Optional[RecordPaths]
             exit=False  # type: bool
     ):
@@ -60,7 +78,7 @@ class Job():
 
     @property
     def perf_data(self):
-        # type: () -> perf.PerfData
+        # type: () -> PerfData
         assert self._perf_data is not None
         return self._perf_data
 
@@ -217,7 +235,7 @@ def report_worker(queue):
 
 
 def record_loop(record_path, log_path, pid_file=None, limit=0, cmds=None):
-    # type: (Path, Path, str, int, List[str]) -> None
+    # type: (Path, Path, Optional[str], int, Optional[List[str]]) -> None
 
     job_queue = Queue()  # type: Queue
     post_process_thread = Thread(target=report_worker, args=(job_queue, ))
@@ -229,8 +247,17 @@ def record_loop(record_path, log_path, pid_file=None, limit=0, cmds=None):
             i += 1
             # TODO ratelimit
             record_paths = RecordPaths(record_path, i, log_path, pid_file)
-            (coredump, perf_data) = record(record_paths, cmds)
+            result = record(record_paths, cmds)
+            if result is None:
+                # Perf exited without coredump:
+                # This either means we have started it with a command, which
+                # exited or perf failed to setup processor trace/process.
+                break
+            (coredump, perf_data) = result
             job_queue.put(Job(coredump, perf_data, record_paths))
+            if cmds is not None:
+                # if we record a single command we do not go into a loop
+                break
     except KeyboardInterrupt:
         pass
     finally:

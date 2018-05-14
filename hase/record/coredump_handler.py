@@ -9,7 +9,7 @@ import datetime
 from collections import OrderedDict, defaultdict
 from typing import List, Any, IO, DefaultDict, Dict
 
-from . import timestamp
+from .. import timestamp
 
 RECV_MESSAGE = "GOT COREDUMP"
 

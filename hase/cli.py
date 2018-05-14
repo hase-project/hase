@@ -50,7 +50,7 @@ def parse_arguments(argv):
 
     def lazy_import_replay_command(args):
         from .replay import replay_command
-        replay_command(args)
+        return replay_command(args)
 
     replay.set_defaults(func=lazy_import_replay_command)
     return parser.parse_args(argv[1:])
