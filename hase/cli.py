@@ -19,7 +19,6 @@ def parse_arguments(argv):
         description='valid subcommands',
         help='additional help')
 
-    # TODO, make angr working on coredumps
     record = subparsers.add_parser('record')
     record.set_defaults(func=record_command)
     record.add_argument(
@@ -45,9 +44,19 @@ def parse_arguments(argv):
     replay = subparsers.add_parser('replay')
     replay.add_argument("report")
 
+    unpack = subparsers.add_parser('unpack')
+    unpack.add_argument("report")
+
     def lazy_import_replay_command(args):
         from .replay import replay_command
         return replay_command(args)
 
     replay.set_defaults(func=lazy_import_replay_command)
+
+    def lazy_import_unpack_command(args):
+        from .replay import unpack_command
+        return unpack_command(args)
+
+    unpack.set_defaults(func=lazy_import_unpack_command)
+
     return parser.parse_args(argv[1:])

@@ -4,6 +4,7 @@ import argparse
 import subprocess
 import json
 import shutil
+import sys
 from typing import List, Any, Dict
 
 from .symbex.tracer import Tracer, State
@@ -27,11 +28,7 @@ class Replay():
 
     def prepare_tracer(self):
         # type: () -> None
-        subprocess.check_call(
-            ["tar", "-xzf", self.report, "-C",
-             str(self.tempdir)])
-
-        manifest = self.load_manifest()
+        manifest = self.unpack()
 
         coredump = manifest["coredump"]
 
@@ -68,9 +65,13 @@ class Replay():
         # type: (str) -> None
         self.executable = value
 
-    def load_manifest(self):
+    def unpack(self):
         # type: () -> Dict[str, Any]
         archive_root = self.tempdir
+        subprocess.check_call(
+            ["tar", "-xzf", self.report, "-C",
+             str(archive_root)])
+
         manifest_path = archive_root.join("manifest.json")
         with open(str(manifest_path)) as f:
             manifest = json.load(f)
@@ -103,3 +104,7 @@ def replay_command(args):
     # type: (argparse.Namespace) -> List[State]
     with replay_trace(args.report) as rt:
         return rt.run()
+
+
+def unpack_command(args):
+    json.dump(Replay(args.report).unpack(), sys.stdout, sort_keys=True, indent=4)

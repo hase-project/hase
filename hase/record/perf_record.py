@@ -47,8 +47,8 @@ class PTSnapshot():
             cmd += [
                 "sh", "-c", "echo ready; while true; do sleep 999999; done"
             ]
+
         self.perf_file = perf_file
-        print(" ".join(cmd))
         self.process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 
         if cmds is None and self.process.stdout:
