@@ -1,15 +1,14 @@
 from __future__ import absolute_import, division, print_function
 
-import os
 import argparse
 import subprocess
 import json
 import shutil
-from typing import List
+from typing import List, Any, Dict
 
-from .symbex.tracer import Tracer, State, Any, Dict
+from .symbex.tracer import Tracer, State
 from .mapping import Mapping
-from .path import Tempdir, Path
+from .path import Tempdir
 
 
 class Replay():
@@ -28,7 +27,9 @@ class Replay():
 
     def prepare_tracer(self):
         # type: () -> None
-        subprocess.check_call(["tar", "-xzf", self.report, "-C", str(self.tempdir)])
+        subprocess.check_call(
+            ["tar", "-xzf", self.report, "-C",
+             str(self.tempdir)])
 
         manifest = self.load_manifest()
 
@@ -41,7 +42,7 @@ class Replay():
             coredump["file"],
             manifest["mappings"],
             executable_root=str(self.tempdir.join("binaries")))
-        
+
     def run(self):
         # type: () -> List[State]
         if not self.tracer:
@@ -91,6 +92,7 @@ class Replay():
         coredump["file"] = str(archive_root.join(coredump["file"]))
 
         return manifest
+
 
 def replay_trace(report):
     # type: (str) -> Replay
