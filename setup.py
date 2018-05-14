@@ -22,6 +22,9 @@ setup(
         "test": ["nose"]
     },
     entry_points={
-        "console_scripts": ["hase = hase:main"],
+        "console_scripts": [
+            "hase = hase:main"
+            "hase-gui = hase.frontend:main"
+        ],
     },
 )
