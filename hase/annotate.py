@@ -16,12 +16,10 @@ class Addr2line():
         self.dsos = defaultdict(set)
 
     def _relative_addr(self, dso, addr):
-        print(dso, hex(addr))
         if dso.is_main_bin:
             return addr
         else:
-            # FIXME: dso.address_to_offset(addr)
-            return addr
+            return dso.addr_to_offset(addr)
 
     def add_addr(self, dso, absolute_addr):
         # type: (ELF, int) -> None
