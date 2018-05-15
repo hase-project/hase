@@ -27,10 +27,10 @@ DEFAULT_LOG_DIR = Path("/var/lib/hase")
 PROT_EXEC = 4
 
 
-def record(record_paths, cmds=None):
+def record(record_paths, command=None):
     # type: (RecordPaths, Optional[List[str]]) -> Optional[Tuple[coredumps.Coredump, PerfData]]
 
-    with PTSnapshot(perf_file=str(record_paths.perf), cmds=cmds) as snapshot:
+    with PTSnapshot(perf_file=str(record_paths.perf), command=command) as snapshot:
         handler = coredumps.Handler(
             snapshot.perf_pid,
             str(record_paths.coredump),
@@ -244,7 +244,7 @@ def report_worker(queue):
             job.remove()
 
 
-def record_loop(record_path, log_path, pid_file=None, limit=0, cmds=None):
+def record_loop(record_path, log_path, pid_file=None, limit=0, command=None):
     # type: (Path, Path, Optional[str], int, Optional[List[str]]) -> None
 
     job_queue = Queue()  # type: Queue
@@ -257,7 +257,7 @@ def record_loop(record_path, log_path, pid_file=None, limit=0, cmds=None):
             i += 1
             # TODO ratelimit
             record_paths = RecordPaths(record_path, i, log_path, pid_file)
-            result = record(record_paths, cmds)
+            result = record(record_paths, command)
             if result is None:
                 # Perf exited without coredump:
                 # This either means we have started it with a command, which
@@ -265,7 +265,7 @@ def record_loop(record_path, log_path, pid_file=None, limit=0, cmds=None):
                 break
             (coredump, perf_data) = result
             job_queue.put(Job(coredump, perf_data, record_paths))
-            if cmds is not None:
+            if command is not None:
                 # if we record a single command we do not go into a loop
                 break
     except KeyboardInterrupt:
@@ -285,10 +285,12 @@ def record_command(args):
     logging.basicConfig(
         filename=str(log_path.join("hase.log")), level=logging.INFO)
 
+    command = None if len(args.args) == 0 else args.args
+
     with Tempdir() as tempdir:
         record_loop(
             tempdir,
             log_path,
             pid_file=args.pid_file,
             limit=args.limit,
-            cmds=args.args)
+            command=command)

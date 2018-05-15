@@ -16,7 +16,7 @@ def optional_args(flag, value):
 
 
 class PTSnapshot():
-    def __init__(self, perf_file="perf.data", cmds=None):
+    def __init__(self, perf_file="perf.data", command=None):
         # type: (str, Optional[List[str]]) -> None
         features = check_features()
 
@@ -24,12 +24,11 @@ class PTSnapshot():
             raise HaseException(
                 "Processor trace is not supported on your hardware or kernel")
 
-        trace_all = optional_args(cmds is None, ["-a"])
+        trace_all = optional_args(command is None, ["-a"])
 
         record_size = optional_args(features.large_record_buffer,
                                     ["-m", "512,10000"])
-
-        cmd = [
+        perf_cmd = [
             "perf",
             "record",
             "--no-buildid",
@@ -41,17 +40,17 @@ class PTSnapshot():
             perf_file,
         ] + record_size + trace_all
 
-        if cmds is not None:
-            cmd += cmds
+        if command is not None:
+            perf_cmd += command
         else:
-            cmd += [
+            perf_cmd += [
                 "sh", "-c", "echo ready; while true; do sleep 999999; done"
             ]
 
         self.perf_file = perf_file
-        self.process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        self.process = subprocess.Popen(perf_cmd, stdout=subprocess.PIPE)
 
-        if cmds is None and self.process.stdout:
+        if command is None and self.process.stdout:
             # check that perf is initialized
             line = self.process.stdout.readline().strip()
             assert line == "ready", "expected perf to return 'ready', got '%s'" % (
