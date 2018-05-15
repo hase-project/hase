@@ -12,6 +12,8 @@ sys.path.insert(0, os.path.join(
 from hase.path import APP_ROOT
 
 # Python dependency management sucks balls!
+# Here we vendor dependency locally without using git-submodules, which have
+# their own set of problems.
 
 PREFIX = "https://github.com/angr/"
 VENDOR_ROOT = APP_ROOT.join("..", "vendor")
