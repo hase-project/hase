@@ -11,7 +11,7 @@ from .exceptions import HaseException
 from .path import Path
 
 
-class Addr2line():
+class Addr2line(object):
     def __init__(self):
         self.dsos = defaultdict(set)
 

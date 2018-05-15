@@ -8,7 +8,7 @@ from angr.state_plugins.sim_action import SimActionExit
 from angr import SimState
 from typing import List, Any, Dict, Tuple, Optional
 
-from ..perf import TRACE_END, read_trace, Branch
+from ..perf import read_trace, Branch
 from ..pwn_wrapper import ELF, Coredump
 from ..mapping import Mapping
 
@@ -45,7 +45,7 @@ def build_load_options(mappings):
         load_options={"except_missing_libs": True})
 
 
-class Tracer():
+class Tracer(object):
     def __init__(self,
                  executable,
                  thread_id,
@@ -67,6 +67,9 @@ class Tracer():
             trace_path, thread_id, command, executable_root=executable_root)
         self.trace = trace
 
+        if self.trace[-1].ip == 0:  # trace last ends in syscall
+            self.trace[-1].ip = self.coredump.registers["rip"]
+
         assert self.project.loader.main_object.os.startswith('UNIX')
 
         self.elf = ELF(executable)
@@ -75,15 +78,24 @@ class Tracer():
         main = self.elf.symbols.get('main')
 
         for (idx, event) in enumerate(self.trace):
-            if event.ip == start or event.ip == main:
+            if event.addr == start or event.addr == main or (
+                    event.ip == main or event.ip == main):
                 self.trace = trace[idx:]
 
         remove_simplications = {
             so.LAZY_SOLVES, so.EFFICIENT_STATE_MERGING,
             so.TRACK_CONSTRAINT_ACTIONS
         } | so.simplification
+
+        if self.trace[0].addr == 0:
+            start_address = self.trace[0].ip
+        else:
+            start_address = self.trace[0].addr
+
+        assert start_address != 0
+
         self.start_state = self.project.factory.blank_state(
-            addr=self.trace[0].ip,
+            addr=start_address,
             add_options=set([so.TRACK_JMP_ACTIONS]),
             remove_options=remove_simplications)
 
@@ -112,11 +124,6 @@ class Tracer():
                 state, num_inst=1).successors
             old_state = state
 
-            if branch.trace_end():
-                for choice in choices:
-                    if choice.addr == branch.addr:
-                        return choice
-
             if len(choices) <= 2:
                 for choice in choices:
                     if old_state.addr == branch.addr and choice.addr == branch.ip:
@@ -132,18 +139,31 @@ class Tracer():
 
     def valid_address(self, address):
         # type: (int) -> bool
-        return address == TRACE_END or self.project.loader.find_object_containing(
-            address)
+        return self.project.loader.find_object_containing(address)
+
+    def constrain_registers(self, state):
+        # type: (State) -> None
+        assert state.registers['rip'].value == self.coredump.registers['rip']
+        registers = [
+            "gs", "rip", "rdx", "r15", "rax", "rsi", "rcx", "r14", "fs", "r12",
+            "r13", "r10", "r11", "rbx", "r8", "r9", "rbp", "eflags", "rdi"
+        ]
+        # TODO: constrain $rsp when we switch to CallState
+        for name in registers:
+            state.registers[name] = self.coredump.registers[name]
 
     def run(self):
         # type: () -> List[State]
-        state = self.simgr.active[0]
+        simstate = self.simgr.active[0]
         states = []
-        states.append(State(self.trace[0], state))
+        states.append(State(self.trace[0], simstate))
         for event in self.trace[1:]:
             l.debug("look for jump: 0x%x -> 0x%x" % (event.addr, event.ip))
             assert self.valid_address(event.addr) and self.valid_address(
                 event.ip)
-            state = self.find_next_branch(state, event)
-            states.append(State(event, state))
+            new_simstate = self.find_next_branch(simstate, event)
+            simstate = new_simstate
+            states.append(State(event, new_simstate))
+        self.constrain_registers(states[-1])
+
         return states

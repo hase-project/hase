@@ -15,7 +15,7 @@ def optional_args(flag, value):
         return []
 
 
-class PTSnapshot():
+class PTSnapshot(object):
     def __init__(self, perf_file="perf.data", command=None):
         # type: (str, Optional[List[str]]) -> None
         features = check_features()
@@ -83,7 +83,7 @@ class PTSnapshot():
         return self.process.pid
 
 
-class IncreasePerfBuffer():
+class IncreasePerfBuffer(object):
     PATH = "/proc/sys/kernel/perf_event_mlock_kb"
 
     def __init__(self, size):
@@ -108,7 +108,7 @@ class IncreasePerfBuffer():
         return False
 
 
-class PerfData():
+class PerfData(object):
     def __init__(self, path):
         # type: (str) -> None
         self.path = path

@@ -12,7 +12,7 @@ from .mapping import Mapping
 from .path import Tempdir
 
 
-class Replay():
+class Replay(object):
     def __init__(self, report):
         # type: (str) -> None
         self.report = report
@@ -49,21 +49,6 @@ class Replay():
     def cleanup(self):
         # type: () -> None
         shutil.rmtree(str(self.tempdir))
-
-    @property
-    def tracer(self):
-        # type: () -> Tracer
-        return self.tracer
-
-    @property
-    def executable(self):
-        # type: () -> str
-        return self.executable
-
-    @executable.setter
-    def executable(self, value):
-        # type: (str) -> None
-        self.executable = value
 
     def unpack(self):
         # type: () -> Dict[str, Any]
@@ -107,4 +92,5 @@ def replay_command(args):
 
 
 def unpack_command(args):
-    json.dump(Replay(args.report).unpack(), sys.stdout, sort_keys=True, indent=4)
+    manifest = Replay(args.report).unpack()
+    json.dump(manifest, sys.stdout, sort_keys=True, indent=4)

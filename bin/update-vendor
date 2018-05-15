@@ -1,0 +1,40 @@
+#!/usr/bin/env python
+from __future__ import absolute_import, division, print_function
+
+import subprocess
+import os
+import sys
+
+
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(os.path.realpath(__file__)))))
+
+from hase.path import APP_ROOT
+
+# Python dependency management sucks balls!
+# Here we vendor dependency locally without using git-submodules, which have
+# their own set of problems.
+
+PREFIX = "https://github.com/angr/"
+VENDOR_ROOT = APP_ROOT.join("..", "vendor")
+
+
+def sh(cmd):
+    print(" ".join(cmd))
+    subprocess.check_call(cmd)
+
+
+def main():
+    VENDOR_ROOT.mkdir_p()
+    for project in ["angr", "archinfo", "claripy", "cle", "pyvex"]:
+        project_path = VENDOR_ROOT.join(project)
+        if not project_path.exists():
+            subprocess.check_call(["git", "clone", PREFIX + project, str(project_path)])
+        else:
+            subprocess.check_call(["git", "pull", "origin", "master"], cwd=str(project_path))
+
+    subprocess.check_call(["pip", "install", "-r", str(APP_ROOT.join("..", "requirements.txt"))])
+
+
+if __name__ == "__main__":
+    main()

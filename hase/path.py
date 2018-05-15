@@ -5,7 +5,11 @@ import tempfile
 import errno
 import shutil
 
-from typing import Union, AnyStr, Optional
+try:
+    # make typing optional so we can use it in bin/update-vendor
+    from typing import Union, AnyStr, Optional
+except ImportError:
+    pass
 
 
 def which(program):

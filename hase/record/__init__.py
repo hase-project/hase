@@ -13,7 +13,7 @@ from types import FrameType
 from signal import SIGUSR2
 from typing import Optional, IO, Any, Tuple, List
 
-from . import coredumps, processor_trace
+from . import coredumps
 from ..path import Path, Tempdir
 from ..mapping import Mapping
 from .signal_handler import SignalHandler
@@ -30,7 +30,8 @@ PROT_EXEC = 4
 def record(record_paths, command=None):
     # type: (RecordPaths, Optional[List[str]]) -> Optional[Tuple[coredumps.Coredump, PerfData]]
 
-    with PTSnapshot(perf_file=str(record_paths.perf), command=command) as snapshot:
+    snapshot = PTSnapshot(perf_file=str(record_paths.perf), command=command)
+    with snapshot:
         handler = coredumps.Handler(
             snapshot.perf_pid,
             str(record_paths.coredump),
@@ -62,7 +63,7 @@ def record(record_paths, command=None):
                 return None
 
 
-class Job():
+class Job(object):
     def __init__(
             self,
             coredump=None,  # type: Optional[coredumps.Coredump]
@@ -109,7 +110,7 @@ class Job():
             pass
 
 
-class RecordPaths():
+class RecordPaths(object):
     def __init__(self, path, id, log_path, pid_file):
         # type: (Path, int, Path, Optional[str]) -> None
         self.path = path
