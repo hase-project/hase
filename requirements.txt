@@ -1,0 +1,11 @@
+pwntools
+monkeyhex
+qtconsole
+pry.py
+pygdbmi
+typing
+./vendor/archinfo
+./vendor/pyvex
+./vendor/claripy
+./vendor/cle
+./vendor/angr
