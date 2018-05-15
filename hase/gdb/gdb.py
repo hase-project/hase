@@ -9,10 +9,11 @@ import threading
 import resource
 import termios
 import struct
+import xml.etree.ElementTree as ET
 from pygdbmi.gdbcontroller import GdbController
 from typing import Tuple, IO, Any, Optional
 
-from .symbex.state import State
+from ..symbex.state import State
 
 logging.basicConfig()
 l = logging.getLogger(__name__)
@@ -95,6 +96,60 @@ class GdbMemSpace():
         return
 
 
+class GdbSharedLibrary():
+    def __init__(self, active_state, pksize):
+        self.active_state = active_state
+        self.libs = []
+        self.pksize = pksize
+        for lib in self.active_state.simstate.project.loader.shared_objects.values():
+            if lib != self.active_state.simstate.project.loader.main_object:
+                self.libs.append(lib)
+        self.xml = None
+
+    def make_xml(self, update=False):
+        # type: (Optional[bool]) -> str
+        if not update and self.xml:
+            return self.xml
+        header = '<?xml version="1.0"?>'
+        root = ET.Element('library-list-svr4', {'version': '1.0'})
+        for lib in self.libs:
+            h_ld = 0 # value of memory address of PT_DYNAMIC for current lib
+            h_lm = lib.tls_tdata_start if lib.tls_used else 0
+            for seg in lib.reader.iter_segments():
+                if seg.header.p_type != 'PT_DYNAMIC':
+                    continue
+                h_ld = seg.header.p_paddr
+
+            # FIXME: how to access link_map object in angr.cle loader
+            ET.SubElement(root, 'library', {
+                'name': '/' + '/'.join(lib.binary.split('/')[4:]),
+                'lm': hex(h_lm),
+                'l_addr': hex(lib.offset_to_addr(0)),
+                'l_ld': hex(h_ld),
+            })
+        return header + ET.tostring(root)
+
+    def validate_xml(self, xml):
+        # type: (str) -> (bool, str)
+        from lxml import etree
+        root = etree.XML(xml)
+        dtd = etree.DTD(open("./library-list-svr4.dtd"))
+        return dtd.validate(root), dtd.error_log.filter_from_errors()
+
+    def read_xml(self, offset, size):
+        # type: (int, int) -> str
+        prefix = 'm'
+        xml = self.make_xml()
+        if offset > len(xml):
+            return ''
+        if size > self.pksize - 4:
+            size = self.pksize - 4
+        if size > len(xml) - offset:
+            prefix = 'l'
+            size = len(xml) - offset
+        return prefix + xml[offset:offset + size]
+
+
 def create_pty():
     # type: () -> Tuple[IO[Any], str]
     master_fd, slave_fd = pty.openpty()
@@ -139,6 +194,8 @@ class GdbServer():
         self.active_state = active_state
         self.regs = GdbRegSpace(self.active_state)
         self.mem = GdbMemSpace(self.active_state)
+        self.packet_size = PAGESIZE
+        self.libs = GdbSharedLibrary(self.active_state, self.packet_size)
         self.gdb = GdbController()
         self.gdb.write("-target-select remote %s" % ptsname)
         self.thread = threading.Thread(target=self.run)
@@ -219,7 +276,10 @@ class GdbServer():
             response = ""
         else:
             response = handler(request)
-
+        self.write_response(response)
+        
+    def write_response(self, response):
+        # type: (str) -> None
         # Each packet should be acknowledged with a single character.
         # '+' to indicate satisfactory receipt
         l.warning("--> %s" % response)
@@ -333,6 +393,7 @@ class GdbServer():
         def handle_cont(action, tid=None):
             # type: (str, Optional[int]) -> str
             # TODO: for a continue/step/stop operation
+            self.write_response("T05library:r;")
             return "S05"
 
         if packet.startswith('Cont'):
@@ -361,37 +422,24 @@ class GdbServer():
         # type: (str) -> str
         """
         qSupported|qAttached|qC
+        qXfer:...:read:annex:offset,size
         """
 
         if packet.startswith('Supported'):
-            features = ['qXfer:libraries:read+', 'qXfer:memory-map:read+']
-            features.append('PacketSize=%x' % PAGESIZE)
+            features = ['qXfer:libraries-svr4:read+', 
+                        # 'qXfer:memory-map:read+'
+            ]
+            features.append('PacketSize=%x' % self.packet_size)
             return ';'.join(features)
         elif packet.startswith('Xfer'):
             reqs = packet.split(':')
             # FIXME: not working now
-            if reqs[1] == 'libraries' and reqs[2] == 'read':
-                return """
-                    <library-list>
-                        <library name="/lib/libc.so.6">
-                            <segment address="0x10000000"/>
-                        </library>
-                    </library-list>
-                """
+            if reqs[1] == 'libraries-svr4' and reqs[2] == 'read':
+                data = reqs[4].split(',')
+                return self.libs.read_xml(int(data[0], 16), int(data[1], 16))
             if reqs[1] == 'memory-map' and reqs[2] == 'read':
-                offset_, length_ = reqs[4].split(',')
-                offset = int(offset_, 16)
-                length = int(length_, 16)
-                # FIXME: not working now
-                return """
-                    <?xml version="1.0"?>
-                    <!DOCTYPE memory-map
-                            PUBLIC "+//IDN gnu.org//DTD GDB Memory Map V1.0//EN"
-                                    "http://sourceware.org/gdb/gdb-memory-map.dtd">
-                    <memory-map>
-                        <memory type="ram" start="0" length="ff"/>
-                    </memory-map>
-                """
+                # TODO: add memory-map, (do we really need it now?)
+                return ""
             return ''
         elif packet.startswith('Attached'):
             return '1'

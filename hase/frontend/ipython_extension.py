@@ -13,7 +13,8 @@ import subprocess
 from types import ModuleType
 from shlex import split as shsplit
 
-from .. import gdb, annotate
+from .. import annotate
+from ..gdb import gdb
 from ..replay import replay_trace
 from ..path import Tempdir
 
@@ -141,8 +142,16 @@ class HaseMagics(Magics):
                             addr_map[i][0] = new_f
                 addr_map[k][0] = new_f
 
-        # FIXME later
         user_ns["gdbs"] = gdb.GdbServer(self.active_state, executable)
+        user_ns["gdbs"].write_request("info sharedlibrary")
+        user_ns["gdbs"].write_request("info sharedlibrary")
+        for lib in user_ns["gdbs"].libs.libs:
+            libname = os.path.basename(lib.binary)
+            print("Loading: {}".format(libname))
+            user_ns["gdbs"].write_request("sharedlibrary {}".format(
+                libname
+            ))
+        
         # FIXME set default path and prompt asking unsolved path
         self.window.set_location(*addr_map[self.active_state.address()])
 
