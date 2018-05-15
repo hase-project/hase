@@ -101,8 +101,9 @@ class GdbSharedLibrary():
         self.active_state = active_state
         self.libs = []
         self.pksize = pksize
-        for lib in self.active_state.simstate.project.loader.shared_objects.values():
-            if lib != self.active_state.simstate.project.loader.main_object:
+        loader = self.active_state.simstate.project.loader
+        for lib in loader.shared_objects.values():
+            if lib != loader.main_object:
                 self.libs.append(lib)
         self.xml = None
 
@@ -113,7 +114,7 @@ class GdbSharedLibrary():
         header = '<?xml version="1.0"?>'
         root = ET.Element('library-list-svr4', {'version': '1.0'})
         for lib in self.libs:
-            h_ld = 0 # value of memory address of PT_DYNAMIC for current lib
+            h_ld = 0  # value of memory address of PT_DYNAMIC for current lib
             h_lm = lib.tls_tdata_start if lib.tls_used else 0
             for seg in lib.reader.iter_segments():
                 if seg.header.p_type != 'PT_DYNAMIC':
@@ -121,12 +122,13 @@ class GdbSharedLibrary():
                 h_ld = seg.header.p_paddr
 
             # FIXME: how to access link_map object in angr.cle loader
-            ET.SubElement(root, 'library', {
-                'name': '/' + '/'.join(lib.binary.split('/')[4:]),
-                'lm': hex(h_lm),
-                'l_addr': hex(lib.offset_to_addr(0)),
-                'l_ld': hex(h_ld),
-            })
+            ET.SubElement(
+                root, 'library', {
+                    'name': '/' + '/'.join(lib.binary.split('/')[4:]),
+                    'lm': hex(h_lm),
+                    'l_addr': hex(lib.offset_to_addr(0)),
+                    'l_ld': hex(h_ld),
+                })
         return header + ET.tostring(root)
 
     def validate_xml(self, xml):
@@ -277,7 +279,7 @@ class GdbServer(object):
         else:
             response = handler(request)
         self.write_response(response)
-        
+
     def write_response(self, response):
         # type: (str) -> None
         # Each packet should be acknowledged with a single character.
@@ -426,8 +428,9 @@ class GdbServer(object):
         """
 
         if packet.startswith('Supported'):
-            features = ['qXfer:libraries-svr4:read+', 
-                        # 'qXfer:memory-map:read+'
+            features = [
+                'qXfer:libraries-svr4:read+',
+                # 'qXfer:memory-map:read+'
             ]
             features.append('PacketSize=%x' % self.packet_size)
             return ';'.join(features)

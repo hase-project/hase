@@ -148,10 +148,8 @@ class HaseMagics(Magics):
         for lib in user_ns["gdbs"].libs.libs:
             libname = os.path.basename(lib.binary)
             print("Loading: {}".format(libname))
-            user_ns["gdbs"].write_request("sharedlibrary {}".format(
-                libname
-            ))
-        
+            user_ns["gdbs"].write_request("sharedlibrary {}".format(libname))
+
         # FIXME set default path and prompt asking unsolved path
         self.window.set_location(*addr_map[self.active_state.address()])
 

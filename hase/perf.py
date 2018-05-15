@@ -6,6 +6,7 @@ from typing import List, Tuple, Any, Union, Callable, Optional
 
 from .path import APP_ROOT
 
+
 def parse_row(row):
     # type: (str) -> Tuple[int, int]
     return (int(row[0], 16), int(row[1], 16))
@@ -34,6 +35,7 @@ class LastBranch(Branch):
         # type: (Branch) -> None
         self.ip = branch.ip
         self.addr = branch.addr
+
 
 # current format:
 #    .perf-wrapped 0 =>     7f478672bb57\n

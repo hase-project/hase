@@ -92,4 +92,5 @@ def replay_command(args):
 
 
 def unpack_command(args):
-    json.dump(Replay(args.report).unpack(), sys.stdout, sort_keys=True, indent=4)
+    manifest = Replay(args.report).unpack()
+    json.dump(manifest, sys.stdout, sort_keys=True, indent=4)
