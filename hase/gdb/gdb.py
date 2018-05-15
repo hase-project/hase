@@ -130,7 +130,7 @@ class GdbSharedLibrary():
         return header + ET.tostring(root)
 
     def validate_xml(self, xml):
-        # type: (str) -> (bool, str)
+        # type: (str) -> Tuple[bool, str]
         from lxml import etree
         root = etree.XML(xml)
         dtd = etree.DTD(open("./library-list-svr4.dtd"))
