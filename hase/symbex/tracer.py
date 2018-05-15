@@ -78,15 +78,24 @@ class Tracer(object):
         main = self.elf.symbols.get('main')
 
         for (idx, event) in enumerate(self.trace):
-            if event.ip == start or event.ip == main:
+            if event.addr == start or event.addr == main or (
+                    event.ip == main or event.ip == main):
                 self.trace = trace[idx:]
 
         remove_simplications = {
             so.LAZY_SOLVES, so.EFFICIENT_STATE_MERGING,
             so.TRACK_CONSTRAINT_ACTIONS
         } | so.simplification
+
+        if self.trace[0].addr == 0:
+            start_address = self.trace[0].ip
+        else:
+            start_address = self.trace[0].addr
+
+        assert start_address != 0
+
         self.start_state = self.project.factory.blank_state(
-            addr=self.trace[0].ip,
+            addr=start_address,
             add_options=set([so.TRACK_JMP_ACTIONS]),
             remove_options=remove_simplications)
 
@@ -137,9 +146,9 @@ class Tracer(object):
         assert state.registers['rip'].value == self.coredump.registers['rip']
         registers = [
             "gs", "rip", "rdx", "r15", "rax", "rsi", "rcx", "r14", "fs", "r12",
-            "r13", "r10", "r11", "rsp", "rbx", "r8", "r9", "rbp", "eflags",
-            "rdi"
+            "r13", "r10", "r11", "rbx", "r8", "r9", "rbp", "eflags", "rdi"
         ]
+        # TODO: constrain $rsp when we switch to CallState
         for name in registers:
             state.registers[name] = self.coredump.registers[name]
 
@@ -152,8 +161,9 @@ class Tracer(object):
             l.debug("look for jump: 0x%x -> 0x%x" % (event.addr, event.ip))
             assert self.valid_address(event.addr) and self.valid_address(
                 event.ip)
-            simstate = self.find_next_branch(simstate, event)
-            states.append(State(event, simstate))
+            new_simstate = self.find_next_branch(simstate, event)
+            simstate = new_simstate
+            states.append(State(event, new_simstate))
         self.constrain_registers(states[-1])
 
         return states

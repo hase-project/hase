@@ -64,7 +64,7 @@ def read_trace(perf_data, thread_id, command, executable_root=None):
         branch = Branch(int(columns[0]), int(columns[1]))
         # skip syscalls until we support it in tracer
 
-        if branch.addr == 0 or branch.ip == 0:
+        if (branch.addr == 0 or branch.ip == 0) and len(branches) != 0:
             continue
         branches.append(branch)
 
