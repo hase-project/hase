@@ -14,7 +14,7 @@ from types import ModuleType
 from shlex import split as shsplit
 
 from .. import annotate
-from ..gdb import gdb
+from .. import gdb
 from ..replay import replay_trace
 from ..path import Tempdir
 
