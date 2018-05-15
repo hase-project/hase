@@ -30,14 +30,9 @@ def test_loopy():
     nose.tools.eq_(argc(last_state.simstate), 6)
 
 
-#def test_control_flow():
-#    control_flow = TEST_BIN.join("control_flow")
-#    exe = str(control_flow.join("control_flow"))
-#    core = str(control_flow.join("control_flow-20180404T163033.coredump"))
-#    trace = str(control_flow.join("control_flow-20180404T163033.trace"))
-#
-#    state = main(["hase", "replay", exe, trace, core])
-#    last_state = state[-1]
-#    nose.tools.eq_(
-#        last_state.simstate.solver.eval(last_state.simstate.regs.rip),
-#        0x400a05)
+def test_control_flow():
+    state = main([
+        "hase", "replay",
+        str(TEST_BIN.join("control_flow", "control_flow-20180515T180451.tar.gz"))
+    ])
+    # TODO test something

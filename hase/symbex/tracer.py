@@ -78,8 +78,8 @@ class Tracer(object):
         main = self.elf.symbols.get('main')
 
         for (idx, event) in enumerate(self.trace):
-            if event.addr == start or event.addr == main or (
-                    event.ip == main or event.ip == main):
+            if event.addr == start or event.addr == main or \
+                    event.ip == start or event.ip == main:
                 self.trace = trace[idx:]
 
         remove_simplications = {
@@ -87,7 +87,8 @@ class Tracer(object):
             so.TRACK_CONSTRAINT_ACTIONS
         } | so.simplification
 
-        if self.trace[0].addr == 0:
+        # workaround for main, should not be required in future
+        if self.trace[0].addr == 0 or self.trace[0].ip == main:
             start_address = self.trace[0].ip
         else:
             start_address = self.trace[0].addr

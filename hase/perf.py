@@ -55,7 +55,7 @@ def read_trace(perf_data, thread_id, command, executable_root=None):
         args.append("--symfs")
         args.append(executable_root)
     cmd = subprocess.Popen(args, stdout=subprocess.PIPE)
-    branches = []
+    branches = []  # type: List[Branch]
 
     assert cmd.stdout is not None
     for line in cmd.stdout:
