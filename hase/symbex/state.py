@@ -1,18 +1,29 @@
 from __future__ import absolute_import, division, print_function
 from angr import SimState
 from cle import ELF
-from typing import Dict, Tuple, Optional, List, Union
+from typing import Dict, Tuple, Optional, List, Union, Any
+from claripy.ast.bv import BV
 
-from ..perf import TRACE_END, Branch
+from ..perf import Branch
 from ..annotate import Addr2line
 
 
-class Register():
-    def __init__(self, name, value, size):
-        # type: (str, int, int) -> None
+class Register(object):
+    def __init__(self, state, name, simreg):
+        # type: (State, str, BV) -> None
+        self.state = state
         self.name = name
-        self.value = value
-        self.size = size
+        self.simreg = simreg
+
+    @property
+    def size(self):
+        # type: () -> int
+        return self.simreg.size()
+
+    @property
+    def value(self):
+        # type: () -> int
+        return self.state.eval(self.simreg)
 
 
 class RegisterSet(object):
@@ -23,9 +34,11 @@ class RegisterSet(object):
     def __getitem__(self, name):
         # type: (str) -> Register
         reg = getattr(self.state.simstate.regs, name)
-        value = self.state.simstate.solver.eval(reg)
-        return Register(name, value, reg.size())
+        return Register(self.state, name, reg)
 
+    def __setitem__(self, name, value):
+        # type: (str, int) -> None
+        setattr(self.state.simstate.regs, name, value)
 
 
 class Memory(object):
@@ -38,7 +51,7 @@ class Memory(object):
         # good idea?
         byte = self.state.simstate.mem[addr].byte
         try:
-            return self.state.simstate.solver.eval(byte)
+            return self.state.eval(byte)
         except Exception:
             return None
 
@@ -49,12 +62,14 @@ class State(object):
         self.branch = branch
         self.simstate = simstate
 
+    def eval(self, expression):
+        # type: (BV) -> Any
+        return self.simstate.solver.eval(expression)
+
     def __repr__(self):
         # () -> str
         if self.branch.addr == 0:
             return "State(Start -> 0x%x)" % (self.branch.ip)
-        elif self.branch.ip == TRACE_END:
-            return "State(0x%x -> End)" % (self.branch.addr)
         else:
             return "State(0x%x -> 0x%x)" % (self.branch.addr, self.branch.ip)
 

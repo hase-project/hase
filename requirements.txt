@@ -4,6 +4,7 @@ qtconsole
 pry.py
 pygdbmi
 typing
+# run update-vendor first
 ./vendor/archinfo
 ./vendor/pyvex
 ./vendor/claripy

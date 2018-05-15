@@ -6,9 +6,6 @@ from typing import List, Tuple, Any, Union, Callable, Optional
 
 from .path import APP_ROOT
 
-TRACE_END = -1
-
-
 def parse_row(row):
     # type: (str) -> Tuple[int, int]
     return (int(row[0], 16), int(row[1], 16))
@@ -22,17 +19,21 @@ class Branch(object):
 
     def trace_end(self):
         # () -> bool
-        return self.ip == TRACE_END
+        return self is LastBranch
 
     def __repr__(self):
         # () -> str
         if self.addr == 0:
             return "Branch(Start -> 0x%x)" % (self.ip)
-        elif self.ip == TRACE_END:
-            return "Branch(0x%x -> End)" % (self.addr)
         else:
             return "Branch(0x%x -> 0x%x)" % (self.addr, self.ip)
 
+
+class LastBranch(Branch):
+    def __init__(self, branch):
+        # type: (Branch) -> None
+        self.ip = branch.ip
+        self.addr = branch.addr
 
 # current format:
 #    .perf-wrapped 0 =>     7f478672bb57\n
@@ -67,7 +68,6 @@ def read_trace(perf_data, thread_id, command, executable_root=None):
 
     # also append last instruction, if it was a syscall
     if branch.ip == 0:
-        branch.ip = TRACE_END
-        branches.append(branch)
+        branches.append(LastBranch(branch))
 
     return branches

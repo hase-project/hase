@@ -35,7 +35,7 @@ COREDUMP_FILTER_PATH = "/proc/self/coredump_filter"
 #        Dump shared DAX pages.
 
 
-class Coredump():
+class Coredump(object):
     def __init__(self, core_file, fifo_path):
         # type: (str, str) -> None
         self.core_file = core_file
@@ -59,7 +59,7 @@ class Coredump():
         os.unlink(self.fifo_path)
 
 
-class Handler():
+class Handler(object):
     def __init__(self,
                  perf_pid,
                  core_file,

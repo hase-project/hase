@@ -50,21 +50,6 @@ class Replay(object):
         # type: () -> None
         shutil.rmtree(str(self.tempdir))
 
-    @property
-    def tracer(self):
-        # type: () -> Tracer
-        return self.tracer
-
-    @property
-    def executable(self):
-        # type: () -> str
-        return self.executable
-
-    @executable.setter
-    def executable(self, value):
-        # type: (str) -> None
-        self.executable = value
-
     def unpack(self):
         # type: () -> Dict[str, Any]
         archive_root = self.tempdir
