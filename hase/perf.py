@@ -14,7 +14,7 @@ def parse_row(row):
     return (int(row[0], 16), int(row[1], 16))
 
 
-class Branch():
+class Branch(object):
     def __init__(self, ip, addr):
         # type: (int, int) -> None
         self.ip = ip

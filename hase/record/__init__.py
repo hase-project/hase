@@ -62,7 +62,7 @@ def record(record_paths, command=None):
                 return None
 
 
-class Job():
+class Job(object):
     def __init__(
             self,
             coredump=None,  # type: Optional[coredumps.Coredump]
@@ -109,7 +109,7 @@ class Job():
             pass
 
 
-class RecordPaths():
+class RecordPaths(object):
     def __init__(self, path, id, log_path, pid_file):
         # type: (Path, int, Path, Optional[str]) -> None
         self.path = path

@@ -15,7 +15,7 @@ class Register():
         self.size = size
 
 
-class RegisterSet():
+class RegisterSet(object):
     def __init__(self, state):
         # type: (State) -> None
         self.state = state
@@ -27,7 +27,8 @@ class RegisterSet():
         return Register(name, value, reg.size())
 
 
-class Memory():
+
+class Memory(object):
     def __init__(self, state):
         # type: (State) -> None
         self.state = state
@@ -42,7 +43,7 @@ class Memory():
             return None
 
 
-class State():
+class State(object):
     def __init__(self, branch, simstate):
         # type: (Branch, SimState) -> None
         self.branch = branch

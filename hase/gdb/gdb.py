@@ -19,7 +19,7 @@ logging.basicConfig()
 l = logging.getLogger(__name__)
 
 
-class GdbRegSpace():
+class GdbRegSpace(object):
     def __init__(self, active_state):
         # https://github.com/radare/radare2/blob/fe6372339da335bd08a8b568d95bb0bd29f24406/shlr/gdb/src/arch.c#L5
         self.names = [
@@ -61,7 +61,7 @@ class GdbRegSpace():
         return
 
 
-class GdbMemSpace():
+class GdbMemSpace(object):
     def __init__(self, active_state):
         self.active_state = active_state
 
@@ -170,7 +170,7 @@ def compute_checksum(data):
     return sum((ord(c) for c in data)) % 256
 
 
-class GdbServer():
+class GdbServer(object):
     def __init__(self, active_state, binary):
         # type: (State, str) -> None
         master, ptsname = create_pty()

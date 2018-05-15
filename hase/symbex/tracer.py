@@ -45,7 +45,7 @@ def build_load_options(mappings):
         load_options={"except_missing_libs": True})
 
 
-class Tracer():
+class Tracer(object):
     def __init__(self,
                  executable,
                  thread_id,

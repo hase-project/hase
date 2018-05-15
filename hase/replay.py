@@ -12,7 +12,7 @@ from .mapping import Mapping
 from .path import Tempdir
 
 
-class Replay():
+class Replay(object):
     def __init__(self, report):
         # type: (str) -> None
         self.report = report
