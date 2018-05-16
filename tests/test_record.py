@@ -15,6 +15,9 @@ from hase.path import Tempdir
 from .helper import TEST_BIN
 
 
+process = None
+
+
 def stop_hase():
     global process
     if process is not None and process.is_alive():
@@ -50,4 +53,4 @@ def test_record_command():
         nose.tools.assert_equal(len(archives), 1)
 
         states = main(["hase", "replay", archives[0]])
-        nose.tools.assert_equal(len(states), 2)
+        nose.tools.assert_equal(len(states), 3)
