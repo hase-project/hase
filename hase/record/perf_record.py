@@ -40,17 +40,21 @@ class PTSnapshot(object):
             perf_file,
         ] + record_size + trace_all
 
-        if command is not None:
-            perf_cmd += command
-        else:
+        if trace_all:
             perf_cmd += [
                 "sh", "-c", "echo ready; while true; do sleep 999999; done"
             ]
+        else:
+            perf_cmd += command
 
         self.perf_file = perf_file
-        self.process = subprocess.Popen(perf_cmd, stdout=subprocess.PIPE)
 
-        if command is None and self.process.stdout:
+        if trace_all:
+            self.process = subprocess.Popen(perf_cmd, stdout=subprocess.PIPE)
+        else:
+            self.process = subprocess.Popen(perf_cmd)
+
+        if trace_all and self.process.stdout:
             # check that perf is initialized
             line = self.process.stdout.readline().strip()
             assert line == "ready", "expected perf to return 'ready', got '%s'" % (
