@@ -7,7 +7,7 @@ import pygments
 import pygments.lexers
 import pygments.formatters
 from qtconsole.inprocess import QtInProcessKernelManager
-from typing import Tuple, Any
+from typing import Tuple, Any, List, Union
 
 from ..path import APP_ROOT
 
@@ -44,9 +44,23 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.jupiter_widget.kernel_client = self.kernel_client
         self.jupiter_widget.reset()
 
+    def slider_change(self):
+        v = self.time_slider.value()
+        addr = self.states[-(v+1)].address()
+        self.set_location(self.addr_map[addr][0], self.addr_map[addr][1])
+
+    def set_slider(self, addr_map, states):
+        # type: (List[Union[str, int]], List[Any]) -> None
+        self.addr_map = addr_map
+        self.states = states
+        self.time_slider.setMinimum(0)
+        self.time_slider.setMaximum(len(states))
+        self.time_slider.setTickPosition(QtWidgets.QSlider.TicksLeft)
+        self.time_slider.setTickInterval(len(states))
+        self.time_slider.valueChanged.connect(self.slider_change)
+
     def set_location(self, source_file, line):
         # type: (str, int) -> None
-        # FIXME: how to robust deal with ??
         if source_file != '??':
             lexer = pygments.lexers.get_lexer_for_filename(source_file)
             formatter_opts = dict(

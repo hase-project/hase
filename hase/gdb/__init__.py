@@ -101,6 +101,7 @@ class GdbSharedLibrary():
         self.active_state = active_state
         self.libs = []
         self.pksize = pksize
+        self.tls_object = self.active_state.simstate.project.loader.tls_object
         loader = self.active_state.simstate.project.loader
         for lib in loader.shared_objects.values():
             if lib != loader.main_object:
@@ -115,13 +116,13 @@ class GdbSharedLibrary():
         root = ET.Element('library-list-svr4', {'version': '1.0'})
         for lib in self.libs:
             h_ld = 0  # value of memory address of PT_DYNAMIC for current lib
-            h_lm = lib.tls_tdata_start if lib.tls_used else 0
+            # FIXME: how to access link_map object in angr.cle loader
+            h_lm = 0xFFFF
             for seg in lib.reader.iter_segments():
                 if seg.header.p_type != 'PT_DYNAMIC':
                     continue
                 h_ld = seg.header.p_paddr
 
-            # FIXME: how to access link_map object in angr.cle loader
             ET.SubElement(
                 root, 'library', {
                     'name': '/' + '/'.join(lib.binary.split('/')[4:]),

@@ -79,7 +79,6 @@ class Addr2line(object):
                     new_file = self.find_in_path(file, relative_root)
                     # print("Redirect: {} -> {}".format(file, new_file))
                     file = new_file
-                print(file, line)
                 if line == '?':
                     line = 0
                 addr_map[addr] = [file, int(line)]
