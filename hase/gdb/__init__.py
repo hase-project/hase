@@ -132,21 +132,29 @@ class GdbSharedLibrary():
         root = ET.Element('library-list-svr4', {'version': '1.0'})
         for lib in self.libs:
             h_ld = 0  # value of memory address of PT_DYNAMIC for current lib
-            # FIXME: how to access link_map object in angr.cle loader
-            h_lm = 0xFFFF
-            for seg in lib.reader.iter_segments():
-                if seg.header.p_type != 'PT_DYNAMIC':
-                    continue
-                h_ld = seg.header.p_paddr
+            # TODO: Find a way to solve linked_map address. Maybe some solutions below
+            # REF: https://reverseengineering.stackexchange.com/questions/6525/elf-link-map-when-linked-as-relro
+            #    : https://code.woboq.org/userspace/glibc/elf/link.h.html
+            a_lm = 0 # address of linked_map
 
+            for sec in lib.sections:
+                if sec.name == '.dynamic':
+                    h_ld = sec.vaddr
+
+            # h_lm = active_state.simstate.memory.load(a_lm + 8, 0x8) # header address of link_map chain
+            h_lm = 0
+            # h_addr = active_state.simstate.memory.load(h_lm + 8, 0x8)
+            h_addr = 0
+            
             ET.SubElement(
                 root, 'library', {
                     'name': '/' + '/'.join(lib.binary.split('/')[4:]),
                     'lm': hex(h_lm),
-                    'l_addr': hex(lib.offset_to_addr(0)),
+                    'l_addr': hex(h_addr),
                     'l_ld': hex(h_ld),
                 })
-        return header + ET.tostring(root)
+        self.xml = header + ET.tostring(root)
+        return self.xml
 
     def validate_xml(self, xml):
         # type: (str) -> Tuple[bool, str]
@@ -228,9 +236,9 @@ class GdbServer(object):
             "-data-evaluate-expression %s" % expr, timeout_sec=99999)
         print(res)
 
-    def write_request(self, expr):
-        # type: (str) -> str
-        return self.gdb.write(expr)
+    def write_request(self, expr, timeout_sec=10):
+        # type: (str, int) -> str
+        return self.gdb.write(expr, timeout_sec=timeout_sec)
 
     def run(self):
         # () -> None

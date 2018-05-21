@@ -90,7 +90,8 @@ class HaseMagics(Magics):
     @args()
     @line_magic("refresh")
     def refresh(self, query):
-        self.window.setup_viewer()
+        self.window.clear_viewer()
+        self.window.append_archive()
 
     @args()
     @line_magic("reload_hase")
@@ -130,15 +131,15 @@ class HaseMagics(Magics):
         user_ns['active_state'] = self.active_state
 
         for k, v in addr_map.items():
-            if not v[0].exists():
-                origin_f = str(v[0])
+            if not Path(v[0]).exists():
+                origin_f = v[0]
                 print("\nCannot resolve filename: {}".format(origin_f))
                 d = raw_input("Try to manually set file path for {}: ".format(
                     os.path.basename(origin_f)))
                 new_f = Path.find_in_path(origin_f, [d])
 
                 for i, p in addr_map.items():
-                    if not os.path.exists(p[0]):
+                    if not Path(p[0]).exists():
                         if p[0] == origin_f and i != k:
                             addr_map[i][0] = new_f
                 addr_map[k][0] = new_f

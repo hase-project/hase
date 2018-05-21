@@ -91,7 +91,10 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         from . import ipython_extension
         shell.extension_manager.load_extension(ipython_extension.__name__)
 
-    def setup_viewer(self):
+    def clear_viewer(self):
+        self.code_view.clear()
+
+    def append_archive(self):
         # type: () -> None
         files = DEFAULT_LOG_DIR.listdir()
         files.sort()
@@ -112,7 +115,7 @@ def start_window():
     app.aboutToQuit.connect(window.shutdown_kernel)
     window.show()
     window.setup_ipython(app, window)
-    window.setup_viewer()
+    window.append_archive()
     return app.exec_()
 
 
