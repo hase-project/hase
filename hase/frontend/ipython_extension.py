@@ -88,6 +88,11 @@ class HaseMagics(Magics):
         self.window.set_location(query, 0)
 
     @args()
+    @line_magic("refresh")
+    def refresh(self, query):
+        self.window.setup_viewer()
+
+    @args()
     @line_magic("reload_hase")
     def reload_hase(self, query):
         module_path = os.path.dirname(os.path.dirname(__file__))
@@ -139,6 +144,9 @@ class HaseMagics(Magics):
                 addr_map[k][0] = new_f
 
         user_ns["gdbs"] = gdb.GdbServer(self.active_state, executable)
+        user_ns["gdbs"].write_request("dir {}".format(
+            ':'.join([os.path.dirname(str(p)) for p, _ in addr_map.values()])
+        ))
         user_ns["gdbs"].write_request("info sharedlibrary")
         user_ns["gdbs"].write_request("info sharedlibrary")
         for lib in user_ns["gdbs"].libs.libs:

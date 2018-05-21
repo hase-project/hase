@@ -63,13 +63,13 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
     def set_location(self, source_file, line):
         # type: (str, int) -> None
         if source_file != '??':
-            lexer = pygments.lexers.get_lexer_for_filename(source_file)
+            lexer = pygments.lexers.get_lexer_for_filename(str(source_file))
             formatter_opts = dict(
                 linenos="inline", linespans="line", hl_lines=[line])
             html_formatter = pygments.formatters.get_formatter_by_name(
                 "html", **formatter_opts)
             css = html_formatter.get_style_defs('.highlight')
-            with open(source_file) as f:
+            with open(str(source_file)) as f:
                 tokens = lexer.get_tokens(f.read())
             source = pygments.format(tokens, html_formatter)
             self.code_view.setHtml(code_template.format(css, source))

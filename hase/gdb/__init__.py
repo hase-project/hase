@@ -64,8 +64,15 @@ class GdbRegSpace(object):
 class GdbMemSpace(object):
     def __init__(self, active_state):
         self.active_state = active_state
-        self.rsp = self.active_state.registers["rsp"].value
-        self.rbp = self.active_state.registers["rsp"].value
+        self.call_chain = []
+        self.stack_chain = []
+        cs = self.active_state.simstate.callstack
+        while cs.ret_addr:
+            # TODO: current only for 64-bit system rip
+            self.call_chain.append(struct.pack("<Q", cs.ret_addr).encode("hex"))
+            # FIXME: that's rsp, cannot find rbp here
+            self.stack_chain.append(cs.stack_ptr)
+            cs = cs.next
 
     def __getitem__(self, addr):
         # type: (int) -> str
@@ -77,7 +84,14 @@ class GdbMemSpace(object):
             except:
                 value = None
             if value is None:
-                return "ff"
+                # FIXME: weird, this works for rsp index accessing
+                sec = self.active_state.simstate.memory.load(addr, 0x1)
+                try:
+                    value = self.active_state.eval(sec)
+                except:
+                    value = None
+        if value is None:
+            return "ff"
         return "%.2x" % value
 
     def __setitem__(self, addr, value):
@@ -319,7 +333,10 @@ class GdbServer(object):
         p n
         """
         n = int(packet, 16)
-        return self.regs[self.regs.names[n]]
+        # FIXME: gdb request out of range while gdb info frame
+        if n < len(self.regs.names):
+            return self.regs[self.regs.names[n]]
+        return "ffffffff"
 
     def write_register(self, packet):
         # type: (str) -> str
@@ -329,7 +346,8 @@ class GdbServer(object):
         n_, r_ = packet.split('=')
         n = int(n_, 16)
         r = int(r_, 16)
-        self.regs[self.regs.names[n]] = r
+        if n < len(self.regs.names):
+            self.regs[self.regs.names[n]] = r
         return "OK"
 
     def set_thread(self, packet):

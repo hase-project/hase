@@ -119,7 +119,7 @@ class Path(object):
 
     def __cmp__(self, rhs):
         # type: (AnyStr) -> int
-        return (str(self) > str(rhs)) - (str(self) > str(rhs))
+        return (str(self) > str(rhs)) - (str(self) < str(rhs))
 
 
 class Tempdir(Path):
