@@ -10,6 +10,7 @@ from qtconsole.inprocess import QtInProcessKernelManager
 from typing import Tuple, Any, List, Union
 
 from ..path import APP_ROOT
+from ..record import DEFAULT_LOG_DIR
 
 EXIT_REBOOT = -1
 EXIT_NORMAL = 0
@@ -90,6 +91,15 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         from . import ipython_extension
         shell.extension_manager.load_extension(ipython_extension.__name__)
 
+    def setup_viewer(self):
+        # type: () -> None
+        files = DEFAULT_LOG_DIR.listdir()
+        files.sort()
+        self.code_view.append("\nAvailable files:")
+        for f in files:
+            if str(f.basename()).endswith(".tar.gz"):
+                self.code_view.append(str(f.basename()))
+
     def shutdown_kernel(self):
         print('Shutting down kernel...')
         self.kernel_client.stop_channels()
@@ -102,6 +112,7 @@ def start_window():
     app.aboutToQuit.connect(window.shutdown_kernel)
     window.show()
     window.setup_ipython(app, window)
+    window.setup_viewer()
     return app.exec_()
 
 

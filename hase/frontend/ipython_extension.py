@@ -16,7 +16,12 @@ from shlex import split as shsplit
 from .. import annotate
 from .. import gdb
 from ..replay import replay_trace
-from ..path import Tempdir
+from ..record import DEFAULT_LOG_DIR
+from ..path import Tempdir, Path
+
+
+class HaseFrontEndException(Exception):
+    pass
 
 
 def op_restrict(low=0, high=65536):
@@ -100,6 +105,10 @@ class HaseMagics(Magics):
     @line_magic("load")
     def load(self, query):
         user_ns = self.shell.user_ns
+        if not Path(query).exists():
+            query = str(DEFAULT_LOG_DIR.join(query))
+        if not Path(query).exists():
+            raise HaseFrontEndException("Report archive not exist")
         with replay_trace(query) as rep:
             user_ns["coredump"] = rep.tracer.coredump
             executable = rep.executable
@@ -115,27 +124,13 @@ class HaseMagics(Magics):
         user_ns['executable'] = executable
         user_ns['active_state'] = self.active_state
 
-        # FIXME: dumb code, duplicate of annotate.py
         for k, v in addr_map.items():
-            if not os.path.exists(v[0]):
-                origin_f = v[0]
+            if not v[0].exists():
+                origin_f = str(v[0])
                 print("\nCannot resolve filename: {}".format(origin_f))
                 d = raw_input("Try to manually set file path for {}: ".format(
                     os.path.basename(origin_f)))
-                collected_root = [d]
-                for root, dirs, files in os.walk(d):
-                    if os.path.basename(origin_f) in files:
-                        collected_root.append(root)
-
-                def intersect_judge(root):
-                    elems_f = origin_f.split('/')
-                    elems_r = os.path.join(
-                        root, os.path.basename(origin_f)).split('/')
-                    return len([v for v in elems_f if v in elems_r])
-
-                new_f = os.path.join(
-                    max(collected_root, key=intersect_judge),
-                    os.path.basename(origin_f))
+                new_f = Path.find_in_path(origin_f, [d])
 
                 for i, p in addr_map.items():
                     if not os.path.exists(p[0]):

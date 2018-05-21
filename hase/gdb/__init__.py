@@ -64,6 +64,8 @@ class GdbRegSpace(object):
 class GdbMemSpace(object):
     def __init__(self, active_state):
         self.active_state = active_state
+        self.rsp = self.active_state.registers["rsp"].value
+        self.rbp = self.active_state.registers["rsp"].value
 
     def __getitem__(self, addr):
         # type: (int) -> str
