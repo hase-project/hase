@@ -1,6 +1,6 @@
 
-CC 		= gcc-6
-CCFLAGS = -g -static -fno-plt
+CC 		= musl-gcc
+CCFLAGS = -g -static # -fno-plt
 SRCS	= ./src
 BINS	= ./bin
 HASEBIN	= ../bin/hase

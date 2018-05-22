@@ -6,7 +6,8 @@ int some_function(int argc, int crash) {
     for (int i = 0; i < argc; ++i) {
        printf("%d\n", i);
     }
-    printf("%f\n", 1/crash);
+    // avoid amd64g_dirtyhelper_storeF80
+    printf("%d\n", 1/crash);
 }
 
 /* 

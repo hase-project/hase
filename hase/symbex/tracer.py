@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 import angr
 import logging
 import os
+import struct
 from angr import sim_options as so
 from angr.state_plugins.sim_action import SimActionExit
 from angr import SimState
@@ -17,6 +18,54 @@ from .state import State
 l = logging.getLogger(__name__)
 
 ELF_MAGIC = b"\x7fELF"
+
+
+class CallState():
+    def __init__(self, rbp_list, rip_list):
+        # type: (List[str], List[str]) -> None
+        self.rbp_list = rbp_list
+        self.rip_list = rip_list
+
+
+class CoredumpAnalyzer():
+    def __init__(self, coredump, libc_csu_init):
+        # type: (Coredump, int) -> None
+        self.coredump = coredump
+        self.rbp_csu_init = libc_csu_init
+    
+    def read_stack(self, addr, length=0x1):
+        # type: (int, int) -> str
+        assert self.coredump.stack.start <= addr < self.coredump.stack.stop
+        offset = addr - self.coredump.stack.start
+        return self.coredump.stack.data[offset:offset+length]
+
+    def read_argv(self, n):
+        # type: (int) -> str
+        assert n < self.coredump.argc
+        return self.coredump.string(self.coredump.argv[n])
+
+    @property
+    def env(self):
+        return self.env
+
+    @property
+    def registers(self):
+        return self.registers
+
+    @property
+    def callstate(self):
+        rbp_list = [self.coredump.rbp]
+        rip_list = [self.coredump.rip]
+        # FIXME: functions like raise don't have stack frame
+        # FIXME: better way to detect ELF loader
+        while rbp_list[-1] != self.rbp_csu_init:
+            rip_list.append(
+                struct.unpack("<Q", self.read_stack(rbp_list[-1] + 8, 0x8))[0]
+            )
+            rbp_list.append(
+                struct.unpack("<Q", self.read_stack(rbp_list[-1], 0x8))[0]
+            )
+        return CallState(rbp_list, rip_list)
 
 
 def build_load_options(mappings):
@@ -76,6 +125,9 @@ class Tracer(object):
 
         start = self.elf.symbols.get('_start')
         main = self.elf.symbols.get('main')
+        libc_csu_init = self.elf.symbols.get('__libc_csu_init')
+
+        self.cdanalyzer = CoredumpAnalyzer(self.coredump, libc_csu_init)
 
         for (idx, event) in enumerate(self.trace):
             if event.addr == start or event.addr == main or \

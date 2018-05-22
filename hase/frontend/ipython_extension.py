@@ -117,6 +117,8 @@ class HaseMagics(Magics):
             raise HaseFrontEndException("Report archive not exist")
         with replay_trace(query) as rep:
             user_ns["coredump"] = rep.tracer.coredump
+            user_ns["elf"] = rep.tracer.elf
+            user_ns["cda"] = rep.tracer.cdanalyzer
             executable = rep.executable
             states = rep.run()
             addr2line = annotate.Addr2line()

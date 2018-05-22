@@ -224,11 +224,11 @@ class GdbServer(object):
         self.packet_size = PAGESIZE
         self.libs = GdbSharedLibrary(self.active_state, self.packet_size)
         self.gdb = GdbController()
-        self.gdb.write("-target-select remote %s" % ptsname)
+        self.gdb.write("-target-select remote %s" % ptsname, timeout_sec=10)
         self.thread = threading.Thread(target=self.run)
         self.thread.start()
 
-        self.gdb.write("-file-exec-and-symbols %s" % binary)
+        self.gdb.write("-file-exec-and-symbols %s" % binary, timeout_sec=10)
 
     def eval_expression(self, expr):
         # type: (str) -> None
