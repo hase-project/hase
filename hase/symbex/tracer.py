@@ -46,11 +46,17 @@ class CoredumpAnalyzer():
 
     @property
     def env(self):
-        return self.env
+        return self.coredump.env
 
     @property
     def registers(self):
-        return self.registers
+        return self.coredump.registers
+
+    def argc(self):
+        return self.coredump.argc
+
+    def argv(self, n):
+        return self.read_argv(n)
 
     @property
     def callstate(self):
