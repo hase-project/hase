@@ -6,6 +6,7 @@ import os
 import struct
 from angr import sim_options as so
 from angr.state_plugins.sim_action import SimActionExit
+from angr.calling_conventions import DEFAULT_CC
 from angr import SimState
 from typing import List, Any, Dict, Tuple, Optional
 
@@ -32,6 +33,7 @@ class CoredumpAnalyzer():
         # type: (Coredump, int) -> None
         self.coredump = coredump
         self.rbp_csu_init = libc_csu_init
+        self.argv = [self.read_argv(i)+"\x00" for i in range(self.argc)]
     
     def read_stack(self, addr, length=0x1):
         # type: (int, int) -> str
@@ -52,11 +54,13 @@ class CoredumpAnalyzer():
     def registers(self):
         return self.coredump.registers
 
+    @property
     def argc(self):
         return self.coredump.argc
 
-    def argv(self, n):
-        return self.read_argv(n)
+    @property
+    def argv(self):
+        return self.argv
 
     @property
     def callstate(self):
@@ -153,8 +157,10 @@ class Tracer(object):
 
         assert start_address != 0
 
-        self.start_state = self.project.factory.blank_state(
+        self.start_state = self.project.factory.full_init_state(
             addr=start_address,
+            argc=self.cdanalyzer.argc,
+            args=self.cdanalyzer.argv,
             add_options=set([so.TRACK_JMP_ACTIONS]),
             remove_options=remove_simplications)
 

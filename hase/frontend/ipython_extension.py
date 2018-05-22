@@ -123,7 +123,9 @@ class HaseMagics(Magics):
             states = rep.run()
             addr2line = annotate.Addr2line()
             for s in states:
-                addr2line.add_addr(s.object(), s.address())
+                # FIXME: ExternSegment has offset as str (even its repr is broken)
+                if s.object() in rep.tracer.project.loader.all_elf_objects:
+                    addr2line.add_addr(s.object(), s.address())
 
             addr_map = addr2line.compute()
         self.active_state = states[-1]

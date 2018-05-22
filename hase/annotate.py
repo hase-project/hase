@@ -46,20 +46,22 @@ class Addr2line(object):
             relative_root = os.environ['HASESRC'].split(':')
 
             for addr, line in zip(addresses, lines):
-                file, line = line.split(":")
-                if file != '??':
-                    relative_root.append(os.path.dirname(file))
+                if line:
+                    file, line = line.split(":")
+                    if file != '??':
+                        relative_root.append(os.path.dirname(file))
 
             for addr, line in zip(addresses, lines):
-                file, line = line.split(":")
-                # TODO: file:line (discriminator n)
-                # TODO: file:?
-                line = line.split(" ")[0]
-                if not os.path.exists(file):
-                    new_file = Path.find_in_path(file, relative_root)
-                    # print("Redirect: {} -> {}".format(file, new_file))
-                    file = new_file
-                if line == '?':
-                    line = 0
-                addr_map[addr] = [file, int(line)]
+                if line:
+                    file, line = line.split(":")
+                    # TODO: file:line (discriminator n)
+                    # TODO: file:?
+                    line = line.split(" ")[0]
+                    if not os.path.exists(file):
+                        new_file = Path.find_in_path(file, relative_root)
+                        # print("Redirect: {} -> {}".format(file, new_file))
+                        file = new_file
+                    if line == '?':
+                        line = 0
+                    addr_map[addr] = [file, int(line)]
         return addr_map
