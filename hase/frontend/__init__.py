@@ -55,25 +55,32 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.addr_map = addr_map
         self.states = states
         self.time_slider.setMinimum(0)
-        self.time_slider.setMaximum(len(states))
+        self.time_slider.setMaximum(len(states) - 1)
         self.time_slider.setTickPosition(QtWidgets.QSlider.TicksLeft)
-        self.time_slider.setTickInterval(len(states))
+        self.time_slider.setTickInterval(len(states) - 1)
         self.time_slider.valueChanged.connect(self.slider_change)
 
     def set_location(self, source_file, line):
         # type: (str, int) -> None
         if source_file != '??':
-            lexer = pygments.lexers.get_lexer_for_filename(str(source_file))
-            formatter_opts = dict(
-                linenos="inline", linespans="line", hl_lines=[line])
-            html_formatter = pygments.formatters.get_formatter_by_name(
-                "html", **formatter_opts)
-            css = html_formatter.get_style_defs('.highlight')
-            with open(str(source_file)) as f:
-                tokens = lexer.get_tokens(f.read())
-            source = pygments.format(tokens, html_formatter)
-            self.code_view.setHtml(code_template.format(css, source))
-            self.code_view.scrollToAnchor("line-%d" % max(0, line - 10))
+            try:
+                lexer = pygments.lexers.get_lexer_for_filename(str(source_file))
+                formatter_opts = dict(
+                    linenos="inline", linespans="line", hl_lines=[line])
+                html_formatter = pygments.formatters.get_formatter_by_name(
+                    "html", **formatter_opts)
+                css = html_formatter.get_style_defs('.highlight')
+                with open(str(source_file)) as f:
+                    tokens = lexer.get_tokens(f.read())
+                source = pygments.format(tokens, html_formatter)
+                self.code_view.setHtml(code_template.format(css, source))
+                self.code_view.scrollToAnchor("line-%d" % max(0, line - 10))
+            except:
+                self.code_view.clear()
+                self.code_view.append("{}:{}".format(source_file, line))
+        else:
+            self.code_view.clear()
+            self.code_view.append("Unresolved source code")
 
     def setup_ipython(self, app, window):
         # type: (QtWidgets.QApplication, MainWindow) -> None

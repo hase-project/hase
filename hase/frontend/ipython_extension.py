@@ -123,11 +123,11 @@ class HaseMagics(Magics):
             states = rep.run()
             addr2line = annotate.Addr2line()
             for s in states:
-                # FIXME: ExternSegment has offset as str (even its repr is broken)
+                # XXX: ExternSegment has offset as str (even its repr is broken)
                 if s.object() in rep.tracer.project.loader.all_elf_objects:
                     addr2line.add_addr(s.object(), s.address())
-
             addr_map = addr2line.compute()
+
         self.active_state = states[-1]
         user_ns["addr_map"] = addr_map
         user_ns["states"] = states
@@ -137,9 +137,11 @@ class HaseMagics(Magics):
         for k, v in addr_map.items():
             if not Path(v[0]).exists():
                 origin_f = v[0]
-                print("\nCannot resolve filename: {}".format(origin_f))
+                print("\nCannot resolve filename: {} at {}".format(origin_f, hex(k)))
                 d = raw_input("Try to manually set file path for {}: ".format(
                     os.path.basename(origin_f)))
+                if d == 'pass-all':
+                    break
                 new_f = Path.find_in_path(origin_f, [d])
 
                 for i, p in addr_map.items():
