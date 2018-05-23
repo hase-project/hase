@@ -6,7 +6,7 @@ import os
 import struct
 from angr import sim_options as so
 from angr.state_plugins.sim_action import SimActionExit
-from angr.calling_conventions import DEFAULT_CC
+from angr.procedures.libc import printf
 from angr import SimState
 from typing import List, Any, Dict, Tuple, Optional
 
@@ -62,6 +62,14 @@ class CoredumpAnalyzer():
     @property
     def argv(self):
         return self.argv
+
+    @property
+    def stack_start(self):
+        return self.coredump.stack.start
+
+    @property
+    def stack_stop(self):
+        return self.coredump.stack.stop
 
     @property
     def callstack(self):
@@ -159,6 +167,9 @@ class Tracer(object):
             start_address = self.trace[0].addr
 
         assert start_address != 0
+
+        # TODO: hook low-fidelity symbols to reduce branching solving?
+        # self.project.hook_symbol('printf', printf)
 
         self.start_state = self.project.factory.full_init_state(
             addr=start_address,

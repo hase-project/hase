@@ -62,20 +62,16 @@ class GdbRegSpace(object):
 
 
 class GdbMemSpace(object):
-    def __init__(self, active_state):
+    def __init__(self, active_state, cda):
         self.active_state = active_state
-        self.call_chain = []
-        self.stack_chain = []
-        cs = self.active_state.simstate.callstack
-        while cs.ret_addr:
-            # TODO: current only for 64-bit system rip
-            self.call_chain.append(struct.pack("<Q", cs.ret_addr).encode("hex"))
-            # FIXME: that's rsp, cannot find rbp here
-            self.stack_chain.append(cs.stack_ptr)
-            cs = cs.next
+        self.cda = cda
+        self.stack_offset = self.cda.registers['rsp'] - self.active_state.registers['rsp'].value
+        self.stack_start = self.cda.stack_start - self.stack_offset
+        self.stack_stop = self.cda.stack_stop - self.stack_offset
 
     def __getitem__(self, addr):
         # type: (int) -> str
+        # TODO: good idea to directly use coredump stack?
         value = self.active_state.memory[addr]
         if value is None:
             try:
@@ -198,8 +194,8 @@ def compute_checksum(data):
 
 
 class GdbServer(object):
-    def __init__(self, active_state, binary):
-        # type: (State, str) -> None
+    def __init__(self, active_state, binary, cda):
+        # type: (State, str, Any) -> None
         master, ptsname = create_pty()
         self.master = master
         self.COMMANDS = {
@@ -220,7 +216,7 @@ class GdbServer(object):
         }
         self.active_state = active_state
         self.regs = GdbRegSpace(self.active_state)
-        self.mem = GdbMemSpace(self.active_state)
+        self.mem = GdbMemSpace(self.active_state, cda)
         self.packet_size = PAGESIZE
         self.libs = GdbSharedLibrary(self.active_state, self.packet_size)
         self.gdb = GdbController()

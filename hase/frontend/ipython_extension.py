@@ -150,7 +150,7 @@ class HaseMagics(Magics):
                             addr_map[i][0] = new_f
                 addr_map[k][0] = new_f
 
-        user_ns["gdbs"] = gdb.GdbServer(self.active_state, executable)
+        user_ns["gdbs"] = gdb.GdbServer(self.active_state, executable, user_ns["cda"])
         user_ns["gdbs"].write_request("dir {}".format(
             ':'.join([os.path.dirname(str(p)) for p, _ in addr_map.values()])
         ))
