@@ -25,26 +25,6 @@ class Addr2line(object):
         # type: (ELF, int) -> None
         self.dsos[dso].add(absolute_addr)
 
-    def find_in_path(self, filename, relative_root=None):
-        # type: (str, Optional[List[str]]) -> str
-        basename = os.path.basename(filename)
-        if relative_root:
-            search_path = relative_root + os.environ['HASESRC'].split(':')
-        else:
-            search_path = os.environ['HASESRC'].split(':')
-        collected_root = ['']
-        for path in search_path:
-            for root, dirs, files in os.walk(path):
-                if basename in files:
-                    collected_root.append(root)
-
-        def intersect_judge(root):
-            elems_f = filename.split('/')
-            elems_r = os.path.join(root, basename).split('/')
-            return len([v for v in elems_f if v in elems_r])
-
-        return os.path.join(max(collected_root, key=intersect_judge), basename)
-
     def compute(self):
         # type: () -> Dict[int, List[Union[str, int]]]
         addr_map = {}
@@ -63,24 +43,25 @@ class Addr2line(object):
             if len(lines) < len(addresses):
                 raise HaseException("addr2line didn't output enough lines")
 
-            relative_root = []
+            relative_root = os.environ['HASESRC'].split(':')
 
             for addr, line in zip(addresses, lines):
-                file, line = line.split(":")
-                if file != '??':
-                    relative_root.append(os.path.dirname(file))
+                if line:
+                    file, line = line.split(":")
+                    if file != '??':
+                        relative_root.append(os.path.dirname(file))
 
             for addr, line in zip(addresses, lines):
-                file, line = line.split(":")
-                # TODO: file:line (discriminator n)
-                # TODO: file:?
-                line = line.split(" ")[0]
-                if not os.path.exists(file):
-                    new_file = self.find_in_path(file, relative_root)
-                    # print("Redirect: {} -> {}".format(file, new_file))
-                    file = new_file
-                print(file, line)
-                if line == '?':
-                    line = 0
-                addr_map[addr] = [file, int(line)]
+                if line:
+                    file, line = line.split(":")
+                    # TODO: file:line (discriminator n)
+                    # TODO: file:?
+                    line = line.split(" ")[0]
+                    if not os.path.exists(file):
+                        new_file = Path.find_in_path(file, relative_root)
+                        # print("Redirect: {} -> {}".format(file, new_file))
+                        file = new_file
+                    if line == '?':
+                        line = 0
+                    addr_map[addr] = [file, int(line)]
         return addr_map

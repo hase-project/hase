@@ -3,8 +3,10 @@ from __future__ import absolute_import, division, print_function
 import angr
 import logging
 import os
+import struct
 from angr import sim_options as so
 from angr.state_plugins.sim_action import SimActionExit
+from angr.procedures.libc import printf
 from angr import SimState
 from typing import List, Any, Dict, Tuple, Optional
 
@@ -17,6 +19,72 @@ from .state import State
 l = logging.getLogger(__name__)
 
 ELF_MAGIC = b"\x7fELF"
+
+
+class CoredumpCallStack():
+    def __init__(self, rbp_list, rip_list):
+        # type: (List[str], List[str]) -> None
+        self.rbp_list = rbp_list
+        self.rip_list = rip_list
+
+
+class CoredumpAnalyzer():
+    def __init__(self, coredump, lsm, lsm_length):
+        # type: (Coredump, int, int) -> None
+        self.coredump = coredump
+        self.rip_lsm = lsm
+        self.lsm_length = lsm_length
+        self.argv = [self.read_argv(i) for i in range(self.argc)]
+    
+    def read_stack(self, addr, length=0x1):
+        # type: (int, int) -> str
+        assert self.coredump.stack.start <= addr < self.coredump.stack.stop
+        offset = addr - self.coredump.stack.start
+        return self.coredump.stack.data[offset:offset+length]
+
+    def read_argv(self, n):
+        # type: (int) -> str
+        assert n < self.coredump.argc
+        return self.coredump.string(self.coredump.argv[n])
+
+    @property
+    def env(self):
+        return self.coredump.env
+
+    @property
+    def registers(self):
+        return self.coredump.registers
+
+    @property
+    def argc(self):
+        return self.coredump.argc
+
+    @property
+    def argv(self):
+        return self.argv
+
+    @property
+    def stack_start(self):
+        return self.coredump.stack.start
+
+    @property
+    def stack_stop(self):
+        return self.coredump.stack.stop
+
+    @property
+    def callstack(self):
+        rbp_list = [self.coredump.rbp]
+        rip_list = [self.coredump.rip]
+        # FIXME: functions like raise don't have stack frame
+        # HACK: now use __libc_start_main as endpoint
+        while not 0 <= rip_list[-1] - self.rip_lsm < self.lsm_length:
+            rip_list.append(
+                struct.unpack("<Q", self.read_stack(rbp_list[-1] + 8, 0x8))[0]
+            )
+            rbp_list.append(
+                struct.unpack("<Q", self.read_stack(rbp_list[-1], 0x8))[0]
+            )
+        return CoredumpCallStack(rbp_list, rip_list)
 
 
 def build_load_options(mappings):
@@ -76,6 +144,11 @@ class Tracer(object):
 
         start = self.elf.symbols.get('_start')
         main = self.elf.symbols.get('main')
+        libc_start_main = self.elf.symbols.get('__libc_start_main')
+        lsm_idx = sorted(self.elf.symbols.values()).index(libc_start_main)
+        lsm_length = sorted(self.elf.symbols.values())[lsm_idx + 1] - libc_start_main
+
+        self.cdanalyzer = CoredumpAnalyzer(self.coredump, libc_start_main, lsm_length)
 
         for (idx, event) in enumerate(self.trace):
             if event.addr == start or event.addr == main or \
@@ -95,8 +168,13 @@ class Tracer(object):
 
         assert start_address != 0
 
-        self.start_state = self.project.factory.blank_state(
+        # TODO: hook low-fidelity symbols to reduce branching solving?
+        # self.project.hook_symbol('printf', printf)
+
+        self.start_state = self.project.factory.full_init_state(
             addr=start_address,
+            argc=self.cdanalyzer.argc,
+            args=self.cdanalyzer.argv,
             add_options=set([so.TRACK_JMP_ACTIONS]),
             remove_options=remove_simplications)
 
@@ -121,10 +199,14 @@ class Tracer(object):
         # type: (SimState, Branch) -> SimState
         while True:
             l.debug("0x%x", state.addr)
-            choices = self.project.factory.successors(
-                state, num_inst=1).successors
+            # FIXME: what if this operation meets exception (like divide-by-zero)
+            # FIXME: if state -> state doesn't meet branch? (like bugs not happen currently)
+            try:
+                choices = self.project.factory.successors(
+                    state, num_inst=1).successors
+            except:
+                choices = [state]
             old_state = state
-
             if len(choices) <= 2:
                 for choice in choices:
                     if old_state.addr == branch.addr and choice.addr == branch.ip:

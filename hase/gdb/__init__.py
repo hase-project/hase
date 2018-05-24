@@ -62,11 +62,16 @@ class GdbRegSpace(object):
 
 
 class GdbMemSpace(object):
-    def __init__(self, active_state):
+    def __init__(self, active_state, cda):
         self.active_state = active_state
+        self.cda = cda
+        self.stack_offset = self.cda.registers['rsp'] - self.active_state.registers['rsp'].value
+        self.stack_start = self.cda.stack_start - self.stack_offset
+        self.stack_stop = self.cda.stack_stop - self.stack_offset
 
     def __getitem__(self, addr):
         # type: (int) -> str
+        # TODO: good idea to directly use coredump stack?
         value = self.active_state.memory[addr]
         if value is None:
             try:
@@ -75,7 +80,14 @@ class GdbMemSpace(object):
             except:
                 value = None
             if value is None:
-                return "ff"
+                # FIXME: weird, this works for rsp index accessing
+                sec = self.active_state.simstate.memory.load(addr, 0x1)
+                try:
+                    value = self.active_state.eval(sec)
+                except:
+                    value = None
+        if value is None:
+            return "ff"
         return "%.2x" % value
 
     def __setitem__(self, addr, value):
@@ -101,6 +113,7 @@ class GdbSharedLibrary():
         self.active_state = active_state
         self.libs = []
         self.pksize = pksize
+        self.tls_object = self.active_state.simstate.project.loader.tls_object
         loader = self.active_state.simstate.project.loader
         for lib in loader.shared_objects.values():
             if lib != loader.main_object:
@@ -115,21 +128,29 @@ class GdbSharedLibrary():
         root = ET.Element('library-list-svr4', {'version': '1.0'})
         for lib in self.libs:
             h_ld = 0  # value of memory address of PT_DYNAMIC for current lib
-            h_lm = lib.tls_tdata_start if lib.tls_used else 0
-            for seg in lib.reader.iter_segments():
-                if seg.header.p_type != 'PT_DYNAMIC':
-                    continue
-                h_ld = seg.header.p_paddr
+            # TODO: Find a way to solve linked_map address. Maybe some solutions below
+            # REF: https://reverseengineering.stackexchange.com/questions/6525/elf-link-map-when-linked-as-relro
+            #    : https://code.woboq.org/userspace/glibc/elf/link.h.html
+            a_lm = 0 # address of linked_map
 
-            # FIXME: how to access link_map object in angr.cle loader
+            for sec in lib.sections:
+                if sec.name == '.dynamic':
+                    h_ld = sec.vaddr
+
+            # h_lm = active_state.simstate.memory.load(a_lm + 8, 0x8) # header address of link_map chain
+            h_lm = 0
+            # h_addr = active_state.simstate.memory.load(h_lm + 8, 0x8)
+            h_addr = 0
+            
             ET.SubElement(
                 root, 'library', {
                     'name': '/' + '/'.join(lib.binary.split('/')[4:]),
                     'lm': hex(h_lm),
-                    'l_addr': hex(lib.offset_to_addr(0)),
+                    'l_addr': hex(h_addr),
                     'l_ld': hex(h_ld),
                 })
-        return header + ET.tostring(root)
+        self.xml = header + ET.tostring(root)
+        return self.xml
 
     def validate_xml(self, xml):
         # type: (str) -> Tuple[bool, str]
@@ -173,8 +194,8 @@ def compute_checksum(data):
 
 
 class GdbServer(object):
-    def __init__(self, active_state, binary):
-        # type: (State, str) -> None
+    def __init__(self, active_state, binary, cda):
+        # type: (State, str, Any) -> None
         master, ptsname = create_pty()
         self.master = master
         self.COMMANDS = {
@@ -195,15 +216,15 @@ class GdbServer(object):
         }
         self.active_state = active_state
         self.regs = GdbRegSpace(self.active_state)
-        self.mem = GdbMemSpace(self.active_state)
+        self.mem = GdbMemSpace(self.active_state, cda)
         self.packet_size = PAGESIZE
         self.libs = GdbSharedLibrary(self.active_state, self.packet_size)
         self.gdb = GdbController()
-        self.gdb.write("-target-select remote %s" % ptsname)
+        self.gdb.write("-target-select remote %s" % ptsname, timeout_sec=10)
         self.thread = threading.Thread(target=self.run)
         self.thread.start()
 
-        self.gdb.write("-file-exec-and-symbols %s" % binary)
+        self.gdb.write("-file-exec-and-symbols %s" % binary, timeout_sec=10)
 
     def eval_expression(self, expr):
         # type: (str) -> None
@@ -211,9 +232,9 @@ class GdbServer(object):
             "-data-evaluate-expression %s" % expr, timeout_sec=99999)
         print(res)
 
-    def write_request(self, expr):
-        # type: (str) -> str
-        return self.gdb.write(expr)
+    def write_request(self, expr, timeout_sec=10):
+        # type: (str, int) -> str
+        return self.gdb.write(expr, timeout_sec=timeout_sec)
 
     def run(self):
         # () -> None
@@ -316,7 +337,10 @@ class GdbServer(object):
         p n
         """
         n = int(packet, 16)
-        return self.regs[self.regs.names[n]]
+        # FIXME: gdb request out of range while gdb info frame
+        if n < len(self.regs.names):
+            return self.regs[self.regs.names[n]]
+        return "ffffffff"
 
     def write_register(self, packet):
         # type: (str) -> str
@@ -326,7 +350,8 @@ class GdbServer(object):
         n_, r_ = packet.split('=')
         n = int(n_, 16)
         r = int(r_, 16)
-        self.regs[self.regs.names[n]] = r
+        if n < len(self.regs.names):
+            self.regs[self.regs.names[n]] = r
         return "OK"
 
     def set_thread(self, packet):

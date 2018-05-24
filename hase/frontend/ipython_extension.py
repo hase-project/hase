@@ -16,7 +16,12 @@ from shlex import split as shsplit
 from .. import annotate
 from .. import gdb
 from ..replay import replay_trace
-from ..path import Tempdir
+from ..record import DEFAULT_LOG_DIR
+from ..path import Tempdir, Path
+
+
+class HaseFrontEndException(Exception):
+    pass
 
 
 def op_restrict(low=0, high=65536):
@@ -83,6 +88,12 @@ class HaseMagics(Magics):
         self.window.set_location(query, 0)
 
     @args()
+    @line_magic("refresh")
+    def refresh(self, query):
+        self.window.clear_viewer()
+        self.window.append_archive()
+
+    @args()
     @line_magic("reload_hase")
     def reload_hase(self, query):
         module_path = os.path.dirname(os.path.dirname(__file__))
@@ -100,49 +111,49 @@ class HaseMagics(Magics):
     @line_magic("load")
     def load(self, query):
         user_ns = self.shell.user_ns
+        if not Path(query).exists():
+            query = str(DEFAULT_LOG_DIR.join(query))
+        if not Path(query).exists():
+            raise HaseFrontEndException("Report archive not exist")
         with replay_trace(query) as rep:
+            user_ns["coredump"] = rep.tracer.coredump
+            user_ns["elf"] = rep.tracer.elf
+            user_ns["cda"] = rep.tracer.cdanalyzer
             executable = rep.executable
             states = rep.run()
             addr2line = annotate.Addr2line()
             for s in states:
-                addr2line.add_addr(s.object(), s.address())
-
+                # XXX: ExternSegment has offset as str (even its repr is broken)
+                if s.object() in rep.tracer.project.loader.all_elf_objects:
+                    addr2line.add_addr(s.object(), s.address())
             addr_map = addr2line.compute()
+
         self.active_state = states[-1]
         user_ns["addr_map"] = addr_map
         user_ns["states"] = states
         user_ns['executable'] = executable
         user_ns['active_state'] = self.active_state
 
-        # FIXME: dumb code, duplicate of annotate.py
         for k, v in addr_map.items():
-            if not os.path.exists(v[0]):
+            if not Path(v[0]).exists():
                 origin_f = v[0]
-                print("\nCannot resolve filename: {}".format(origin_f))
+                print("\nCannot resolve filename: {} at {}".format(origin_f, hex(k)))
                 d = raw_input("Try to manually set file path for {}: ".format(
                     os.path.basename(origin_f)))
-                collected_root = [d]
-                for root, dirs, files in os.walk(d):
-                    if os.path.basename(origin_f) in files:
-                        collected_root.append(root)
-
-                def intersect_judge(root):
-                    elems_f = origin_f.split('/')
-                    elems_r = os.path.join(
-                        root, os.path.basename(origin_f)).split('/')
-                    return len([v for v in elems_f if v in elems_r])
-
-                new_f = os.path.join(
-                    max(collected_root, key=intersect_judge),
-                    os.path.basename(origin_f))
+                if d == 'pass-all':
+                    break
+                new_f = Path.find_in_path(origin_f, [d])
 
                 for i, p in addr_map.items():
-                    if not os.path.exists(p[0]):
+                    if not Path(p[0]).exists():
                         if p[0] == origin_f and i != k:
                             addr_map[i][0] = new_f
                 addr_map[k][0] = new_f
 
-        user_ns["gdbs"] = gdb.GdbServer(self.active_state, executable)
+        user_ns["gdbs"] = gdb.GdbServer(self.active_state, executable, user_ns["cda"])
+        user_ns["gdbs"].write_request("dir {}".format(
+            ':'.join([os.path.dirname(str(p)) for p, _ in addr_map.values()])
+        ))
         user_ns["gdbs"].write_request("info sharedlibrary")
         user_ns["gdbs"].write_request("info sharedlibrary")
         for lib in user_ns["gdbs"].libs.libs:
@@ -150,7 +161,7 @@ class HaseMagics(Magics):
             print("Loading: {}".format(libname))
             user_ns["gdbs"].write_request("sharedlibrary {}".format(libname))
 
-        # FIXME set default path and prompt asking unsolved path
+        self.window.set_slider(user_ns["addr_map"], user_ns["states"])
         self.window.set_location(*addr_map[self.active_state.address()])
 
     @line_magic("p")

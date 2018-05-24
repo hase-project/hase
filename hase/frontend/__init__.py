@@ -7,9 +7,10 @@ import pygments
 import pygments.lexers
 import pygments.formatters
 from qtconsole.inprocess import QtInProcessKernelManager
-from typing import Tuple, Any
+from typing import Tuple, Any, List, Union
 
 from ..path import APP_ROOT
+from ..record import DEFAULT_LOG_DIR
 
 EXIT_REBOOT = -1
 EXIT_NORMAL = 0
@@ -44,21 +45,42 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.jupiter_widget.kernel_client = self.kernel_client
         self.jupiter_widget.reset()
 
+    def slider_change(self):
+        v = self.time_slider.value()
+        addr = self.states[-(v+1)].address()
+        self.set_location(self.addr_map[addr][0], self.addr_map[addr][1])
+
+    def set_slider(self, addr_map, states):
+        # type: (List[Union[str, int]], List[Any]) -> None
+        self.addr_map = addr_map
+        self.states = states
+        self.time_slider.setMinimum(0)
+        self.time_slider.setMaximum(len(states) - 1)
+        self.time_slider.setTickPosition(QtWidgets.QSlider.TicksLeft)
+        self.time_slider.setTickInterval(len(states) - 1)
+        self.time_slider.valueChanged.connect(self.slider_change)
+
     def set_location(self, source_file, line):
         # type: (str, int) -> None
-        # FIXME: how to robust deal with ??
         if source_file != '??':
-            lexer = pygments.lexers.get_lexer_for_filename(source_file)
-            formatter_opts = dict(
-                linenos="inline", linespans="line", hl_lines=[line])
-            html_formatter = pygments.formatters.get_formatter_by_name(
-                "html", **formatter_opts)
-            css = html_formatter.get_style_defs('.highlight')
-            with open(source_file) as f:
-                tokens = lexer.get_tokens(f.read())
-            source = pygments.format(tokens, html_formatter)
-            self.code_view.setHtml(code_template.format(css, source))
-            self.code_view.scrollToAnchor("line-%d" % max(0, line - 10))
+            try:
+                lexer = pygments.lexers.get_lexer_for_filename(str(source_file))
+                formatter_opts = dict(
+                    linenos="inline", linespans="line", hl_lines=[line])
+                html_formatter = pygments.formatters.get_formatter_by_name(
+                    "html", **formatter_opts)
+                css = html_formatter.get_style_defs('.highlight')
+                with open(str(source_file)) as f:
+                    tokens = lexer.get_tokens(f.read())
+                source = pygments.format(tokens, html_formatter)
+                self.code_view.setHtml(code_template.format(css, source))
+                self.code_view.scrollToAnchor("line-%d" % max(0, line - 10))
+            except:
+                self.code_view.clear()
+                self.code_view.append("{}:{}".format(source_file, line))
+        else:
+            self.code_view.clear()
+            self.code_view.append("Unresolved source code")
 
     def setup_ipython(self, app, window):
         # type: (QtWidgets.QApplication, MainWindow) -> None
@@ -76,6 +98,18 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         from . import ipython_extension
         shell.extension_manager.load_extension(ipython_extension.__name__)
 
+    def clear_viewer(self):
+        self.code_view.clear()
+
+    def append_archive(self):
+        # type: () -> None
+        files = DEFAULT_LOG_DIR.listdir()
+        files.sort()
+        self.code_view.append("\nAvailable files:")
+        for f in files:
+            if str(f.basename()).endswith(".tar.gz"):
+                self.code_view.append(str(f.basename()))
+
     def shutdown_kernel(self):
         print('Shutting down kernel...')
         self.kernel_client.stop_channels()
@@ -88,6 +122,7 @@ def start_window():
     app.aboutToQuit.connect(window.shutdown_kernel)
     window.show()
     window.setup_ipython(app, window)
+    window.append_archive()
     return app.exec_()
 
 
