@@ -116,9 +116,7 @@ class HaseMagics(Magics):
         if not Path(query).exists():
             raise HaseFrontEndException("Report archive not exist")
         with replay_trace(query) as rep:
-            user_ns["coredump"] = rep.tracer.coredump
-            user_ns["elf"] = rep.tracer.elf
-            user_ns["cda"] = rep.tracer.cdanalyzer
+            user_ns["tracer"] = rep.tracer
             executable = rep.executable
             states = rep.run()
             addr2line = annotate.Addr2line()
@@ -140,7 +138,7 @@ class HaseMagics(Magics):
                 print("\nCannot resolve filename: {} at {}".format(origin_f, hex(k)))
                 d = raw_input("Try to manually set file path for {}: ".format(
                     os.path.basename(origin_f)))
-                if d == 'pass-all':
+                if d == 'pass-all' or d == '':
                     break
                 new_f = Path.find_in_path(origin_f, [d])
 
@@ -150,7 +148,8 @@ class HaseMagics(Magics):
                             addr_map[i][0] = new_f
                 addr_map[k][0] = new_f
 
-        user_ns["gdbs"] = gdb.GdbServer(self.active_state, executable, user_ns["cda"])
+        user_ns["gdbs"] = gdb.GdbServer(
+            self.active_state, executable, user_ns["tracer"].cdanalyzer)
         user_ns["gdbs"].write_request("dir {}".format(
             ':'.join([os.path.dirname(str(p)) for p, _ in addr_map.values()])
         ))
