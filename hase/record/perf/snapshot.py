@@ -5,9 +5,6 @@ import mmap
 import fcntl
 import os
 import resource
-import sys
-import select
-from threading import Thread
 
 from typing import List, Iterator, Any
 
@@ -594,26 +591,6 @@ class Cpu():
         self.event_buffer.close()
 
 
-# Because the interface for aux events is brain dead we need to poll for
-# all PERF_RECORD_AUX events to get the latest ones.
-# The last event in the buffer is the offset in our aux buffer.
-def poll_aux_events(pt_buffers, stop_fd):
-    return
-    # type: (List[AuxRingbuffer], int) -> None
-    poll_obj = select.poll()
-    for buf in pt_buffers:
-        poll_obj.register(buf.pmu.fd, select.POLLIN)
-    poll_obj.register(stop_fd, select.POLLERR)
-    while True:
-        fds = []
-        for (fd, event) in poll_obj.poll():
-            fds.append(fd)
-            if fd == stop_fd:
-                return
-        for buf in pt_buffers:
-            buf.mark_as_read()
-
-
 class PtSnapshot(object):
     def __init__(self):
         # type: () -> None
@@ -625,21 +602,6 @@ class PtSnapshot(object):
         except Exception:
             self.close()
             raise
-
-    def start_polling(self, pt_buffers):
-        # type: (List[AuxRingbuffer]) -> None
-        stop_fds = os.pipe()
-        self.stop_polling_fd = stop_fds[0]
-        self.polling_thread = Thread(
-            target=poll_aux_events, args=(pt_buffers, stop_fds[1]))
-        self.polling_thread.start()
-
-    def stop_polling(self):
-        # type: () -> None
-        if self.polling_thread is None or not self.polling_thread.is_alive():
-            return
-        os.close(self.stop_polling_fd)
-        self.polling_thread.join()
 
     def start(self):
         # type: () -> None
@@ -658,8 +620,6 @@ class PtSnapshot(object):
         for idx in cpu_idx:
             self.cpus.append(Cpu(idx, event_buffers[idx], pt_buffers[idx]))
 
-        self.start_polling(pt_buffers)
-
     def __enter__(self):
         # type: () -> PtSnapshot
         return self
@@ -672,7 +632,6 @@ class PtSnapshot(object):
         print("stop")
         for cpu in self.cpus:
             cpu.stop()
-        self.stop_polling()
         self.stopped = True
 
     def tsc_conversion(self):
@@ -681,6 +640,5 @@ class PtSnapshot(object):
 
     def close(self):
         # type: () -> None
-        self.stop_polling()
         for cpu in self.cpus:
             cpu.close()
