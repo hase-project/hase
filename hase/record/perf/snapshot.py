@@ -6,6 +6,8 @@ import fcntl
 import os
 import resource
 import sys
+import select
+from threading import Thread
 
 from typing import List, Iterator, Any
 
@@ -33,6 +35,20 @@ class perf_event_header(ct.Structure):
         ('type', ct.c_uint),  #
         ('misc', ct.c_ushort),  #
         ('size', ct.c_ushort),  #
+    ]
+
+
+class itrace_start_event(ct.Structure):
+    _fields_ = perf_event_header._fields_ + [
+        ('pid', ct.c_uint),  #
+        ('tid', ct.c_int),  #
+    ]
+
+class perf_aux_event(ct.Structure):
+    _fields_ = perf_event_header._fields_ + [
+        ('aux_offset', ct.c_ulong),  #
+        ('aux_size', ct.c_ulong),  #
+        ('flags', ct.c_ulong),  #
     ]
 
 
@@ -228,9 +244,9 @@ def intel_pt_type():
 
 
 class PMU(object):
-    def __init__(self, perf_attr, pid, cpu):
-        # type: (perf_event_attr, int, int) -> None
-        self.fd = Libc.syscall(SYS_perf_event_open, ct.byref(perf_attr), pid,
+    def __init__(self, perf_attr, cpu):
+        # type: (perf_event_attr, int) -> None
+        self.fd = Libc.syscall(SYS_perf_event_open, ct.byref(perf_attr), -1,
                                cpu, -1, PERF_FLAG_FD_CLOEXEC)
         fcntl.fcntl(self.fd, fcntl.F_SETFL, os.O_RDONLY | os.O_NONBLOCK)
         assert self.fd != 0
@@ -260,6 +276,10 @@ class PMU(object):
         # type: () -> int
         return self._ioctl(Ioctls.PERF_EVENT_IOC_DISABLE, 0)
 
+    def enable(self):
+        # type: () -> int
+        return self._ioctl(Ioctls.PERF_EVENT_IOC_ENABLE, 0)
+
     def close(self):
         # type: () -> None
         os.close(self.fd)
@@ -271,8 +291,8 @@ class PMU(object):
         return id.value
 
 
-def open_pt_event(pid, cpu):
-    # type: (int, int) -> PMU
+def open_pt_event(cpu):
+    # type: (int) -> PMU
     attr = perf_event_attr()
     attr.size = ct.sizeof(attr)
     attr.type = intel_pt_type()
@@ -282,17 +302,17 @@ def open_pt_event(pid, cpu):
     attr.sample_type = SampleFlags.PERF_SAMPLE_MASK
     attr.sample_period = 1
     attr.clockid = 1
-    attr.flags = PerfFlags.INHERIT | \
+    attr.flags = PerfFlags.DISABLED | \
         PerfFlags.EXCLUDE_KERNEL | \
         PerfFlags.EXCLUDE_HV | \
         PerfFlags.SAMPLE_ID_ALL | \
         PerfFlags.WRITE_BACKWARD
 
-    return PMU(attr, pid, cpu)
+    return PMU(attr, cpu)
 
 
-def open_dummy_event(pid, cpu):
-    # type: (int, int) -> PMU
+def open_dummy_event(cpu):
+    # type: (int) -> PMU
     attr = perf_event_attr()
     attr.size = ct.sizeof(attr)
     attr.type = PERF_TYPE_SOFTWARE
@@ -301,8 +321,7 @@ def open_dummy_event(pid, cpu):
     attr.sample_period = 1
     attr.clockid = 1
 
-    attr.flags = PerfFlags.INHERIT | \
-        PerfFlags.EXCLUDE_KERNEL | \
+    attr.flags = PerfFlags.EXCLUDE_KERNEL | \
         PerfFlags.EXCLUDE_HV | \
         PerfFlags.SAMPLE_ID_ALL | \
         PerfFlags.MMAP | \
@@ -313,7 +332,7 @@ def open_dummy_event(pid, cpu):
         PerfFlags.CONTEXT_SWITCH | \
         PerfFlags.WRITE_BACKWARD
 
-    return PMU(attr, pid, cpu)
+    return PMU(attr, cpu)
 
 
 class MMap(object):
@@ -375,11 +394,11 @@ class MmapHeader(object):
     # From this record, tooling can iterate over the full ring buffer and fetch
     # records one by one.
     def events(self):
-        # () -> List[perf_event_header]
-        data_head = ct.c_int(self._header.data_head).value
-        events = []
-        if data_head == 0:
-            return events
+        # () -> List[bytearray]
+        data_head = self._header.data_head
+        events = []  # type: List[str]
+        #if data_head == 0:
+        #    return events
 
         data_size = self.data_size
         offset = data_head + data_size
@@ -399,7 +418,9 @@ class MmapHeader(object):
             elif begin <= first_begin and end >= first_end:
                 break
 
-            buf = (ct.c_char * ev.size)()
+            py_buf = bytearray(ev.size)
+            buf_type = (ct.c_byte * ev.size)
+            buf = buf_type.from_buffer(py_buf)
             if end < begin:
                 # event wraps around into ring buffer start
                 length = self.data_addr + data_size - begin
@@ -409,7 +430,7 @@ class MmapHeader(object):
                     ev.size - length)
             else:
                 ct.memmove(buf, begin, ct.sizeof(buf))
-            events.append(perf_event_header.from_buffer(buf))
+            events.append(py_buf)
             first = False
             offset += ev.size
         return reversed(events)
@@ -446,15 +467,19 @@ class MmapHeader(object):
         self._header.aux_offset = self._header.data_offset + self._header.data_size
         self._header.aux_size = size
 
+    def advance(self):
+        # type: () -> None
+        self._header.data_tail = self._header.data_head
+
 
 class BackwardRingbuffer(object):
-    def __init__(self, pmu):
-        # type: (PMU) -> None
+    def __init__(self, cpu):
+        # type: (int) -> None
         """
         Implements ring buffer described here: https://lwn.net/Articles/688338/
         """
         # data and aux area must be a multiply of two
-        self.pmu = pmu
+        self.pmu = open_dummy_event(cpu)
         header_size = PAGESIZE
         data_size = 2**9 * PAGESIZE  # == 2097152
 
@@ -474,18 +499,21 @@ class BackwardRingbuffer(object):
         self.pmu.close()
 
     def events(self):
+        # () -> List[bytearray]
         return self.header.events()
 
     def tsc_conversion(self):
+        # () -> TscConversion
         return self.header.tsc_conversion()
 
 
 class AuxRingbuffer(object):
-    def __init__(self, pmu):
-        # type: (PMU) -> None
-        # data and aux area must be a multiply of two
+    def __init__(self, cpu):
+        # type: (int) -> None
+        # data area must be a multiply of two
         data_size = 2**9 * PAGESIZE  # == 2097152
-        self.pmu = pmu
+        #data_size = 2 * PAGESIZE  # == 2097152
+        self.pmu = open_pt_event(cpu)
         header_size = PAGESIZE
 
         self.buf = MMap(self.pmu.fd, header_size + data_size,
@@ -493,6 +521,7 @@ class AuxRingbuffer(object):
 
         self.header = MmapHeader(self.buf.addr, data_size)
 
+        # aux area must be a multiply of two
         self.header.aux_size = PAGESIZE * (2**14)  # == 67108864
         self.aux_buf = MMap(
             self.pmu.fd,
@@ -500,6 +529,12 @@ class AuxRingbuffer(object):
             mmap.PROT_READ,
             mmap.MAP_SHARED,
             offset=self.header.aux_offset)
+
+        self.pmu.enable()
+
+    def mark_as_read(self):
+        # type: () -> None
+        self.header.advance()
 
     def close(self):
         # type: () -> None
@@ -516,6 +551,7 @@ class AuxRingbuffer(object):
         self.pmu.disable()
 
     def events(self):
+        # () -> List[bytearray]
         return self.header.events()
 
 
@@ -524,27 +560,105 @@ class PerfEvents():
         self.tsc_conversion = tsc_conversion
 
 
+class Cpu():
+    def __init__(self, idx, event_buffer, pt_buffer):
+        # type: (int, BackwardRingbuffer, AuxRingbuffer) -> None
+        self.idx = idx
+        self.event_buffer = event_buffer
+        self.pt_buffer = pt_buffer
+
+    def events(self):
+        # type: () -> Iterator[bytearray]
+        return iter(self.event_buffer.events())
+
+    def traces(self):
+        # type: () -> Iterator[bytearray]
+        for ev in self.pt_buffer.events():
+            event = perf_aux_event.from_buffer(ev)
+            print(event.type)
+            yield ev
+            #begin = self.pt_buffer.aux_buf.addr + event.aux_offset
+            #end = begin + event.aux_size
+            #assert end < self.pt_buffer.aux_buf.addr + self.pt_buffer.aux_buf.size
+            #self.pt_buffer.aux_buf[]
+
+    def stop(self):
+        # type: () -> None
+        self.pt_buffer.stop()
+
+        self.event_buffer.stop()
+
+    def close(self):
+        # type: () -> None
+        self.pt_buffer.close()
+        self.event_buffer.close()
+
+
+# Because the interface for aux events is brain dead we need to poll for
+# all PERF_RECORD_AUX events to get the latest ones.
+# The last event in the buffer is the offset in our aux buffer.
+def poll_aux_events(pt_buffers, stop_fd):
+    return
+    # type: (List[AuxRingbuffer], int) -> None
+    poll_obj = select.poll()
+    for buf in pt_buffers:
+        poll_obj.register(buf.pmu.fd, select.POLLIN)
+    poll_obj.register(stop_fd, select.POLLERR)
+    while True:
+        fds = []
+        for (fd, event) in poll_obj.poll():
+            fds.append(fd)
+            if fd == stop_fd:
+                return
+        for buf in pt_buffers:
+            buf.mark_as_read()
+
+
 class PtSnapshot(object):
-    def __init__(self, pid):
-        # type: (int) -> None
-        self.event_buffers = []  # type: List[BackwardRingbuffer]
-        self.pt_buffers = []  # type: List[AuxRingbuffer]
+    def __init__(self):
+        # type: () -> None
+        self.stopped = False
+        self.cpus = []  # type: List[Cpu]
 
         try:
-            self.start(pid)
+            self.start()
         except Exception:
             self.close()
             raise
 
-    def start(self, pid):
-        # type: (int) -> None
-        for cpu in cpus_online():
-            self.event_buffers.append(
-                BackwardRingbuffer(open_dummy_event(pid, cpu)))
+    def start_polling(self, pt_buffers):
+        # type: (List[AuxRingbuffer]) -> None
+        stop_fds = os.pipe()
+        self.stop_polling_fd = stop_fds[0]
+        self.polling_thread = Thread(
+            target=poll_aux_events, args=(pt_buffers, stop_fds[1]))
+        self.polling_thread.start()
+
+    def stop_polling(self):
+        # type: () -> None
+        if self.polling_thread is None or not self.polling_thread.is_alive():
+            return
+        os.close(self.stop_polling_fd)
+        self.polling_thread.join()
+
+    def start(self):
+        # type: () -> None
+        assert not self.stopped
+        event_buffers = []  # type: List[BackwardRingbuffer]
+        pt_buffers = []  # type: List[AuxRingbuffer]
+
+        cpu_idx = cpus_online()
+        for idx in cpu_idx:
+            event_buffers.append(BackwardRingbuffer(idx))
 
         # gather dummy events before pt events
-        for cpu in cpus_online():
-            self.pt_buffers.append(AuxRingbuffer(open_pt_event(pid, cpu)))
+        for idx in cpu_idx:
+            pt_buffers.append(AuxRingbuffer(idx))
+
+        for idx in cpu_idx:
+            self.cpus.append(Cpu(idx, event_buffers[idx], pt_buffers[idx]))
+
+        self.start_polling(pt_buffers)
 
     def __enter__(self):
         # type: () -> PtSnapshot
@@ -553,42 +667,20 @@ class PtSnapshot(object):
     def __exit__(self, type, value, traceback):
         self.close()
 
-    def take(self):
-        # type: () -> Iterator[perf_event_header]
-        for r in self.pt_buffers:
-            r.stop()
-
-        for r2 in self.event_buffers:
-            r2.stop()
-
-        for b in self.event_buffers:
-            for e in b.events():
-                yield e
-
-        for b2 in self.pt_buffers:
-            for e in b2.events():
-                yield e
+    def stop(self):
+        # type: () -> None
+        print("stop")
+        for cpu in self.cpus:
+            cpu.stop()
+        self.stop_polling()
+        self.stopped = True
 
     def tsc_conversion(self):
-        return self.event_buffers[0].tsc_conversion()
+        # type: () -> TscConversion
+        return self.cpus[0].event_buffer.tsc_conversion()
 
     def close(self):
         # type: () -> None
-        for r in self.pt_buffers:
-            r.close()
-
-        for r2 in self.event_buffers:
-            r2.close()
-
-
-if __name__ == "__main__":
-    import pry
-    with pry:
-        with PtSnapshot(os.getpid()) as snapshot:
-            # produce some events
-            for i in range(10):
-                sys.stderr.write(".")
-            sys.stderr.write("\n")
-            # wait for events to appear in log
-            snapshot.take()
-            snapshot.tsc_conversion()
+        self.stop_polling()
+        for cpu in self.cpus:
+            cpu.close()
