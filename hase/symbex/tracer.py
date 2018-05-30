@@ -3,8 +3,6 @@ from __future__ import absolute_import, division, print_function
 import angr
 import logging
 import os
-import sys
-import struct
 import archinfo
 import claripy
 import gc
@@ -19,13 +17,14 @@ from pygdbmi.gdbcontroller import GdbController
 from collections import deque
 from memory_profiler import profile
 
-from ..perf import read_trace, Branch
-from ..pwn_wrapper import ELF, Coredump
-from ..mapping import Mapping
+from ..pwn_wrapper import ELF, Coredump, Mapping
 
 from .state import State, StateManager
 from .hook import all_hookable_symbols, addr_symbols
 from .filter import FilterTrace
+from .state import State, StateManager
+from .hook import all_hookable_symbols, addr_symbols
+from ..pt import Instruction
 
 l = logging.getLogger("hase")
 
@@ -291,24 +290,18 @@ def build_load_options(mappings):
 class Tracer(object):
     def __init__(self,
                  executable,
-                 thread_id,
-                 trace_path,
-                 coredump,
-                 mappings,
-                 executable_root=None):
-        # type: (str, int, str, str, List[Mapping], Optional[str]) -> None
+                 trace,
+                 coredump):
+        # type: (str, List[Instruction], Coredump) -> None
         self.executable = executable
-        self.mappings = mappings
-        options = build_load_options(mappings)
+        options = build_load_options(coredump.mappings)
         self.project = angr.Project(executable, **options)
 
-        self.coredump = Coredump(coredump)
+        self.coredump = coredump
         self.debug_unsat = None  # type: Optional[SimState]
 
         command = os.path.basename(self.coredump.string(self.coredump.argv[0]))
 
-        trace = read_trace(
-            trace_path, thread_id, command, executable_root=executable_root)
         self.trace = trace
 
         if self.trace[-1].ip == 0:  # trace last ends in syscall

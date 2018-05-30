@@ -4,10 +4,15 @@ CCFLAGS = -g # -static
 SRCS	= ./src
 BINS	= ./bin
 HASEBIN	= ../bin/hase
-TARGETS = control_flow loopy long_trace null_deref core_constraint heap_location
+C_TARGETS = control_flow long_trace null_deref core_constraint heap_location
 
 
-$(TARGETS): 
+all: $(C_TARGETS) loopy
+
+loopy: src/loopy/loopy.S
+	$(CC) -nostdlib $(SRCS)/loopy/loopy.S -o $(BINS)/$@
+
+$(C_TARGETS): 
 	$(CC) $(CCFLAGS) $(SRCS)/$@/$@.c -o $(BINS)/$@
 
 %_record:

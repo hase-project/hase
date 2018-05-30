@@ -5,7 +5,7 @@ from cle import ELF
 from typing import Dict, Tuple, Optional, List, Union, Any
 from claripy.ast.bv import BV
 
-from ..perf import Branch
+from ..pt import Instruction
 from ..annotate import Addr2line
 
 
@@ -58,10 +58,10 @@ class Memory(object):
 
 
 class State(object):
-    def __init__(self, index, branch, from_simstate, to_simstate):
-        # type: (int, Branch, SimState, SimState) -> None
+    def __init__(self, index, instruction, from_simstate, to_simstate):
+        # type: (int, Instruction, SimState, SimState) -> None
         self.index = index
-        self.branch = branch
+        self.instruction = instruction
         self.from_simstate = from_simstate
         self.to_simstate = to_simstate
         self.is_to_simstate = True

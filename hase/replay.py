@@ -6,10 +6,41 @@ import json
 import shutil
 import sys
 from typing import List, Any, Dict
+from .pwn_wrapper import Coredump
 
 from .symbex.tracer import Tracer, State, StateManager
 from .mapping import Mapping
 from .path import Tempdir
+from . import pt
+
+
+def decode_trace(manifest, mappings, vdso_x64, executable_root):
+    # type: (Dict[str, Any], List[Mapping], str, str) -> List[pt.Instruction]
+    trace_per_cpu = []
+
+    coredump = manifest["coredump"]
+    trace = manifest["trace"]
+
+    for cpu in trace["cpus"]:
+        trace_per_cpu.append((cpu["event_path"], cpu["trace_path"]))
+
+    return pt.decode(
+        trace_per_cpu=trace_per_cpu,
+        mappings=mappings,
+        exec_wrapper=manifest["exec_wrapper"],
+        pid=coredump["global_pid"],
+        tid=coredump["global_tid"],
+        cpu_family=trace["cpu_family"],
+        cpu_model=trace["cpu_model"],
+        cpu_stepping=trace["cpu_stepping"],
+        cpuid_0x15_eax=trace["cpuid_0x15_eax"],
+        cpuid_0x15_ebx=trace["cpuid_0x15_ebx"],
+        time_zero=trace["time_zero"],
+        time_shift=trace["time_shift"],
+        time_mult=trace["time_mult"],
+        sample_type=trace["sample_type"],
+        sysroot=executable_root,
+        vdso_x64=vdso_x64)
 
 
 class Replay(object):
@@ -30,15 +61,25 @@ class Replay(object):
         # type: () -> None
         manifest = self.unpack()
 
-        coredump = manifest["coredump"]
 
-        self.tracer = Tracer(
-            coredump["executable"],
-            coredump["global_tid"],
-            manifest["perf_data"],
-            coredump["file"],
-            manifest["mappings"],
-            executable_root=str(self.tempdir.join("binaries")))
+        coredump = Coredump(manifest["coredump"]["file"])
+
+        vdso_x64 = self.tempdir.join("vdso")
+
+        with open(str(vdso_x64), "w+") as f:
+            f.write(coredump.vdso.data)
+
+        binaries = self.tempdir.join("binaries")
+        trace = decode_trace(manifest, coredump.mappings, str(vdso_x64), str(binaries))
+
+        for obj in coredump.mappings:
+            binary = binaries.join(obj.path)
+            if not binary.exists():
+                continue
+            obj.name = str(binary)
+
+        self.tracer = Tracer(coredump["coredump"]["executable"], trace,
+                             coredump)
 
     def run(self):
         # type: () -> StateManager
@@ -61,21 +102,14 @@ class Replay(object):
         with open(str(manifest_path)) as f:
             manifest = json.load(f)
 
-        mappings = []
-        for m in manifest["mappings"]:
-            if m["path"] != "":
-                path = archive_root.join(m["path"])
-                if path.exists():
-                    m["path"] = str(path)
-            m = Mapping(**m)
-            mappings.append(m)
-        manifest["mappings"] = mappings
-        manifest["perf_data"] = str(archive_root.join(manifest["perf_data"]))
+        for cpu in manifest['trace']['cpus']:
+            cpu["event_path"] = str(archive_root.join(cpu["event_path"]))
+            cpu["trace_path"] = str(archive_root.join(cpu["trace_path"]))
 
         coredump = manifest["coredump"]
-        self.executable = '/' + coredump['executable'].partition('/')[2]
         coredump["executable"] = str(archive_root.join(coredump["executable"]))
         coredump["file"] = str(archive_root.join(coredump["file"]))
+        manifest["exec_wrapper"] = str(archive_root.join(manifest["exec_wrapper"]))
 
         return manifest
 

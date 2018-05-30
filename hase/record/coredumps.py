@@ -61,12 +61,11 @@ class Coredump(object):
 
 class Handler(object):
     def __init__(self,
-                 perf_pid,
                  core_file,
                  fifo_path,
                  manifest_path,
                  log_path="/tmp/coredump.log"):
-        # type: (int, str, str, str, str) -> None
+        # type: ( str, str, str, str) -> None
         self.previous_pattern = None
         self.old_core_rlimit = None
         self.handler_script = None
@@ -75,8 +74,6 @@ class Handler(object):
         self.manifest_path = manifest_path
         self.log_path = log_path
         os.mkfifo(fifo_path)
-
-        self.perf_pid = perf_pid
 
     def __enter__(self):
         # () -> Coredump
@@ -93,8 +90,7 @@ class Handler(object):
 exec 1>>{log_path}
 exec 2>&1
 
-{kill} -SIGUSR2 "{perf_pid}" "{hase_pid}"
-{kill} -SIGTERM "{perf_pid}"
+{kill} -SIGUSR2 "{pid}"
 
 export PYTHONPATH={pythonpath}
 
@@ -103,8 +99,7 @@ exec {python} -m hase.record.coredump_handler {fifo_path} {core_file} {manifest_
 
         script_content = script_template.format(
             kill=kill_command,
-            perf_pid=self.perf_pid,
-            hase_pid=os.getpid(),
+            pid=os.getpid(),
             python=quote(sys.executable),
             pythonpath=":".join(sys.path),
             fifo_path=quote(self.fifo_path),
