@@ -2,6 +2,15 @@
 
 [![Build Status](https://travis-ci.org/hase-project/hase.svg?branch=master)](https://travis-ci.org/hase-project/hase)
 
+Hase provides record-replay debugging suitable for all-ways-on in-production recording.
+It leverages [intel processor trace](https://software.intel.com/en-us/blogs/2013/09/18/processor-tracing)
+and [core dumps](https://en.wikipedia.org/wiki/Core_dump) that can be recorded with
+little overhead.
+On top of that data it performs [symbolic execution](https://github.com/angr/angr)
+to recover states prior to the crash.
+
+[Workshop presentation on Klee Workshop 2018](https://docs.google.com/presentation/d/1QeJtKAtLsBbpX9U-llUe_zOLeJpCCq-p8frFMmj9cd4/edit?usp=sharing)
+
 # INSTALL
 
 1. Setup virtualenv
