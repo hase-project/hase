@@ -232,9 +232,17 @@ class GdbServer(object):
             "-data-evaluate-expression %s" % expr, timeout_sec=99999)
         print(res)
 
-    def write_request(self, expr, timeout_sec=10):
-        # type: (str, int) -> str
-        return self.gdb.write(expr, timeout_sec=timeout_sec)
+    def write_request(self, req, **kwargs):
+        timeout_sec = kwargs.pop('timeout_sec', 10)
+        kwargs['read_response'] = False
+        self.gdb.write(req, timeout_sec=timeout_sec, **kwargs)
+        resp = []
+        while True:
+            try:
+                resp += self.gdb.get_gdb_response()
+            except:
+                break
+        return resp
 
     def run(self):
         # () -> None

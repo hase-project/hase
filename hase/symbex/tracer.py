@@ -4,37 +4,165 @@ import angr
 import logging
 import os
 import struct
+import archinfo
 from angr import sim_options as so
 from angr.state_plugins.sim_action import SimActionExit
-from angr.procedures.libc import printf
-from angr import SimState
+from angr.knowledge_plugins.functions.function import Function
+from angr import SimState, SimProcedure, PointerWrapper, SIM_PROCEDURES
+from angr.sim_type import SimTypeString, SimTypeInt
 from typing import List, Any, Dict, Tuple, Optional
+from pygdbmi.gdbcontroller import GdbController
 
 from ..perf import read_trace, Branch
 from ..pwn_wrapper import ELF, Coredump
 from ..mapping import Mapping
 
 from .state import State
+from .hook import all_hookable_symbols
 
 l = logging.getLogger(__name__)
+hdlr = logging.FileHandler("../replay.log")
+l.addHandler(hdlr)
 
 ELF_MAGIC = b"\x7fELF"
 
 
-class CoredumpCallStack():
-    def __init__(self, rbp_list, rip_list):
-        # type: (List[str], List[str]) -> None
-        self.rbp_list = rbp_list
-        self.rip_list = rip_list
+class CoredumpGDB():
+        
+    def __init__(self, elf, coredump):
+        self.coredump = coredump
+        self.elf = elf
+        self.corefile = self.coredump.file.name
+        self.execfile = self.elf.file.name
+        # XXX: use --nx will let manually set debug-file-directory 
+        # and unknown cause for not showing libc_start_main and argv
+        self.gdb = GdbController(gdb_args=['--quiet', '--interpreter=mi2'])
+        self.setup_gdb()
+
+    def setup_gdb(self):
+        self.write_request("file {}".format(self.execfile))
+        self.write_request("core {}".format(self.corefile))
+
+    def write_request(self, req, **kwargs):
+        timeout_sec = kwargs.pop('timeout_sec', 1)
+        kwargs['read_response'] = False
+        self.gdb.write(req, timeout_sec=timeout_sec, **kwargs)
+        resp = []
+        while True:
+            try:
+                resp += self.gdb.get_gdb_response()
+            except:
+                break
+        return resp
+
+    def parse_frame(self, r):
+        # type: (str) -> Dict[str, Any]
+        attrs = {}
+        # NOTE: #n  addr in func (args=args[ <name>][@entry=v]) at source_code[:line]\n
+        r = r.replace('\\n', '')
+        attrs['index'] = r.partition(' ')[0][1:]
+        r = r.partition(' ')[2][1:]
+        attrs['addr'] = r.partition(' ')[0]
+        r = r.partition(' ')[2]
+        r = r.partition(' ')[2]
+        attrs['func'] = r.partition(' ')[0]
+        r = r.partition(' ')[2]
+        args = r.partition(')')[0][1:].split(', ')
+        args_list = []
+
+        # NOTE: remove <xxx>
+        def remove_comment(arg):
+            if arg.find('<') != -1:
+                arg = arg.partition('<')[0]
+                arg = arg.replace(' ', '')
+            return arg
+
+        for arg in args:
+            if arg.find('@') != -1:
+                name, _, entry_ = arg.partition('@')
+            else:
+                name = arg
+                entry_ = None
+            name, _, value = name.partition('=')
+            value = remove_comment(value)
+            if entry_:
+                _, _, entry = entry_.partition('=')
+                entry = remove_comment(entry)
+                args_list.append([name, value, entry])
+            else:
+                args_list.append([name, value, None])
+        attrs['args'] = args_list
+        r = r.partition(')')[2]
+        r = r.partition(' ')[2]
+        r = r.partition(' ')[2]
+        if r.find(':') != -1:
+            source, _, line = r.partition(':')
+        else:
+            source = r
+            line = '?'
+        attrs['file'] = source
+        attrs['line'] = line
+        return attrs
+
+    def parse_addr(self, r):
+        # $n = (...) 0xaddr <name>
+        l = r.split(' ')
+        for blk in l:
+            if blk.startswith('0x'):
+                return int(blk, 16)
+        return 0
+
+    def parse_offset(self, r):
+        # addr <+offset>:  inst
+        l = r.split(' ')
+        for blk in l:
+            if blk.startswith('<+'):
+                idx = blk.find('>')
+                return int(blk[2:idx])
+        return 0
+
+    def backtrace(self):
+        resp = self.write_request("where")
+        bt = []
+        for r in resp:
+            payload = r['payload']
+            if payload and payload[0] == '#':
+                print(payload)
+                bt.append(self.parse_frame(payload))
+        return bt
+
+    def get_symbol(self, addr):
+        # type: (int) -> str
+        resp = self.write_request("info symbol {}".format(addr))
+        return resp[1]['payload']
+
+    def get_rbp(self, n):
+        # type: (int) -> str
+        resp = self.write_request("info frame {}".format(n))
+        idx = resp[8]['payload'].find('rbp at')
+        value = int(resp[8]['payload'][idx+7:].partition(',')[0], 16)
+        return value
+
+    def get_func_range(self, name):
+        # type: (str) -> List[int]
+        # FIXME: Not a good idea. Maybe some gdb extension?
+        r1 = self.write_request("print &{}".format(name))
+        addr = self.parse_addr(r1[1]['payload'])
+        r2 = self.write_request("disass {}".format(name))
+        size = self.parse_offset(r2[-3]['payload'])
+        return [addr, size + 1]
 
 
 class CoredumpAnalyzer():
-    def __init__(self, coredump, lsm, lsm_length):
+    def __init__(self, elf, coredump):
         # type: (Coredump, int, int) -> None
         self.coredump = coredump
-        self.rip_lsm = lsm
-        self.lsm_length = lsm_length
+        self.elf = elf
+        self.gdb = CoredumpGDB(elf, coredump)
+        self.backtrace = self.gdb.backtrace()
+        self.argc = self.coredump.argc
         self.argv = [self.read_argv(i) for i in range(self.argc)]
+        self.argv_addr = [self.read_argv_addr(i) for i in range(self.argc)]
     
     def read_stack(self, addr, length=0x1):
         # type: (int, int) -> str
@@ -44,8 +172,13 @@ class CoredumpAnalyzer():
 
     def read_argv(self, n):
         # type: (int) -> str
-        assert n < self.coredump.argc
+        assert 0 <= n < self.coredump.argc
         return self.coredump.string(self.coredump.argv[n])
+
+    def read_argv_addr(self, n):
+        # type: (int) -> int
+        assert 0 <= n < self.coredump.argc
+        return self.coredump.argv[n]
 
     @property
     def env(self):
@@ -56,35 +189,32 @@ class CoredumpAnalyzer():
         return self.coredump.registers
 
     @property
-    def argc(self):
-        return self.coredump.argc
-
-    @property
-    def argv(self):
-        return self.argv
-
-    @property
     def stack_start(self):
         return self.coredump.stack.start
-
+    
     @property
     def stack_stop(self):
         return self.coredump.stack.stop
+    
+    def call_argv(self, name):
+        for bt in self.backtrace:
+            if bt['func'] == name:
+                args = []
+                for _, value, entry in bt['args']:
+                    if entry:
+                        args.append(int(entry, 16))
+                    else:
+                        if value != '':
+                            args.append(int(value, 16))
+                        else:
+                            args.append(None)
+                return args
+        raise Exception("Unknown function {} in backtrace".format(name))
 
-    @property
-    def callstack(self):
-        rbp_list = [self.coredump.rbp]
-        rip_list = [self.coredump.rip]
-        # FIXME: functions like raise don't have stack frame
-        # HACK: now use __libc_start_main as endpoint
-        while not 0 <= rip_list[-1] - self.rip_lsm < self.lsm_length:
-            rip_list.append(
-                struct.unpack("<Q", self.read_stack(rbp_list[-1] + 8, 0x8))[0]
-            )
-            rbp_list.append(
-                struct.unpack("<Q", self.read_stack(rbp_list[-1], 0x8))[0]
-            )
-        return CoredumpCallStack(rbp_list, rip_list)
+    def frame_rbp(self, name):
+        for bt in self.backtrace:
+            if bt['func'] == name:
+                return self.gdb.get_rbp(int(bt['index']))
 
 
 def build_load_options(mappings):
@@ -144,11 +274,9 @@ class Tracer(object):
 
         start = self.elf.symbols.get('_start')
         main = self.elf.symbols.get('main')
-        libc_start_main = self.elf.symbols.get('__libc_start_main')
-        lsm_idx = sorted(self.elf.symbols.values()).index(libc_start_main)
-        lsm_length = sorted(self.elf.symbols.values())[lsm_idx + 1] - libc_start_main
 
-        self.cdanalyzer = CoredumpAnalyzer(self.coredump, libc_start_main, lsm_length)
+        self.cdanalyzer = CoredumpAnalyzer(
+            self.elf, self.coredump)
 
         for (idx, event) in enumerate(self.trace):
             if event.addr == start or event.addr == main or \
@@ -168,15 +296,49 @@ class Tracer(object):
 
         assert start_address != 0
 
-        # TODO: hook low-fidelity symbols to reduce branching solving?
-        # self.project.hook_symbol('printf', printf)
+        self.cfg = self.project.analyses.CFGFast(show_progressbar=True)
 
-        self.start_state = self.project.factory.full_init_state(
-            addr=start_address,
-            argc=self.cdanalyzer.argc,
-            args=self.cdanalyzer.argv,
+        self.hooked_symbol = all_hookable_symbols.copy()
+        self.omitted_symbol = {}
+        # XXX: collected from testing coreutils
+        self.unsupported_symbol = [
+            '__strncmp_sse42',
+            '__strncmp_sse2',
+            '__strcmp_sse2',
+            '__strcmp_sse2_unaligned',
+            '__strchr_sse2',
+            '__memcpy_sse2',
+            '__mempcpy_sse2',
+            '__new_exitfn',
+            '_nl_find_locale',
+            '_nl_find_locale',
+            '_nl_load_locale_from_archive',
+            '_nl_normalize_codeset',
+            '_nl_intern_locale_data',
+            '_nl_postload_ctype',
+            'new_composite_name',
+            'sbrk',
+            'malloc_hook_ini',
+            'ptmalloc_init',
+            '_int_malloc',
+            '_int_free',
+            'malloc_consolidate',
+            'sysmalloc',
+            '__default_morecore',
+            'memmem',
+        ]
+        self.setup_hook()
+
+        args = self.cdanalyzer.call_argv('main')
+
+        self.start_state = self.project.factory.call_state(
+            start_address,
+            *args,
+            stack_base=self.cdanalyzer.frame_rbp('main'),
             add_options=set([so.TRACK_JMP_ACTIONS]),
             remove_options=remove_simplications)
+
+        self.setup_argv()
 
         self.simgr = self.project.factory.simgr(
             self.start_state,
@@ -184,8 +346,105 @@ class Tracer(object):
             hierarchy=False,
             save_unconstrained=True)
 
+        # HACK: brute-force idea of ripping plt stubs / ld functions (like _dl_load_xxx)
+        self.no_plt_trace = []
+        for event in self.trace:
+            if self.test_plt(event.addr) or \
+                self.test_ld(event.addr) or \
+                self.test_hook(event.addr) or \
+                self.test_omit(event.addr):
+                continue
+            self.no_plt_trace.append(event)
+
+        self.old_trace = self.trace
+        self.trace = self.no_plt_trace
+
         # For debugging
         # self.project.pt = self
+
+
+    def test_plt(self, addr):
+        # NOTE: .plt or .plt.got
+        return self.project.loader.find_section_containing(addr).name.startswith('.plt')
+
+    def test_ld(self, addr):
+        o = self.project.loader.find_object_containing(addr)
+        return o == self.project.loader.linux_loader_object
+
+    def test_hook(self, addr):
+        # FIXME: use angr.project.loader.describe_addr cannot find
+        for _, l in self.hooked_symbol.items():
+            if l[1] <= addr < l[1] + l[2]:
+                return True
+        return False
+
+    def test_omit(self, addr):
+        for _, l in self.omitted_symbol.items():
+            if l[0] <= addr < l[0] + l[1]:
+                return True
+        return False
+
+    def setup_argv(self):
+        args = self.cdanalyzer.call_argv('main')
+        argv_addr = args[1]
+        for i in range(len(self.coredump.argv)):
+            self.start_state.memory.store(
+                argv_addr + i * 8, 
+                self.coredump.argv[i],
+                endness=archinfo.Endness.LE)
+            self.start_state.memory.store(
+                self.coredump.argv[i],
+                self.coredump.string(self.coredump.argv[i]),
+                endness=archinfo.Endness.LE)
+
+    def setup_hook(self):
+        fm = self.cfg.kb.functions
+        for symname in self.unsupported_symbol:
+            self.omitted_symbol[symname] = self.get_func_range(symname, True)
+            func = fm.function(name=symname)
+            if func:
+                self.collect_subfunc(func)
+        for symname, l in self.hooked_symbol.items():
+            self.hooked_symbol[symname] += self.get_func_range(symname)
+            func = fm.function(name=symname)
+            if func:
+                self.collect_subfunc(func)
+        for symname, l in self.hooked_symbol.items():
+            self.project.hook_symbol(
+                symname, l[0]
+            )
+        
+    def get_func_range(self, symname, by_gdb=False):
+        res = [None, None]
+        print(symname)
+        if by_gdb:
+            return self.cdanalyzer.gdb.get_func_range(symname)
+        else:
+            sym = self.project.loader.find_symbol(symname)
+            if not sym:
+                return [0, 0]
+            res[0] = sym.rebased_addr
+            if sym.size:
+                res[1] = sym.size
+            else:
+                func = self.cfg.kb.functions.function(name=symname)
+                if func:
+                    res[1] = func.size
+                else:
+                    res[1] = 0
+        return res
+
+    def collect_subfunc(self, func):
+        for nodel in func.nodes.items():
+            node = nodel[0]
+            if isinstance(node, Function) and \
+                node.name not in self.omitted_symbol.keys():
+                self.omitted_symbol[node.name] = self.get_func_range(node.name)
+                self.collect_subfunc(node)
+
+    def register_omit(self, symname, by_gdb=False):
+        self.omitted_symbol[symname] = \
+            self.get_func_range(symname, by_gdb)
 
     def jump_was_not_taken(self, old_state, new_state):
         # was the last control flow change an exit vs call/jump?
@@ -197,16 +456,18 @@ class Tracer(object):
 
     def find_next_branch(self, state, branch):
         # type: (SimState, Branch) -> SimState
-        while True:
+        cnt = 0
+        while cnt < 2000:
+            cnt += 1
             l.debug("0x%x", state.addr)
-            # FIXME: what if this operation meets exception (like divide-by-zero)
-            # FIXME: if state -> state doesn't meet branch? (like bugs not happen currently)
-            try:
-                choices = self.project.factory.successors(
-                    state, num_inst=1).successors
-            except:
-                choices = [state]
+            # FIXME: current stuck at various places
+            choices = self.project.factory.successors(
+                state, num_inst=1).successors
             old_state = state
+            print(state, cnt, branch)
+            if choices == []:
+                print(choices, state, branch)
+                raise Exception("Unable to continue")
             if len(choices) <= 2:
                 for choice in choices:
                     if old_state.addr == branch.addr and choice.addr == branch.ip:
@@ -219,6 +480,8 @@ class Tracer(object):
                 # There should be never more then dot!
                 import pry
                 pry.set_trace()
+        print(choices, state, branch)
+        raise Exception("Unable to continue")
 
     def valid_address(self, address):
         # type: (int) -> bool
@@ -226,6 +489,7 @@ class Tracer(object):
 
     def constrain_registers(self, state):
         # type: (State) -> None
+        # FIXME: if exception caught is omitted by hook?
         assert state.registers['rip'].value == self.coredump.registers['rip']
         registers = [
             "gs", "rip", "rdx", "r15", "rax", "rsi", "rcx", "r14", "fs", "r12",
