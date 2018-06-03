@@ -17,6 +17,7 @@ from ..perf import read_trace, Branch
 from ..pwn_wrapper import ELF, Coredump
 from ..mapping import Mapping
 
+from .patch import *
 from .state import State
 from .hook import all_hookable_symbols
 from .filter import FilterTrace
@@ -305,13 +306,13 @@ class Tracer(object):
             show_progressbar=True
         )
 
-        self.hooked_symbol = all_hookable_symbols.copy()
+        self.hooked_symbols = all_hookable_symbols.copy()
 
         self.filter = FilterTrace(
             self.project, 
             self.cfg, 
             self.trace,
-            self.hooked_symbol,
+            self.hooked_symbols,
             self.cdanalyzer.gdb
         )
         self.setup_hook()
@@ -351,14 +352,16 @@ class Tracer(object):
             self.start_state.memory.store(
                 argv_addr + i * 8, 
                 self.coredump.argv[i],
-                endness=archinfo.Endness.LE)
+                endness=archinfo.Endness.LE
+            )
             self.start_state.memory.store(
                 self.coredump.argv[i],
-                self.coredump.string(self.coredump.argv[i]),
-                endness=archinfo.Endness.LE)
+                self.coredump.string(self.coredump.argv[i])[::-1],
+                endness=archinfo.Endness.LE
+            )
 
     def setup_hook(self):
-        for symname, func in self.hooked_symbol.items():
+        for symname, func in self.hooked_symbols.items():
             self.project.hook_symbol(
                 symname, func()
             )
@@ -386,13 +389,10 @@ class Tracer(object):
                 repr(choices) + ' ' +
                 repr(branch) + '\n'
             )
-            l.debug(
-                repr(cnt) + ' ' +
-                repr(choices) + ' ' +
-                repr(branch) + '\n'
-            )
             if choices == []:
                 raise Exception("Unable to continue")
+            if choices[0].addr == branch.addr:
+                self.debug_state = choices[0]
             if len(choices) <= 2:
                 for choice in choices:
                     if old_state.addr == branch.addr and choice.addr == branch.ip:

@@ -4,37 +4,24 @@ from collections import defaultdict
 from angr import Project
 from angr.analyses.cfg import CFGFast
 from angr.knowledge_plugins.functions.function import Function
-from angr.simos.linux import SimLinux
-from angr.errors import AngrSyscallError
-
 from typing import List, Optional, Dict, Any
 
 from .state import Branch
 from .hook import unsupported_symbols
 
 
-# FIXME: bug from angr https://github.com/angr/angr/issues/971
-# TODO: add other vex ir? https://github.com/smparkes/valgrind-vex/blob/master/pub/libvex_ir.h
-def patched_syscall_abi(self, state):
-    if state.arch.name != 'AMD64':
-        return None
-    if state.history.jumpkind == 'Ijk_Sys_int128':
-        return 'i386'
-    elif state.history.jumpkind == 'Ijk_Sys_syscall':
-        return 'amd64'
-    elif state.history.jumpkind == 'Ijk_EmWarn':
-        return 'amd64'
-    else:
-        raise AngrSyscallError("Unknown syscall jumpkind %s" % state.history.jumpkind)
-
-
-SimLinux.syscall_abi = patched_syscall_abi
-
-
 class FakeSymbol():
     def __init__(self, name, addr):
         self.name = name
         self.rebased_addr = addr
+
+    def __eq__(self, other):
+        if other == None:
+            return False
+        return self.name == other.name and self.rebased_addr == other.rebased_addr
+
+    def __hash__(self):
+        return hash((self.name, self.rebased_addr))
 
 
 class FilterBase(object):
@@ -174,7 +161,9 @@ class FilterTrace():
         # type: () -> None
         # NOTE: assume the hooked function should have return
         self.new_trace = []
-        hooked_parent = None
+        call_parent = {}
+        hooked_parent = None # last 2 unhooked
+        is_current_hooked = False
         for event in self.trace:
             present = True
             if self.test_plt(event.addr) or \
@@ -182,19 +171,36 @@ class FilterTrace():
                 self.test_omit(event.addr):
                 present = False
             # NOTE: if already in hooked function, leaving to parent
-            if hooked_parent:
+            # FIXME: -O2 optimization will lead to main->func1->(set rbp)func2->main
+            # A better solution is to record callstack, 
+            # which means we need to get jumpkind of every address,
+            # cannot find it now.
+            if is_current_hooked:
                 present = False
                 sym = self.find_function(event.ip)
                 if sym == hooked_parent:
+                    is_current_hooked = False
                     hooked_parent = None
+                else:
+                    if hooked_parent in call_parent.keys() and \
+                        sym == call_parent[hooked_parent]:
+                        is_current_hooked = False
+                        hooked_parent = None
+                        call_parent[hooked_parent] = None
             else:
                 flg, fname = self.test_function_entry(event.ip)
-                if flg:
+                if flg:                    
                     # NOTE: function entry, testing is hooked
+                    sym = self.find_function(event.ip)
+                    parent = self.find_function(event.addr)
+                    call_parent[sym] = parent
                     if fname in self.hooked_symname:
-                        hooked_parent = self.find_function(event.addr)
+                        is_current_hooked = True
+                        hooked_parent = parent
+                        print(fname, call_parent[hooked_parent], hooked_parent)
                 else:
                     if self.test_omit(event.ip):
+                        is_current_hooked = True
                         hooked_parent = self.find_function(event.addr)
             if present:
                 self.new_trace.append(event)
