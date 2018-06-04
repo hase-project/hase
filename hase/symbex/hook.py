@@ -1,25 +1,88 @@
-from angr.sim_type import *
-from angr import SimProcedure
 from angr.procedures import SIM_PROCEDURES
 
+from .procedures.file_operation import new_open, ferror, __overflow
+from .procedures.setlocale import setlocale
+
+
+# TODO: How to deal with overload function hook?
+# TODO: getenv
+
+
+unsupported_symbols = [
+    ('__new_exitfn', 'atexit', 'no simulation'),
+    ('getenv', 'getenv', 'wrong branch'),
+    # ('_IO_do_allocate', 'fread_unlocked', 'wrong branch'),
+    # ('feof', 'feof', 'wrong branch'),
+    # ('__overflow', 'putchar_unlocked', 'no simulation')
+]
+
 all_hookable_symbols = {}
-for lib, funcs in SIM_PROCEDURES.items():
-    if not lib.startswith("win"):
-        for name, proc in funcs.items():
-            all_hookable_symbols[name] = [proc]
+
+libs = [
+    'libc', 'glibc', 
+    'linux_kernel', 'posix',
+    'linux_loader'
+]
+
+questionable_hook = [
+]
+
+IO_USE_SIMFILE = True
+
+all_IO_hook = [
+    'fclose', 'feof', 'fflush', 'fgetc',
+    'fgets', 'fopen', 'fprintf', 'fputc',
+    'fputs', 'fread', 'fseek', 'ftell',
+    'fwrite', 'getchar', 'printf', 'putc',
+    'putchar', 'puts', 'scanf', 'sscanf', 
+    'snprintf', 'sprintf', 'ungetc', 'vsnprintf',
+    'close', 'fstat', 'lseek', 'open',
+    'read', 'stat', 'unlink', 'write',
+    'closedir', 'fdopen', 'fileno', 'opendir',
+    'readdir'
+]
+unlocked_symbols = [
+    'getchar', 'putchar',
+    'feof', 'ferror',
+    'putc', 'fflush',
+    'fread', 'fwrite',
+    'fgets', 'fputs',
+]
+amd64_symbols = [
+    'fopen', 'fdopen',
+    'ftello', 'fseeko',
+    'open', 'fstat',
+    # 'lstat',
+]
 
 
-class setlocale(SimProcedure):
-    def run(self, category, locale):
-        self.argument_types = {
-            0: SimTypeInt(32, True),
-            1: self.ty_ptr(SimTypeString())
-        }
-        self.return_type = self.ty_ptr(SimTypeString())
-        # FIXME: should have better solution
-        addr = self.state.libc.heap_location
-        self.state.libc.heap_location += 1
-        self.state.memory.store(addr, "\x00")
-        return addr
+for lib in libs:
+    funcs = SIM_PROCEDURES[lib]
+    for name, proc in funcs.items():
+        if name in questionable_hook:
+            continue
+        if IO_USE_SIMFILE or name not in all_IO_hook:
+            all_hookable_symbols[name] = proc
 
-all_hookable_symbols['setlocale'] = [setlocale]
+
+
+if IO_USE_SIMFILE:
+
+    all_hookable_symbols['open'] = new_open
+    all_hookable_symbols['ferror'] = ferror
+    all_hookable_symbols['__overflow'] = __overflow
+
+    for sym in unlocked_symbols:
+        unlocked_sym = sym + '_unlocked'
+        all_hookable_symbols[unlocked_sym] = all_hookable_symbols[sym]
+
+
+    for sym in amd64_symbols:
+        amd64_sym = sym + '64'
+        all_hookable_symbols[amd64_sym] = all_hookable_symbols[sym]
+
+
+
+
+
+

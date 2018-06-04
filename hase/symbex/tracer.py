@@ -3,13 +3,13 @@ from __future__ import absolute_import, division, print_function
 import angr
 import logging
 import os
+import sys
 import struct
 import archinfo
 from angr import sim_options as so
 from angr.state_plugins.sim_action import SimActionExit
 from angr.knowledge_plugins.functions.function import Function
 from angr import SimState, SimProcedure, PointerWrapper, SIM_PROCEDURES
-from angr.sim_type import SimTypeString, SimTypeInt
 from typing import List, Any, Dict, Tuple, Optional
 from pygdbmi.gdbcontroller import GdbController
 
@@ -17,8 +17,10 @@ from ..perf import read_trace, Branch
 from ..pwn_wrapper import ELF, Coredump
 from ..mapping import Mapping
 
+from .patch import *
 from .state import State
 from .hook import all_hookable_symbols
+from .filter import FilterTrace
 
 l = logging.getLogger(__name__)
 hdlr = logging.FileHandler("../replay.log")
@@ -36,6 +38,7 @@ class CoredumpGDB():
         self.execfile = self.elf.file.name
         # XXX: use --nx will let manually set debug-file-directory 
         # and unknown cause for not showing libc_start_main and argv
+        # FIXME: get all response and retry if failed
         self.gdb = GdbController(gdb_args=['--quiet', '--interpreter=mi2'])
         self.setup_gdb()
 
@@ -126,6 +129,7 @@ class CoredumpGDB():
         bt = []
         for r in resp:
             payload = r['payload']
+            print(payload)
             if payload and payload[0] == '#':
                 print(payload)
                 bt.append(self.parse_frame(payload))
@@ -137,9 +141,11 @@ class CoredumpGDB():
         return resp[1]['payload']
 
     def get_rbp(self, n):
-        # type: (int) -> str
+        # type: (int) -> int
         resp = self.write_request("info frame {}".format(n))
         idx = resp[8]['payload'].find('rbp at')
+        if idx == -1:
+            return 0
         value = int(resp[8]['payload'][idx+7:].partition(',')[0], 16)
         return value
 
@@ -296,46 +302,37 @@ class Tracer(object):
 
         assert start_address != 0
 
-        self.cfg = self.project.analyses.CFGFast(show_progressbar=True)
+        self.cfg = self.project.analyses.CFGFast(
+            show_progressbar=True
+        )
 
-        self.hooked_symbol = all_hookable_symbols.copy()
-        self.omitted_symbol = {}
-        # XXX: collected from testing coreutils
-        self.unsupported_symbol = [
-            '__strncmp_sse42',
-            '__strncmp_sse2',
-            '__strcmp_sse2',
-            '__strcmp_sse2_unaligned',
-            '__strchr_sse2',
-            '__memcpy_sse2',
-            '__mempcpy_sse2',
-            '__new_exitfn',
-            '_nl_find_locale',
-            '_nl_find_locale',
-            '_nl_load_locale_from_archive',
-            '_nl_normalize_codeset',
-            '_nl_intern_locale_data',
-            '_nl_postload_ctype',
-            'new_composite_name',
-            'sbrk',
-            'malloc_hook_ini',
-            'ptmalloc_init',
-            '_int_malloc',
-            '_int_free',
-            'malloc_consolidate',
-            'sysmalloc',
-            '__default_morecore',
-            'memmem',
-        ]
+        self.hooked_symbols = all_hookable_symbols.copy()
+
+        self.filter = FilterTrace(
+            self.project, 
+            self.cfg, 
+            self.trace,
+            self.hooked_symbols,
+            self.cdanalyzer.gdb
+        )
         self.setup_hook()
 
         args = self.cdanalyzer.call_argv('main')
 
+        rbp = self.cdanalyzer.frame_rbp('main')
+
+        if not rbp:
+            rbp = 0x7fffffffcf00
+
+        # NOTE: weird, angr invokes SimMemoryAddressException when use concrete value to read
         self.start_state = self.project.factory.call_state(
             start_address,
             *args,
-            stack_base=self.cdanalyzer.frame_rbp('main'),
-            add_options=set([so.TRACK_JMP_ACTIONS]),
+            stack_base=rbp,
+            add_options=set([
+                so.TRACK_JMP_ACTIONS,
+                so.CONSERVATIVE_READ_STRATEGY,
+            ]),
             remove_options=remove_simplications)
 
         self.setup_argv()
@@ -346,43 +343,11 @@ class Tracer(object):
             hierarchy=False,
             save_unconstrained=True)
 
-        # HACK: brute-force idea of ripping plt stubs / ld functions (like _dl_load_xxx)
-        self.no_plt_trace = []
-        for event in self.trace:
-            if self.test_plt(event.addr) or \
-                self.test_ld(event.addr) or \
-                self.test_hook(event.addr) or \
-                self.test_omit(event.addr):
-                continue
-            self.no_plt_trace.append(event)
-
         self.old_trace = self.trace
-        self.trace = self.no_plt_trace
+        self.trace = self.filter.filtered_trace()
 
         # For debugging
         # self.project.pt = self
-
-
-    def test_plt(self, addr):
-        # NOTE: .plt or .plt.got
-        return self.project.loader.find_section_containing(addr).name.startswith('.plt')
-
-    def test_ld(self, addr):
-        o = self.project.loader.find_object_containing(addr)
-        return o == self.project.loader.linux_loader_object
-
-    def test_hook(self, addr):
-        # FIXME: use angr.project.loader.describe_addr cannot find
-        for _, l in self.hooked_symbol.items():
-            if l[1] <= addr < l[1] + l[2]:
-                return True
-        return False
-
-    def test_omit(self, addr):
-        for _, l in self.omitted_symbol.items():
-            if l[0] <= addr < l[0] + l[1]:
-                return True
-        return False
 
     def setup_argv(self):
         args = self.cdanalyzer.call_argv('main')
@@ -391,60 +356,19 @@ class Tracer(object):
             self.start_state.memory.store(
                 argv_addr + i * 8, 
                 self.coredump.argv[i],
-                endness=archinfo.Endness.LE)
+                endness=archinfo.Endness.LE
+            )
             self.start_state.memory.store(
                 self.coredump.argv[i],
-                self.coredump.string(self.coredump.argv[i]),
-                endness=archinfo.Endness.LE)
+                self.coredump.string(self.coredump.argv[i])[::-1],
+                endness=archinfo.Endness.LE
+            )
 
     def setup_hook(self):
-        fm = self.cfg.kb.functions
-        for symname in self.unsupported_symbol:
-            self.omitted_symbol[symname] = self.get_func_range(symname, True)
-            func = fm.function(name=symname)
-            if func:
-                self.collect_subfunc(func)
-        for symname, l in self.hooked_symbol.items():
-            self.hooked_symbol[symname] += self.get_func_range(symname)
-            func = fm.function(name=symname)
-            if func:
-                self.collect_subfunc(func)
-        for symname, l in self.hooked_symbol.items():
+        for symname, func in self.hooked_symbols.items():
             self.project.hook_symbol(
-                symname, l[0]
+                symname, func()
             )
-        
-    def get_func_range(self, symname, by_gdb=False):
-        res = [None, None]
-        print(symname)
-        if by_gdb:
-            return self.cdanalyzer.gdb.get_func_range(symname)
-        else:
-            sym = self.project.loader.find_symbol(symname)
-            if not sym:
-                return [0, 0]
-            res[0] = sym.rebased_addr
-            if sym.size:
-                res[1] = sym.size
-            else:
-                func = self.cfg.kb.functions.function(name=symname)
-                if func:
-                    res[1] = func.size
-                else:
-                    res[1] = 0
-        return res
-
-    def collect_subfunc(self, func):
-        for nodel in func.nodes.items():
-            node = nodel[0]
-            if isinstance(node, Function) and \
-                node.name not in self.omitted_symbol.keys():
-                self.omitted_symbol[node.name] = self.get_func_range(node.name)
-                self.collect_subfunc(node)
-
-    def register_omit(self, symname, by_gdb=False):
-        self.omitted_symbol[symname] = \
-            self.get_func_range(symname, by_gdb)
 
     def jump_was_not_taken(self, old_state, new_state):
         # was the last control flow change an exit vs call/jump?
@@ -457,17 +381,22 @@ class Tracer(object):
     def find_next_branch(self, state, branch):
         # type: (SimState, Branch) -> SimState
         cnt = 0
-        while cnt < 2000:
+        while cnt < 100:
             cnt += 1
             l.debug("0x%x", state.addr)
             # FIXME: current stuck at various places
             choices = self.project.factory.successors(
                 state, num_inst=1).successors
             old_state = state
-            print(state, cnt, branch)
+            sys.stderr.write(
+                repr(cnt) + ' ' +
+                repr(choices) + ' ' +
+                repr(branch) + '\n'
+            )
             if choices == []:
-                print(choices, state, branch)
                 raise Exception("Unable to continue")
+            if choices[0].addr == branch.addr:
+                self.debug_state = choices[0]
             if len(choices) <= 2:
                 for choice in choices:
                     if old_state.addr == branch.addr and choice.addr == branch.ip:
