@@ -109,11 +109,15 @@ class FilterTrace():
                 self.gdb.get_func_range(l[0])
             )
 
-    def test_plt(self, addr):
+    def test_plt_vdso(self, addr):
         # type: (int) -> bool
         # NOTE: .plt or .plt.got
         section = self.project.loader.find_section_containing(addr)
-        return section.name.startswith('.plt')
+        if section:
+            return section.name.startswith('.plt')
+        else:
+            # NOTE: unrecognizable section, regard as vDSO
+            return True
 
     def test_ld(self, addr):
         # type: (int) -> bool
@@ -139,7 +143,7 @@ class FilterTrace():
         for lib, sym in self.syms.items():
             if lib.contains_addr(addr):
                 # FIXME: angr cannot solve plt symbol name
-                if self.test_plt(addr):
+                if self.test_plt_vdso(addr):
                     name = self.solve_name_plt(addr)
                     if name:
                         sym = FakeSymbol(name, addr)
@@ -161,12 +165,12 @@ class FilterTrace():
         # type: () -> None
         # NOTE: assume the hooked function should have return
         self.new_trace = []
-        call_parent = {}
+        call_parent = defaultdict(lambda: None)
         hooked_parent = None # last 2 unhooked
         is_current_hooked = False
         for event in self.trace:
             present = True
-            if self.test_plt(event.addr) or \
+            if self.test_plt_vdso(event.addr) or \
                 self.test_ld(event.addr) or \
                 self.test_omit(event.addr):
                 present = False

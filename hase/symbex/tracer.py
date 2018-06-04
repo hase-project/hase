@@ -324,11 +324,15 @@ class Tracer(object):
         if not rbp:
             rbp = 0x7fffffffcf00
 
+        # NOTE: weird, angr invokes SimMemoryAddressException when use concrete value to read
         self.start_state = self.project.factory.call_state(
             start_address,
             *args,
             stack_base=rbp,
-            add_options=set([so.TRACK_JMP_ACTIONS]),
+            add_options=set([
+                so.TRACK_JMP_ACTIONS,
+                so.CONSERVATIVE_READ_STRATEGY,
+            ]),
             remove_options=remove_simplications)
 
         self.setup_argv()
