@@ -10,6 +10,7 @@ from typing import List, Optional, Dict, Any, Tuple
 
 from .state import Branch
 from .hook import unsupported_symbols
+from .symbex.tracer import CoredumpGDB
 
 
 class FakeSymbol():
@@ -31,7 +32,7 @@ class FakeSymbol():
 
 class FilterBase(object):
     def __init__(self, project, cfg, trace, hooked_symbol, gdb):
-        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], Any) -> None
+        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], CoredumpGDB) -> None
         self.project = project
         self.main_cfg = cfg
         self.main_object = project.loader.main_object
