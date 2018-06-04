@@ -40,16 +40,15 @@ class CoredumpGDB():
         # and unknown cause for not showing libc_start_main and argv
         # FIXME: get all response and retry if failed
         self.gdb = GdbController(gdb_args=['--quiet', '--interpreter=mi2'])
+        # pwnlibs response
+        self.get_response()
         self.setup_gdb()
 
     def setup_gdb(self):
         self.write_request("file {}".format(self.execfile))
         self.write_request("core {}".format(self.corefile))
 
-    def write_request(self, req, **kwargs):
-        timeout_sec = kwargs.pop('timeout_sec', 1)
-        kwargs['read_response'] = False
-        self.gdb.write(req, timeout_sec=timeout_sec, **kwargs)
+    def get_response(self):
         resp = []
         while True:
             try:
@@ -57,10 +56,17 @@ class CoredumpGDB():
             except:
                 break
         return resp
+        
+    def write_request(self, req, **kwargs):
+        timeout_sec = kwargs.pop('timeout_sec', 1)
+        kwargs['read_response'] = False
+        self.gdb.write(req, timeout_sec=timeout_sec, **kwargs)
+        resp = self.get_response()
+        return resp
 
     def parse_frame(self, r):
         # type: (str) -> Dict[str, Any]
-        attrs = {}
+        attrs = {} # Dict[str, Any]
         # NOTE: #n  addr in func (args=args[ <name>][@entry=v]) at source_code[:line]\n
         r = r.replace('\\n', '')
         attrs['index'] = r.partition(' ')[0][1:]
@@ -85,7 +91,7 @@ class CoredumpGDB():
                 name, _, entry_ = arg.partition('@')
             else:
                 name = arg
-                entry_ = None
+                entry_ = ''
             name, _, value = name.partition('=')
             value = remove_comment(value)
             if entry_:
@@ -93,8 +99,8 @@ class CoredumpGDB():
                 entry = remove_comment(entry)
                 args_list.append([name, value, entry])
             else:
-                args_list.append([name, value, None])
-        attrs['args'] = args_list
+                args_list.append([name, value, ''])
+        attrs['args'] = args_list # type: ignore
         r = r.partition(')')[2]
         r = r.partition(' ')[2]
         r = r.partition(' ')[2]
@@ -171,18 +177,19 @@ class CoredumpAnalyzer():
         self.argv_addr = [self.read_argv_addr(i) for i in range(self.argc)]
     
     def read_stack(self, addr, length=0x1):
-        # type: (int, int) -> str
+        # type: ignore
+        # NOTE: a op b op c will invoke weird typing
         assert self.coredump.stack.start <= addr < self.coredump.stack.stop
         offset = addr - self.coredump.stack.start
         return self.coredump.stack.data[offset:offset+length]
 
     def read_argv(self, n):
-        # type: (int) -> str
+        # type: ignore
         assert 0 <= n < self.coredump.argc
         return self.coredump.string(self.coredump.argv[n])
 
     def read_argv_addr(self, n):
-        # type: (int) -> int
+        # type: ignore
         assert 0 <= n < self.coredump.argc
         return self.coredump.argv[n]
 
@@ -306,7 +313,17 @@ class Tracer(object):
             show_progressbar=True
         )
 
-        self.hooked_symbols = all_hookable_symbols.copy()
+        self.use_hook = True
+
+        if self.use_hook:
+            self.hooked_symbols = all_hookable_symbols.copy()
+        else:
+            self.hooked_symbols = {
+                'strlen': all_hookable_symbols['strlen'],
+                'setlocale': all_hookable_symbols['setlocale'],
+                'malloc': all_hookable_symbols['malloc'],
+                'calloc': all_hookable_symbols['calloc'],
+            }
 
         self.filter = FilterTrace(
             self.project, 
@@ -318,24 +335,38 @@ class Tracer(object):
         self.setup_hook()
 
         args = self.cdanalyzer.call_argv('main')
+        # NOTE: gdb sometimes take this wrong
+        args[0] = self.coredump.argc
 
         rbp = self.cdanalyzer.frame_rbp('main')
 
         if not rbp:
             rbp = 0x7fffffffcf00
 
-        # NOTE: weird, angr invokes SimMemoryAddressException when use concrete value to read
-        self.start_state = self.project.factory.call_state(
-            start_address,
-            *args,
-            stack_base=rbp,
-            add_options=set([
-                so.TRACK_JMP_ACTIONS,
-                so.CONSERVATIVE_READ_STRATEGY,
-            ]),
-            remove_options=remove_simplications)
+        self.use_callstate = True
 
-        self.setup_argv()
+        # NOTE: weird, angr invokes SimMemoryAddressException when use concrete value to read
+        
+        if self.use_callstate:
+            self.start_state = self.project.factory.call_state(
+                start_address,
+                *args,
+                stack_base=rbp,
+                add_options=set([
+                    so.TRACK_JMP_ACTIONS,
+                    so.CONSERVATIVE_READ_STRATEGY,
+                ]),
+                remove_options=remove_simplications)
+
+            self.setup_argv()
+        else:
+            self.start_state = self.project.factory.blank_state(
+                addr=start_address,
+                add_options=set([
+                    so.TRACK_JMP_ACTIONS,
+                    so.CONSERVATIVE_READ_STRATEGY,
+                ]),
+                remove_options=remove_simplications)
 
         self.simgr = self.project.factory.simgr(
             self.start_state,
@@ -381,7 +412,7 @@ class Tracer(object):
     def find_next_branch(self, state, branch):
         # type: (SimState, Branch) -> SimState
         cnt = 0
-        while cnt < 100:
+        while cnt < 0xFFFFFF:
             cnt += 1
             l.debug("0x%x", state.addr)
             # FIXME: current stuck at various places

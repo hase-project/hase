@@ -4,7 +4,9 @@ from collections import defaultdict
 from angr import Project
 from angr.analyses.cfg import CFGFast
 from angr.knowledge_plugins.functions.function import Function
-from typing import List, Optional, Dict, Any
+from angr import SimProcedure
+
+from typing import List, Optional, Dict, Any, Tuple
 
 from .state import Branch
 from .hook import unsupported_symbols
@@ -26,16 +28,16 @@ class FakeSymbol():
 
 class FilterBase(object):
     def __init__(self, project, cfg, trace, hooked_symbol, gdb):
-        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure]) -> None
+        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], Any) -> None
         self.project = project
         self.main_cfg = cfg
         self.main_object = project.loader.main_object
         self.trace = trace
         self.hooked_symbol = hooked_symbol
         self.gdb = gdb
-        self.new_trace = []
+        self.new_trace = [] # type: List[Branch]
         self.gdb = gdb
-        self.omitted_section = []
+        self.omitted_section = [] # type: List[Tuple[int, int]]
         self.analyze_unsupported()
 
     def analyze_unsupported(self):
@@ -75,9 +77,9 @@ class FilterTrace():
         self.main_object = project.loader.main_object
         self.trace = trace
         self.hooked_symbol = hooked_symbol
-        self.new_trace = []
+        self.new_trace = [] # type: List[Branch]
         self.gdb = gdb
-        self.omitted_section = []
+        self.omitted_section = [] # type: List[Tuple[int, int]]
         self.analyze_unsupported()
 
         self.hooked_symname = self.hooked_symbol.keys()
@@ -96,11 +98,10 @@ class FilterTrace():
             if name in self.hooked_symname:
                 self.hooked_symname.append(sub)
 
-        self.syms = {}
+        self.syms = {} # type: Dict[Any, List[int]]
         for lib in self.project.loader.all_elf_objects:
             self.syms[lib] = lib.symbols_by_addr.keys()
             self.syms[lib].sort()
-        self.resolve_plt_section = []
         self.analyze_trace()
     
     def analyze_unsupported(self):
@@ -140,7 +141,7 @@ class FilterTrace():
 
     def find_function(self, addr):
         # type: (int) -> Optional[Any]
-        for lib, sym in self.syms.items():
+        for lib, symx in self.syms.items():
             if lib.contains_addr(addr):
                 # FIXME: angr cannot solve plt symbol name
                 if self.test_plt_vdso(addr):
@@ -148,24 +149,24 @@ class FilterTrace():
                     if name:
                         sym = FakeSymbol(name, addr)
                         return sym
-                idx = bisect(sym, addr) - 1
-                entry = sym[idx]
+                idx = bisect(symx, addr) - 1
+                entry = symx[idx]
                 return lib.symbols_by_addr[entry]
         return None
 
     def test_function_entry(self, addr):
-        # type: (int) -> (bool, str)
+        # type: (int) -> Tuple[bool, str]
         sym = self.find_function(addr)
-        if sym.rebased_addr == addr:
+        if sym and sym.rebased_addr == addr:
             symname = sym.name
             return True, symname
-        return False, None
+        return False, ''
 
     def analyze_trace(self):
         # type: () -> None
         # NOTE: assume the hooked function should have return
         self.new_trace = []
-        call_parent = defaultdict(lambda: None)
+        call_parent = defaultdict(lambda: None) # type: defaultdict
         hooked_parent = None # last 2 unhooked
         is_current_hooked = False
         for event in self.trace:
@@ -175,22 +176,32 @@ class FilterTrace():
                 self.test_omit(event.addr):
                 present = False
             # NOTE: if already in hooked function, leaving to parent
-            # FIXME: -O2 optimization will lead to main->func1->(set rbp)func2->main
+            # FIXME: gcc optimization will lead to main->func1->(set rbp)func2->main
             # A better solution is to record callstack, 
             # which means we need to get jumpkind of every address,
-            # cannot find it now.
+            # but I cannot find it now.
+            # Or find scope outside libc
             if is_current_hooked:
                 present = False
                 sym = self.find_function(event.ip)
+                recursive_level = 5
                 if sym == hooked_parent:
                     is_current_hooked = False
                     hooked_parent = None
                 else:
-                    if hooked_parent in call_parent.keys() and \
-                        sym == call_parent[hooked_parent]:
-                        is_current_hooked = False
-                        hooked_parent = None
-                        call_parent[hooked_parent] = None
+                    cur_func = hooked_parent
+                    for _ in range(recursive_level):
+                        parent = call_parent[cur_func]
+                        if parent:
+                            if sym == parent:
+                                is_current_hooked = False
+                                hooked_parent = None
+                                call_parent[cur_func] = None
+                                break
+                            else:
+                                cur_func = parent
+                        else:
+                            break
             else:
                 flg, fname = self.test_function_entry(event.ip)
                 if flg:                    
@@ -216,19 +227,22 @@ class FilterTrace():
         return self.new_trace
 
 
+# Not test yet, must be slow
 class FilterCFG():
-    def __init__(self, project, cfg, trace, hooked_symbol):
-        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure]) -> None
-        # FIXME: super cannot work for reload
-        # super(FilterCFG, self).__init__(project, cfg, trace, hooked_symbol)
+    def __init__(self, project, cfg, trace, hooked_symbol, gdb):
+        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], Any) -> None
         self.project = project
         self.main_cfg = cfg.copy()
         self.main_object = project.loader.main_object
         self.trace = trace
         self.hooked_symbol = hooked_symbol
-        self.new_trace = []
-        self.omitted_symbol = {}
-        self.cfgs = {}
+        self.new_trace = [] # type: List[Branch]
+        self.gdb = gdb
+        self.omitted_symbol = hooked_symbol
+        self.omitted_section = [] # type: List[Tuple[int, int]]
+        # self.analyze_unsupported()
+
+        self.cfgs = {} # type: Dict[Any, CFGFast]
         self.libc_object = None
         for lib in self.project.loader.all_elf_objects:
             # FIXME: not a good way
