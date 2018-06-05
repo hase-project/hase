@@ -3,6 +3,9 @@ from angr import SimProcedure
 from angr.procedures import SIM_PROCEDURES
 
 
+# TODO: getenv
+
+
 class setlocale(SimProcedure):
     def run(self, category, locale):
         self.argument_types = {

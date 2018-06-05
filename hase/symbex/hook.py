@@ -5,15 +5,13 @@ from .procedures.file_operation import (
     __overflow, __underflow, __uflow,
     ftello, fseeko, ferror,
     stat, lstat, __xstat, __fxstat)
-from .procedures.setlocale import setlocale
+from .procedures.miscs import setlocale
 from .procedures.memory_operation import mempcpy, stpcpy, stpncpy
 
 from typing import List, Any
 
 # TODO: How to deal with overload function hook?
-# TODO: getenv
 # TODO: wchar functions support?
-# TODO: getgrgid
 
 
 unsupported_symbols = [
@@ -106,7 +104,7 @@ all_hookable_symbols['setlocale'] = setlocale
 all_hookable_symbols['mempcpy'] = mempcpy
 all_hookable_symbols['stpcpy'] = stpcpy
 all_hookable_symbols['stpncpy'] = stpncpy
-
+# weird case
 all_hookable_symbols['__sigaction'] = all_hookable_symbols['sigaction']
 
 
