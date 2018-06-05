@@ -1,12 +1,19 @@
 from angr.procedures import SIM_PROCEDURES
 
-from .procedures.file_operation import new_open, ferror, __overflow, ftello, fseeko, stat, __xstat, __fxstat
+from .procedures.file_operation import (
+    new_open, opendir,
+    __overflow, __underflow, __uflow,
+    ftello, fseeko, ferror,
+    stat, lstat, __xstat, __fxstat)
 from .procedures.setlocale import setlocale
+from .procedures.memory_operation import mempcpy, stpcpy, stpncpy
 
 from typing import List, Any
 
 # TODO: How to deal with overload function hook?
 # TODO: getenv
+# TODO: wchar functions support?
+# TODO: getgrgid
 
 
 unsupported_symbols = [
@@ -49,14 +56,40 @@ unlocked_IO_symbols = [
     'putc', 'fflush',
     'fread', 'fwrite',
     'fgets', 'fputs',
-    'fileno',
+    'fileno', 'getc',
     # 'clearerr'
 ]
 posix64_IO_symbols = [
     'fopen', 'fdopen',
     'ftello', 'fseeko',
     'open', 'fstat', '__fxstat',
-    # 'lstat', 'lseek', fgetpos', 'fsetpos', 'pread', 'pwrite'
+    'readdir', 'opendir',
+    'lseek', 'lstat',
+    # 'fgetpos', 'fsetpos', 
+    # 'pread', 'pwrite', 'fxstatat',
+    # 'telldir', 'seekdir', 'rewinddir', 'closedir'
+]
+# NOTE: http://refspecs.linux-foundation.org/LSB_4.0.0/LSB-Core-generic/LSB-Core-generic/libcman.html
+chk_IO_symbols = [
+    'fgets', 'fgets_unlocked',
+    'fprintf', 'printf',
+    'read', 'snprintf', 
+    'sprintf', 'vsnprintf', 
+    # 'vfprintf', 'vsprintf', 'vprintf',
+    # 'pread', 'pread64',
+    # 'readlink'
+]
+chk_general_symbols = [
+    'getcwd', 'memcpy',
+    'mempcpy', 'memset',
+    'recv', 'recvfrom',
+    'strcat', 'strcpy',
+    # 'memmove', 'stpcpy', 'stpncpy', 'realpath',
+]
+libc_general_symbols = [
+    'malloc', 'calloc',
+    'realloc', 'free',
+    'memalign'
 ]
 
 
@@ -70,16 +103,36 @@ for lib in libs:
 
 
 all_hookable_symbols['setlocale'] = setlocale
+all_hookable_symbols['mempcpy'] = mempcpy
+all_hookable_symbols['stpcpy'] = stpcpy
+all_hookable_symbols['stpncpy'] = stpncpy
 
+all_hookable_symbols['__sigaction'] = all_hookable_symbols['sigaction']
+
+
+for sym in chk_general_symbols:
+    chk_sym = '__' + sym + '_chk'
+    all_hookable_symbols[chk_sym] = all_hookable_symbols[sym]
+
+for sym in libc_general_symbols:
+    libc_sym = '__libc_' + sym
+    all_hookable_symbols[libc_sym] = all_hookable_symbols[sym]
 
 if IO_USE_SIMFILE:
 
     all_hookable_symbols['open'] = new_open
-    all_hookable_symbols['ferror'] = ferror
+    all_hookable_symbols['opendir'] = opendir
+
     all_hookable_symbols['__overflow'] = __overflow
+    all_hookable_symbols['__underflow'] = __underflow
+    all_hookable_symbols['__uflow'] = __uflow
+
+    all_hookable_symbols['ferror'] = ferror
     all_hookable_symbols['ftello'] = ftello
     all_hookable_symbols['fseeko'] = fseeko
+
     all_hookable_symbols['stat'] = stat    
+    all_hookable_symbols['lstat'] = lstat    
     all_hookable_symbols['__xstat'] = __xstat    
     all_hookable_symbols['__fxstat'] = __fxstat    
 
@@ -92,6 +145,9 @@ if IO_USE_SIMFILE:
         posix64_sym = sym + '64'
         all_hookable_symbols[posix64_sym] = all_hookable_symbols[sym]
 
+    for sym in chk_IO_symbols:
+        chk_sym = '__' + sym + '_chk'
+        all_hookable_symbols[chk_sym] = all_hookable_symbols[sym]
 
 
 

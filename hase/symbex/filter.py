@@ -179,12 +179,12 @@ class FilterTrace():
             # FIXME: gcc optimization will lead to main->func1->(set rbp)func2->main
             # A better solution is to record callstack, 
             # which means we need to get jumpkind of every address,
-            # but I cannot find it now.
-            # Or find scope outside libc
+            # but I cannot find it now. large recursive_level could slow down filter a lot
+            # Or find scope outside hooked_libs
             if is_current_hooked:
                 present = False
                 sym = self.find_function(event.ip)
-                recursive_level = 5
+                recursive_level = 2
                 if sym == hooked_parent:
                     is_current_hooked = False
                     hooked_parent = None

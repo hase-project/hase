@@ -70,10 +70,11 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                 html_formatter = pygments.formatters.get_formatter_by_name(
                     "html", **formatter_opts)
                 css = html_formatter.get_style_defs('.highlight')
+                # TODO: very slow to open file each time, pre-prepare tokens
                 with open(str(source_file)) as f:
                     tokens = lexer.get_tokens(f.read())
                 source = pygments.format(tokens, html_formatter)
-                self.code_view.setHtml(code_template.format(css, source))
+                self.code_view.setHtml(code_template.format(css, source.encode('utf-8')))
                 self.code_view.scrollToAnchor("line-%d" % max(0, line - 10))
             except:
                 self.code_view.clear()

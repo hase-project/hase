@@ -16,3 +16,9 @@ class setlocale(SimProcedure):
         self.state.memory.store(addr, "\x00")
         return addr
 
+
+# FIXME: do real things
+# NOTE: angr sigaction does nothing now
+class sigaction(SimProcedure):
+    def run(self, signum, act, oact):
+        return self.state.se.BVV(0, self.state.arch.bits)

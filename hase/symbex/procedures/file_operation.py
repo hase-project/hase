@@ -9,7 +9,7 @@ from angr.storage.file import Flags
 
 # NOTE: if we hook one of the file operation, we need to hook all of these
 # Or the FILE struct will be inconsistent. But if we don't use them, angr's IO operations will have wrong branch
-# TODO: lstat, fsetpos, fgetpos, xstat, fxstat
+# TODO: fsetpos, fgetpos, xstat, fxstat, fxstatat
 
 
 class ferror(SimProcedure):
@@ -20,16 +20,33 @@ class ferror(SimProcedure):
         if simfd is None:
             return None
         # FIXME: no error concept in SimFile
-        return claripy.false
+        return 0
 
 
 # NOTE: invoked by putchar (while inlined)
-# FIXME: no overflow concept in SimFile
+# FIXME: no overflow concept in SimFile, low-fieldity simulation then
 class __overflow(SimProcedure):
     def run(self, file_ptr, ch):
         fputc = SIM_PROCEDURES['libc']['fputc']
         ret_expr = self.inline_call(fputc, ch, file_ptr).ret_expr
         return ret_expr
+
+
+class __underflow(SimProcedure):
+    def run(self, file_ptr, ch):
+        fputc = SIM_PROCEDURES['libc']['fputc']
+        ret_expr = self.inline_call(fputc, ch, file_ptr).ret_expr
+        return ret_expr
+
+
+# NOTE: invoked by getc
+# TODO: https://code.woboq.org/userspace/glibc/libio/genops.c.html
+class __uflow(SimProcedure):
+    def run(self, file_ptr):
+        fgetc = SIM_PROCEDURES['libc']['fgetc']
+        ret_expr = self.inline_call(fgetc, file_ptr).ret_expr
+        return ret_expr
+
 
 
 # NOTE: missing a optional version (no mode) of open
@@ -39,6 +56,13 @@ class new_open(SimProcedure):
         openf = SIM_PROCEDURES['posix']['open']
         ret_expr = self.inline_call(openf, p_addr, flags, mode).ret_expr
         return ret_expr
+
+
+# NOTE: even angr itself don't notice open optional argument
+class opendir(SimProcedure):
+    def run(self, fname):
+        p_open = self.inline_call(new_open, fname, Flags.O_DIRECTORY)
+        return p_open.ret_expr
 
 
 # NOTE: non-standard c/e flag for fopen
@@ -132,4 +156,10 @@ class __fxstat(SimProcedure):
     def run(self, ver, fd, stat_buf):
         fstat = SIM_PROCEDURES['linux_kernel']['fstat']
         ret_expr = self.inline_call(fstat, fd, stat_buf)
+        return ret_expr
+
+
+class lstat(SimProcedure):
+    def run(self, file_path, stat_buf):
+        ret_expr = self.inline_call(stat, file_path, stat_buf).ret_expr
         return ret_expr

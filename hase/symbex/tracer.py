@@ -412,7 +412,7 @@ class Tracer(object):
     def find_next_branch(self, state, branch):
         # type: (SimState, Branch) -> SimState
         cnt = 0
-        while cnt < 0xFFFFFF:
+        while cnt < 200:
             cnt += 1
             l.debug("0x%x", state.addr)
             # FIXME: current stuck at various places
