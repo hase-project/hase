@@ -134,7 +134,6 @@ class CoredumpGDB():
         bt = []
         for r in resp:
             payload = r['payload']
-            print(payload)
             if payload and payload[0] == '#':
                 print(payload)
                 bt.append(self.parse_frame(payload))
@@ -234,6 +233,9 @@ def build_load_options(mappings):
     """
     Extract shared object memory mapping from coredump
     """
+    # FIXME: actually this library path different will cause 
+    # simulation path different? need re-record if original 
+    # executable is recompiled
     main = mappings[0]
     lib_opts = {}  # type: dict
     force_load_libs = []
@@ -312,7 +314,7 @@ class Tracer(object):
             show_progressbar=True
         )
 
-        self.use_hook = True
+        self.use_hook = False
 
         if self.use_hook:
             self.hooked_symbols = all_hookable_symbols.copy()
@@ -354,6 +356,7 @@ class Tracer(object):
                 add_options=set([
                     so.TRACK_JMP_ACTIONS,
                     so.CONSERVATIVE_READ_STRATEGY,
+                    so.CONSERVATIVE_WRITE_STRATEGY,
                 ]),
                 remove_options=remove_simplications)
 
@@ -400,11 +403,17 @@ class Tracer(object):
                 symname, func()
             )
 
+    def jump_match(self, old_state, choice, branch):
+        if old_state.addr == branch.addr and choice.addr == branch.ip:
+            l.debug("jump 0%x -> 0%x", old_state.addr, choice.addr)
+            return True
+        return False        
+
     def jump_was_not_taken(self, old_state, new_state):
         # was the last control flow change an exit vs call/jump?
         ev = new_state.events[-1]
         instructions = old_state.block().capstone.insns
-        assert isinstance(ev, SimActionExit) and len(instructions) == 1
+        # assert isinstance(ev, SimActionExit) and len(instructions) == 1
         size = instructions[0].insn.size
         return (new_state.addr - size) == old_state.addr
 
@@ -414,9 +423,17 @@ class Tracer(object):
         while cnt < 200:
             cnt += 1
             l.debug("0x%x", state.addr)
-            # FIXME: current stuck at various places
-            choices = self.project.factory.successors(
-                state, num_inst=1).successors
+            self.curr_state = state
+            step = self.project.factory.successors(state, num_inst=1)
+            all_choices = {
+                'sat': step.successors,
+                'unsat': step.unsat_successors,
+                'unconstrained': step.unconstrained_successors,
+            }
+            # sequence: sat, unsat, unconstrained
+            choices = all_choices['sat']
+            choices += all_choices['unsat']
+            # choices += all_choices['unconstrained']
             old_state = state
             sys.stderr.write(
                 repr(cnt) + ' ' +
@@ -425,20 +442,26 @@ class Tracer(object):
             )
             if choices == []:
                 raise Exception("Unable to continue")
-            if choices[0].addr == branch.addr:
-                self.debug_state = choices[0]
-            if len(choices) <= 2:
-                for choice in choices:
-                    if old_state.addr == branch.addr and choice.addr == branch.ip:
-                        l.debug("jump 0%x -> 0%x", old_state.addr, choice.addr)
+            try:
+                if choices[0].addr == branch.addr:
+                    self.debug_state = choices[0]
+            except:
+                pass
+            for choice in choices:
+                if old_state.addr == branch.addr:
+                    if self.jump_match(old_state, choice, branch):
                         return choice
-                    if len(choices) == 1 or self.jump_was_not_taken(
-                            old_state, choice):
+                else:
+                    if self.jump_was_not_taken(
+                        old_state, choice):
                         state = choice
+                        break
             else:
-                # There should be never more then dot!
-                import pry
-                pry.set_trace()
+                # NOTE: Final try
+                if len(all_choices['sat']) == 1:
+                    state = all_choices['sat'][0]
+                else:
+                    raise Exception("Unable to continue")
         print(choices, state, branch)
         raise Exception("Unable to continue")
 
@@ -467,6 +490,7 @@ class Tracer(object):
             l.debug("look for jump: 0x%x -> 0x%x" % (event.addr, event.ip))
             assert self.valid_address(event.addr) and self.valid_address(
                 event.ip)
+            self.current_branch = event
             new_simstate = self.find_next_branch(simstate, event)
             simstate = new_simstate
             states.append(State(event, new_simstate))

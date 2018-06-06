@@ -10,7 +10,8 @@ from angr.storage.file import Flags
 # NOTE: if we hook one of the file operation, we need to hook all of these
 # Or the FILE struct will be inconsistent. But if we don't use them, angr's IO operations will have wrong branch
 # TODO: fsetpos, fgetpos, xstat, fxstat, fxstatat
-# freopen, openat 
+# freopen, openat
+# TODO: maybe load concrete file?
 
 
 class ferror(SimProcedure):

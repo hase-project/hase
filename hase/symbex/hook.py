@@ -17,7 +17,7 @@ from typing import List, Any
 
 
 unsupported_symbols = [
-    ('__new_exitfn', 'atexit', 'no simulation'),
+    # ('__new_exitfn', 'atexit', 'no simulation'),
     ('getenv', 'getenv', 'wrong branch'),
     # ('_IO_do_allocate', 'fread_unlocked', 'wrong branch'),
     # ('feof', 'feof', 'wrong branch'),
