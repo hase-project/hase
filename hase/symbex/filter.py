@@ -99,16 +99,22 @@ class FilterTrace():
                 self.hooked_symname.append(sub)
 
         self.syms = {} # type: Dict[Any, List[int]]
+        # NOTE: just copy the dict, or it would be slow to access by lib property
+        self.syms_dict = {} # type: Dict[Any, Dict[int, Any]]
         for lib in self.project.loader.all_elf_objects:
-            self.syms[lib] = lib.symbols_by_addr.keys()
+            self.syms_dict[lib] = lib.symbols_by_addr.copy()
+            self.syms[lib] = self.syms_dict[lib].keys()
             self.syms[lib].sort()
         self.analyze_trace()
     
     def analyze_unsupported(self):
         for l in unsupported_symbols:
-            self.omitted_section.append(
-                self.gdb.get_func_range(l[0])
-            )
+            try:
+                r = self.gdb.get_func_range(l[0])
+            except:
+                print("Unable to fetch {} range by gdb".format(l[0]))
+                r = [0, 0]
+            self.omitted_section.append(r)
 
     def test_plt_vdso(self, addr):
         # type: (int) -> bool
@@ -151,7 +157,7 @@ class FilterTrace():
                         return sym
                 idx = bisect(symx, addr) - 1
                 entry = symx[idx]
-                return lib.symbols_by_addr[entry]
+                return self.syms_dict[lib][entry]
         return None
 
     def test_function_entry(self, addr):

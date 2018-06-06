@@ -90,6 +90,7 @@ class HaseMagics(Magics):
     @args()
     @line_magic("refresh")
     def refresh(self, query):
+        self.window.time_slider.setValue(0)
         self.window.clear_viewer()
         self.window.append_archive()
 
@@ -123,6 +124,7 @@ class HaseMagics(Magics):
             for s in states:
                 # XXX: ExternSegment has offset as str (even its repr is broken)
                 if s.object() in rep.tracer.project.loader.all_elf_objects:
+                    # TODO: address == ip, show s.addr?
                     addr2line.add_addr(s.object(), s.address())
             addr_map = addr2line.compute()
 

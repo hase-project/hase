@@ -10,6 +10,7 @@ from angr.storage.file import Flags
 # NOTE: if we hook one of the file operation, we need to hook all of these
 # Or the FILE struct will be inconsistent. But if we don't use them, angr's IO operations will have wrong branch
 # TODO: fsetpos, fgetpos, xstat, fxstat, fxstatat
+# freopen, openat 
 
 
 class ferror(SimProcedure):
@@ -48,47 +49,6 @@ class __uflow(SimProcedure):
         return ret_expr
 
 
-
-# NOTE: missing a optional version (no mode) of open
-# https://github.com/angr/angr/blob/master/angr/procedures/posix/open.py#L11
-class new_open(SimProcedure):
-    def run(self, p_addr, flags, mode=0644):
-        openf = SIM_PROCEDURES['posix']['open']
-        ret_expr = self.inline_call(openf, p_addr, flags, mode).ret_expr
-        return ret_expr
-
-
-# NOTE: even angr itself don't notice open optional argument
-class opendir(SimProcedure):
-    def run(self, fname):
-        p_open = self.inline_call(new_open, fname, Flags.O_DIRECTORY)
-        return p_open.ret_expr
-
-
-# NOTE: non-standard c/e flag for fopen
-# http://man7.org/linux/man-pages/man3/fopen.3.html#NOTES
-# https://github.com/angr/angr/blob/d6f248d115dd9a7fcf6e1e3bf370e6ebce12a5dd/angr/procedures/libc/fopen.py
-def patched_mode_to_flag(mode):
-    mode = mode.replace('c', '')
-    mode = mode.replace('e', '')
-    if mode[-1] == 'b': # lol who uses windows
-        mode = mode[:-1]
-    all_modes = {
-        "r"  : Flags.O_RDONLY,
-        "r+" : Flags.O_RDWR,
-        "w"  : Flags.O_WRONLY | Flags.O_CREAT,
-        "w+" : Flags.O_RDWR | Flags.O_CREAT,
-        "a"  : Flags.O_WRONLY | Flags.O_CREAT | Flags.O_APPEND,
-        "a+" : Flags.O_RDWR | Flags.O_CREAT | Flags.O_APPEND
-        }
-    if mode not in all_modes:
-        raise SimProcedureError('unsupported file open mode %s' % mode)
-
-    return all_modes[mode]
-
-fopen.mode_to_flag = patched_mode_to_flag
-
-
 class ftello(SimProcedure):
     def run(self, file_ptr):
         ftell = SIM_PROCEDURES['libc']['ftell']
@@ -104,6 +64,12 @@ class fseeko(SimProcedure):
         ret_expr = self.inline_call(fseek, fp, offset, whence).ret_expr
         return ret_expr
         
+
+# FIXME: complete this
+class freopen(SimProcedure):
+    def run(self, file_ptr, mode_ptr, stream_ptr):
+        pass
+
 
 # FIXME: current angr stat is useless, posix.fstat is also not working
 # https://github.com/angr/angr/blob/d6f248d115dd9a7fcf6e1e3bf370e6ebce12a5dd/angr/procedures/linux_kernel/stat.py
@@ -148,14 +114,14 @@ class stat(SimProcedure):
 # http://refspecs.linuxbase.org/LSB_3.0.0/LSB-PDA/LSB-PDA/baselib-xstat-1.html
 class __xstat(SimProcedure):
     def run(self, ver, file_path, stat_buf):
-        ret_expr = self.inline_call(stat, file_path, stat_buf)
+        ret_expr = self.inline_call(stat, file_path, stat_buf).ret_expr
         return ret_expr
 
 
 class __fxstat(SimProcedure):
     def run(self, ver, fd, stat_buf):
         fstat = SIM_PROCEDURES['linux_kernel']['fstat']
-        ret_expr = self.inline_call(fstat, fd, stat_buf)
+        ret_expr = self.inline_call(fstat, fd, stat_buf).ret_expr
         return ret_expr
 
 
@@ -163,3 +129,31 @@ class lstat(SimProcedure):
     def run(self, file_path, stat_buf):
         ret_expr = self.inline_call(stat, file_path, stat_buf).ret_expr
         return ret_expr
+
+
+# TODO: how to handle with va_list?
+class vprintf(SimProcedure):
+    def run(self, fmt, va_list):
+        return None 
+
+
+'''
+FIXME: pwd maybe different
+NOTE: 
+    In GNU, if BUF is NULL,
+    an array is allocated with `malloc'; the array is SIZE
+    bytes long, unless SIZE == 0, in which case it is as
+    big as necessary.
+'''
+class getcwd(SimProcedure):
+    def run(self, buf, size):
+        _getcwd = SIM_PROCEDURES['linux_kernel']['getcwd']
+        malloc = SIM_PROCEDURES['libc']['malloc']
+        if not self.state.se.symbolic(buf):
+            buf_v = self.state.se.eval(buf)
+            if buf_v == 0:
+                cwd = self.state.fs.cwd
+                new_size = self.state.solver.If(size-1 > len(cwd), len(cwd), size-1)
+                buf = self.inline_call(malloc, new_size).ret_expr
+        return self.inline_call(_getcwd, buf, size).ret_expr
+                

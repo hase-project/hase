@@ -1,12 +1,14 @@
 from angr.procedures import SIM_PROCEDURES
 
 from .procedures.file_operation import (
-    new_open, opendir,
     __overflow, __underflow, __uflow,
     ftello, fseeko, ferror,
-    stat, lstat, __xstat, __fxstat)
+    stat, lstat, __xstat, __fxstat,
+    getcwd)
 from .procedures.miscs import setlocale
-from .procedures.memory_operation import mempcpy, stpcpy, stpncpy
+from .procedures.memory_operation import (
+    mempcpy, memmove, 
+    stpcpy, stpncpy)
 
 from typing import List, Any
 
@@ -87,7 +89,7 @@ chk_general_symbols = [
 libc_general_symbols = [
     'malloc', 'calloc',
     'realloc', 'free',
-    'memalign'
+    # 'memalign'
 ]
 
 
@@ -102,6 +104,7 @@ for lib in libs:
 
 all_hookable_symbols['setlocale'] = setlocale
 all_hookable_symbols['mempcpy'] = mempcpy
+all_hookable_symbols['memmove'] = memmove
 all_hookable_symbols['stpcpy'] = stpcpy
 all_hookable_symbols['stpncpy'] = stpncpy
 # weird case
@@ -118,9 +121,6 @@ for sym in libc_general_symbols:
 
 if IO_USE_SIMFILE:
 
-    all_hookable_symbols['open'] = new_open
-    all_hookable_symbols['opendir'] = opendir
-
     all_hookable_symbols['__overflow'] = __overflow
     all_hookable_symbols['__underflow'] = __underflow
     all_hookable_symbols['__uflow'] = __uflow
@@ -133,6 +133,11 @@ if IO_USE_SIMFILE:
     all_hookable_symbols['lstat'] = lstat    
     all_hookable_symbols['__xstat'] = __xstat    
     all_hookable_symbols['__fxstat'] = __fxstat    
+
+    all_hookable_symbols['__fstat'] = all_hookable_symbols['fstat']
+    all_hookable_symbols['__readdir'] = all_hookable_symbols['readdir']    
+
+    all_hookable_symbols['getcwd'] = getcwd
 
     for sym in unlocked_IO_symbols:
         unlocked_sym = sym + '_unlocked'

@@ -17,7 +17,6 @@ from ..perf import read_trace, Branch
 from ..pwn_wrapper import ELF, Coredump
 from ..mapping import Mapping
 
-from .patch import *
 from .state import State
 from .hook import all_hookable_symbols
 from .filter import FilterTrace
