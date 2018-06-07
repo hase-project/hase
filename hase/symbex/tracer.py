@@ -12,6 +12,7 @@ from angr.knowledge_plugins.functions.function import Function
 from angr import SimState, SimProcedure, PointerWrapper, SIM_PROCEDURES
 from typing import List, Any, Dict, Tuple, Optional
 from pygdbmi.gdbcontroller import GdbController
+from collections import deque
 
 from ..perf import read_trace, Branch
 from ..pwn_wrapper import ELF, Coredump
@@ -292,6 +293,15 @@ class Tracer(object):
         self.cdanalyzer = CoredumpAnalyzer(
             self.elf, self.coredump)
 
+        args = self.cdanalyzer.call_argv('main')
+        # NOTE: gdb sometimes take this wrong
+        args[0] = self.coredump.argc
+
+        rbp = self.cdanalyzer.frame_rbp('main')
+
+        if not rbp:
+            rbp = 0x7fffffffcf00
+
         for (idx, event) in enumerate(self.trace):
             if event.addr == start or event.addr == main or \
                     event.ip == start or event.ip == main:
@@ -314,17 +324,20 @@ class Tracer(object):
             show_progressbar=True
         )
 
-        self.use_hook = False
+        self.use_hook = True
 
         if self.use_hook:
             self.hooked_symbols = all_hookable_symbols.copy()
         else:
             self.hooked_symbols = {
+                'strcmp': all_hookable_symbols['strcmp'],
                 'strlen': all_hookable_symbols['strlen'],
                 'setlocale': all_hookable_symbols['setlocale'],
                 'malloc': all_hookable_symbols['malloc'],
                 'calloc': all_hookable_symbols['calloc'],
             }
+
+        self.setup_hook()
 
         self.filter = FilterTrace(
             self.project, 
@@ -333,16 +346,6 @@ class Tracer(object):
             self.hooked_symbols,
             self.cdanalyzer.gdb
         )
-        self.setup_hook()
-
-        args = self.cdanalyzer.call_argv('main')
-        # NOTE: gdb sometimes take this wrong
-        args[0] = self.coredump.argc
-
-        rbp = self.cdanalyzer.frame_rbp('main')
-
-        if not rbp:
-            rbp = 0x7fffffffcf00
 
         self.use_callstate = True
 
@@ -363,7 +366,6 @@ class Tracer(object):
             self.setup_argv()
         else:
             self.start_state = self.project.factory.blank_state(
-                addr=start_address,
                 add_options=set([
                     so.TRACK_JMP_ACTIONS,
                     so.CONSERVATIVE_READ_STRATEGY,
@@ -413,7 +415,8 @@ class Tracer(object):
         # was the last control flow change an exit vs call/jump?
         ev = new_state.events[-1]
         instructions = old_state.block().capstone.insns
-        # assert isinstance(ev, SimActionExit) and len(instructions) == 1
+        if not isinstance(ev, SimActionExit): # and len(instructions) == 1
+            return False
         size = instructions[0].insn.size
         return (new_state.addr - size) == old_state.addr
 
@@ -423,45 +426,56 @@ class Tracer(object):
         while cnt < 200:
             cnt += 1
             l.debug("0x%x", state.addr)
-            self.curr_state = state
+            self.debug_state.append(state)
             step = self.project.factory.successors(state, num_inst=1)
             all_choices = {
                 'sat': step.successors,
                 'unsat': step.unsat_successors,
                 'unconstrained': step.unconstrained_successors,
             }
-            # sequence: sat, unsat, unconstrained
-            choices = all_choices['sat']
+            # lookup sequence: sat, unsat, unconstrained
+            choices = []
+            choices += all_choices['sat']
             choices += all_choices['unsat']
             # choices += all_choices['unconstrained']
             old_state = state
             sys.stderr.write(
                 repr(cnt) + ' ' +
-                repr(choices) + ' ' +
+                repr(state) + ' ' +
+                # repr(all_choices) + ' ' +
                 repr(branch) + '\n'
             )
             if choices == []:
                 raise Exception("Unable to continue")
             try:
                 if choices[0].addr == branch.addr:
-                    self.debug_state = choices[0]
+                    self.current_state = choices[0]
             except:
                 pass
             for choice in choices:
                 if old_state.addr == branch.addr:
                     if self.jump_match(old_state, choice, branch):
                         return choice
-                else:
-                    if self.jump_was_not_taken(
-                        old_state, choice):
-                        state = choice
-                        break
+            # FIXME: this now incurs problem, since a -> c may jump across c
+            # better way is in last else branch, but it will incurs SimUnsatError
+            if len(all_choices['sat']) == 1:
+                state = all_choices['sat'][0]
+                continue
+            for choice in choices:
+                if self.jump_was_not_taken(
+                    old_state, choice):
+                    state = choice
+                    break
             else:
-                # NOTE: Final try
                 if len(all_choices['sat']) == 1:
                     state = all_choices['sat'][0]
+                elif len(choices) == 1:
+                    state = choices[0]
                 else:
                     raise Exception("Unable to continue")
+            if state in all_choices['unsat'] and not self.debug_unsat:
+                self.debug_sat = old_state
+                self.debug_unsat = state
         print(choices, state, branch)
         raise Exception("Unable to continue")
 
@@ -486,6 +500,8 @@ class Tracer(object):
         simstate = self.simgr.active[0]
         states = []
         states.append(State(self.trace[0], simstate))
+        self.debug_unsat = None
+        self.debug_state = deque(maxlen=100)
         for event in self.trace[1:]:
             l.debug("look for jump: 0x%x -> 0x%x" % (event.addr, event.ip))
             assert self.valid_address(event.addr) and self.valid_address(

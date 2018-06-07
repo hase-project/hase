@@ -10,7 +10,7 @@ from angr.storage.file import Flags
 # NOTE: if we hook one of the file operation, we need to hook all of these
 # Or the FILE struct will be inconsistent. But if we don't use them, angr's IO operations will have wrong branch
 # TODO: fsetpos, fgetpos, xstat, fxstat, fxstatat
-# freopen, openat
+# freopen, openat, __fbufsize, __fpending, flushlbf, fpurge
 # TODO: maybe load concrete file?
 
 
@@ -158,3 +158,52 @@ class getcwd(SimProcedure):
                 buf = self.inline_call(malloc, new_size).ret_expr
         return self.inline_call(_getcwd, buf, size).ret_expr
                 
+
+# NOTE: if allow-read
+class __freadable(SimProcedure):
+    def run(self, file_ptr):
+        return self.state.se.If(
+            self.state.se.BoolS("file_readable"),
+            self.state.se.BVV(1, 32),
+            0
+        )
+
+
+# NOTE: if allow-write
+class __fwritable(SimProcedure):
+    def run(self, file_ptr):
+        return self.state.se.If(
+            self.state.se.BoolS("file_writable"),
+            self.state.se.BVV(1, 32),
+            0
+        )
+
+
+# NOTE: if read-only or last operation read
+class __freading(SimProcedure):
+    def run(self, file_ptr):
+        return self.state.se.If(
+            self.state.se.BoolS("file_reading"),
+            self.state.se.BVV(1, 32),
+            0
+        )
+
+
+# NOTE: if write-only or last operation write
+class __fwriting(SimProcedure):
+    def run(self, file_ptr):
+        return self.state.se.If(
+            self.state.se.BoolS("file_writing"),
+            self.state.se.BVV(1, 32),
+            0
+        )
+
+
+# NOTE: If line-buffered
+class __flbf(SimProcedure):
+    def run(self, file_ptr):
+        return self.state.se.If(
+            self.state.se.BoolS("file_bf"),
+            self.state.se.BVV(1, 32),
+            0
+        )

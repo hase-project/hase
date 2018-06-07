@@ -25,6 +25,9 @@ class FakeSymbol():
     def __hash__(self):
         return hash((self.name, self.rebased_addr))
 
+    def __repr__(self):
+        return "FakeSymbol '{}' at {}".format(self.name, hex(self.rebased_addr))
+
 
 class FilterBase(object):
     def __init__(self, project, cfg, trace, hooked_symbol, gdb):
@@ -172,7 +175,7 @@ class FilterTrace():
         # type: () -> None
         # NOTE: assume the hooked function should have return
         self.new_trace = []
-        call_parent = defaultdict(lambda: None) # type: defaultdict
+        self.call_parent = defaultdict(lambda: None) # type: defaultdict
         hooked_parent = None # last 2 unhooked
         is_current_hooked = False
         for event in self.trace:
@@ -190,19 +193,19 @@ class FilterTrace():
             if is_current_hooked:
                 present = False
                 sym = self.find_function(event.ip)
-                recursive_level = 2
+                recursive_level = 4
                 if sym == hooked_parent:
                     is_current_hooked = False
                     hooked_parent = None
                 else:
                     cur_func = hooked_parent
                     for _ in range(recursive_level):
-                        parent = call_parent[cur_func]
+                        parent = self.call_parent[cur_func]
                         if parent:
                             if sym == parent:
                                 is_current_hooked = False
                                 hooked_parent = None
-                                call_parent[cur_func] = None
+                                self.call_parent[cur_func] = None
                                 break
                             else:
                                 cur_func = parent
@@ -214,11 +217,10 @@ class FilterTrace():
                     # NOTE: function entry, testing is hooked
                     sym = self.find_function(event.ip)
                     parent = self.find_function(event.addr)
-                    call_parent[sym] = parent
+                    self.call_parent[sym] = parent
                     if fname in self.hooked_symname:
                         is_current_hooked = True
                         hooked_parent = parent
-                        print(fname, call_parent[hooked_parent], hooked_parent)
                 else:
                     if self.test_omit(event.ip):
                         is_current_hooked = True

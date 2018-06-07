@@ -4,8 +4,12 @@ from .procedures.file_operation import (
     __overflow, __underflow, __uflow,
     ftello, fseeko, ferror,
     stat, lstat, __xstat, __fxstat,
+    __freading, __fwriting, __freadable, __fwritable, __flbf,
     getcwd)
-from .procedures.miscs import setlocale
+from .procedures.miscs import (
+    setlocale, 
+    atexit, __cxa_atexit,
+    sigaction)
 from .procedures.memory_operation import (
     mempcpy, memmove, 
     stpcpy, stpncpy)
@@ -17,11 +21,9 @@ from typing import List, Any
 
 
 unsupported_symbols = [
-    # ('__new_exitfn', 'atexit', 'no simulation'),
+    ('__new_exitfn', 'atexit', 'no simulation'),
     ('getenv', 'getenv', 'wrong branch'),
     # ('_IO_do_allocate', 'fread_unlocked', 'wrong branch'),
-    # ('feof', 'feof', 'wrong branch'),
-    # ('__overflow', 'putchar_unlocked', 'no simulation')
 ]
 
 all_hookable_symbols = {}
@@ -57,6 +59,7 @@ unlocked_IO_symbols = [
     'fread', 'fwrite',
     'fgets', 'fputs',
     'fileno', 'getc',
+    'fputc', 'fgetc',
     # 'clearerr'
 ]
 posix64_IO_symbols = [
@@ -103,8 +106,13 @@ for lib in libs:
 
 
 all_hookable_symbols['setlocale'] = setlocale
+
+all_hookable_symbols['atexit'] = atexit
+all_hookable_symbols['__cxa_atexit'] = __cxa_atexit
+
 all_hookable_symbols['mempcpy'] = mempcpy
 all_hookable_symbols['memmove'] = memmove
+
 all_hookable_symbols['stpcpy'] = stpcpy
 all_hookable_symbols['stpncpy'] = stpncpy
 # weird case
@@ -136,6 +144,12 @@ if IO_USE_SIMFILE:
 
     all_hookable_symbols['__fstat'] = all_hookable_symbols['fstat']
     all_hookable_symbols['__readdir'] = all_hookable_symbols['readdir']    
+
+    all_hookable_symbols['__freading'] = __freading
+    all_hookable_symbols['__fwriting'] = __fwriting
+    all_hookable_symbols['__freadable'] = __freadable
+    all_hookable_symbols['__fwritable'] = __fwritable
+    all_hookable_symbols['__flbf'] = __flbf
 
     all_hookable_symbols['getcwd'] = getcwd
 

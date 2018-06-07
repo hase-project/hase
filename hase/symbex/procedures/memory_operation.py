@@ -5,7 +5,7 @@ from angr.procedures import SIM_PROCEDURES
 from angr.errors import SimProcedureError
 
 
-# TODO: memmove, memccpy
+# TODO: memmove, memccpy, strndup
 
 
 class mempcpy(SimProcedure):

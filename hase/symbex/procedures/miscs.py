@@ -3,7 +3,7 @@ from angr import SimProcedure
 from angr.procedures import SIM_PROCEDURES
 
 
-# TODO: getenv
+# TODO: getenv, atexit?
 
 
 class setlocale(SimProcedure):
@@ -24,4 +24,15 @@ class setlocale(SimProcedure):
 # NOTE: angr sigaction does nothing now
 class sigaction(SimProcedure):
     def run(self, signum, act, oact):
+        return self.state.se.BVV(0, self.state.arch.bits)
+
+
+# FIXME: do real things
+class atexit(SimProcedure):
+    def run(self, func_ptr):
+        return self.state.se.BVV(0, self.state.arch.bits)
+
+
+class __cxa_atexit(SimProcedure):
+    def run(self, func_ptr, arg, dso_handle):
         return self.state.se.BVV(0, self.state.arch.bits)
