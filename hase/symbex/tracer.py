@@ -425,16 +425,24 @@ class Tracer(object):
         cnt = 0
         while cnt < 200:
             cnt += 1
-            l.debug("0x%x", state.addr)
             self.debug_state.append(state)
-            step = self.project.factory.successors(state, num_inst=1)
+            try:
+                step = self.project.factory.successors(
+                    state, 
+                    num_inst=1)
+            except:
+                state._ip = self.debug_state[-2].addr
+                step = self.project.factory.successors(
+                    state, 
+                    num_inst=1)
+            # l.debug("0x%x", state.addr)
             all_choices = {
                 'sat': step.successors,
                 'unsat': step.unsat_successors,
                 'unconstrained': step.unconstrained_successors,
             }
             # lookup sequence: sat, unsat, unconstrained
-            choices = []
+            choices = [] # type: List[Any]
             choices += all_choices['sat']
             choices += all_choices['unsat']
             # choices += all_choices['unconstrained']
@@ -458,9 +466,11 @@ class Tracer(object):
                         return choice
             # FIXME: this now incurs problem, since a -> c may jump across c
             # better way is in last else branch, but it will incurs SimUnsatError
+            """
             if len(all_choices['sat']) == 1:
                 state = all_choices['sat'][0]
                 continue
+            """
             for choice in choices:
                 if self.jump_was_not_taken(
                     old_state, choice):
@@ -473,7 +483,7 @@ class Tracer(object):
                     state = choices[0]
                 else:
                     raise Exception("Unable to continue")
-            if state in all_choices['unsat'] and not self.debug_unsat:
+            if state in all_choices['unsat'] and not self.debug_unsat: # type: ignore
                 self.debug_sat = old_state
                 self.debug_unsat = state
         print(choices, state, branch)
@@ -501,7 +511,7 @@ class Tracer(object):
         states = []
         states.append(State(self.trace[0], simstate))
         self.debug_unsat = None
-        self.debug_state = deque(maxlen=100)
+        self.debug_state = deque(maxlen=100) # type: deque
         for event in self.trace[1:]:
             l.debug("look for jump: 0x%x -> 0x%x" % (event.addr, event.ip))
             assert self.valid_address(event.addr) and self.valid_address(

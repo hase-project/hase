@@ -5,7 +5,7 @@ from angr.procedures import SIM_PROCEDURES
 from angr.errors import SimProcedureError
 
 
-# TODO: memmove, memccpy, strndup
+# TODO: memccpy, strndup, strncat
 
 
 class mempcpy(SimProcedure):
@@ -40,5 +40,54 @@ class stpncpy(SimProcedure):
         ret_size = self.state.se.If(self.state.se.ULE(n, src_len_expr), n, src_len_expr)
         return ret_expr + ret_size
 
+
+class __memcpy_chk(SimProcedure):
+    def run(self, dest, src, len, destlen):
+        memcpy = SIM_PROCEDURES['libc']['memcpy']
+        return self.inline_call(memcpy, desr, src, len).ret_expr
+
+
+class __memmove_chk(SimProcedure):
+    def run(self, dest, src, len, destlen):
+        return self.inline_call(memmove, dest, src, len).ret_expr
+
+
+class __mempcpy_chk(SimProcedure):
+    def run(self, dest, src, len, destlen):
+        return self.inline_call(mempcpy, dest, src, len).ret_expr
+
+
+class __memset_chk(SimProcedure):
+    def run(self, dest, c, len, destlen):
+        memset = SIM_PROCEDURES['libc']['memset']
+        return self.inline_call(memset, dest, c, len).ret_expr
+
+
+class __stpcpy_chk(SimProcedure):
+    def run(self, dest, src, destlen):
+        return self.inline_call(stpcpy, dest, src).ret_expr
+
+
+class __stpncpy_chk(SimProcedure):
+    def run(self, dest, src, n, destlen):
+        return self.inline_call(stpncpy, dest, src, n).ret_expr
+
+
+class __strcat_chk(SimProcedure):
+    def run(self, dest, src, destlen):
+        strcat = SIM_PROCEDURES['libc']['strcat']
+        return self.inline_call(strcat, dest, src).ret_expr
+
+
+class __strcpy_chk(SimProcedure):
+    def run(self, dest, src, destlen):
+        strcpy = SIM_PROCEDURES['libc']['strcpy']
+        return self.inline_call(strcpy, dest, src).ret_expr
+
+
+class __strncpy_chk(SimProcedure):
+    def run(self, s1, s2, n, s1len):
+        strncpy = SIM_PROCEDURES['libc']['strncpy']
+        return self.inline_call(strncpy, s1, s2, n).ret_expr
 
 

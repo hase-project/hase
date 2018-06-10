@@ -11,6 +11,7 @@ from angr.storage.file import Flags
 # Or the FILE struct will be inconsistent. But if we don't use them, angr's IO operations will have wrong branch
 # TODO: fsetpos, fgetpos, xstat, fxstat, fxstatat
 # freopen, openat, __fbufsize, __fpending, flushlbf, fpurge
+# vprintf, vfprintf, vsprintf, vsnprintf
 # TODO: maybe load concrete file?
 
 
@@ -68,6 +69,7 @@ class fseeko(SimProcedure):
 
 # FIXME: complete this
 class freopen(SimProcedure):
+    INCOMPLETE = True
     def run(self, file_ptr, mode_ptr, stream_ptr):
         pass
 
@@ -111,6 +113,12 @@ class stat(SimProcedure):
         store(0x88, self.state.se.BVV(0, 64))
 
 
+class lstat(SimProcedure):
+    def run(self, file_path, stat_buf):
+        ret_expr = self.inline_call(stat, file_path, stat_buf).ret_expr
+        return ret_expr
+
+
 # NOTE: posix extra
 # http://refspecs.linuxbase.org/LSB_3.0.0/LSB-PDA/LSB-PDA/baselib-xstat-1.html
 class __xstat(SimProcedure):
@@ -126,14 +134,15 @@ class __fxstat(SimProcedure):
         return ret_expr
 
 
-class lstat(SimProcedure):
-    def run(self, file_path, stat_buf):
-        ret_expr = self.inline_call(stat, file_path, stat_buf).ret_expr
+class __lxstat(SimProcedure):
+    def run(self, ver, file_path, stat_buf):
+        ret_expr = self.inline_call(lstat, file_path, stat_buf).ret_expr
         return ret_expr
 
 
 # TODO: how to handle with va_list?
 class vprintf(SimProcedure):
+    INCOMPLETE = True
     def run(self, fmt, va_list):
         return None 
 
@@ -207,3 +216,57 @@ class __flbf(SimProcedure):
             self.state.se.BVV(1, 32),
             0
         )
+
+
+# NOTE: assume it's not fail
+class __fgets_chk(SimProcedure):
+    def run(self, buf, size, n, fp):
+        fgets = SIM_PROCEDURES['libc']['fgets']
+        return self.inline_call(fgets, buf, n, fp).ret_expr
+
+
+class __fgets_unlocked_chk(SimProcedure):
+    def run(self, buf, size, n, fp):
+        fgets = SIM_PROCEDURES['libc']['fgets']
+        return self.inline_call(fgets, buf, n, fp).ret_expr
+
+
+class __fprintf_chk(SimProcedure):
+    def run(self, fp, flag, fmt):
+        fprintf = SIM_PROCEDURES['libc']['fprintf']
+        return self.inline_call(fprintf, fp, fmt).ret_expr
+
+
+class __getcwd_chk(SimProcedure):
+    def run(self, buf, len, buflen):
+        return self.inline_call(getcwd, buf, len)
+
+
+class __snprintf_chk(SimProcedure):
+    ARGS_MISMATCH = True
+    # FIXME: check maxlen
+    def run(self, dst_ptr, maxlen, flag, strlen):
+        fmt_str = self._parse(4)
+        out_str = fmt_str.replace(5, self.arg)
+        self.state.memory.store(dst_ptr, out_str)
+        self.state.memory.store(dst_ptr + (out_str.size() / 8), self.state.se.BVV(0, 8))
+        return self.state.se.BVV(out_str.size() / 8, self.state.arch.bits)
+
+
+class __sprintf_chk(SimProcedure):
+    ARGS_MISMATCH = True
+    def run(self, dst_ptr, flag, strlen):
+        fmt_str = self._parse(3)
+        out_str = fmt_str.replace(4, self.arg)
+        self.state.memory.store(dst_ptr, out_str)
+        self.state.memory.store(dst_ptr + (out_str.size() / 8), self.state.se.BVV(0, 8))
+        return self.state.se.BVV(out_str.size() / 8, self.state.arch.bits)
+
+
+class __read_chk(SimProcedure):
+    def run(self, fd, buf, nbytes, buflen):
+        read = SIM_PROCEDURES['posix']['read']
+        return self.inline_call(read, fd, buf, nbytes).ret_expr
+
+
+
