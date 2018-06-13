@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 import sys
+import logging
 from PyQt5 import QtWidgets
 from PyQt5.uic import loadUiType
 import pygments
@@ -12,8 +13,11 @@ from typing import Tuple, Any, List, Union
 from ..path import APP_ROOT
 from ..record import DEFAULT_LOG_DIR
 
-EXIT_REBOOT = -1
+
 EXIT_NORMAL = 0
+EXIT_REBOOT = 1
+l = logging.getLogger("hase")
+
 
 form_class, base_class = loadUiType(
     str(APP_ROOT.join('frontend', 'mainwindow.ui')))  # type: Tuple[Any, Any]

@@ -3,7 +3,7 @@ from __future__ import absolute_import, division, print_function
 from IPython.core.magic import (magics_class, line_magic, Magics)
 from IPython import get_ipython
 from PyQt5 import QtWidgets
-from . import MainWindow, EXIT_REBOOT, EXIT_NORMAL
+from . import MainWindow
 import sys
 import os
 import os.path

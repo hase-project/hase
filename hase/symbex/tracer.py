@@ -19,12 +19,10 @@ from ..pwn_wrapper import ELF, Coredump
 from ..mapping import Mapping
 
 from .state import State
-from .hook import all_hookable_symbols
+from .hook import all_hookable_symbols, addr_symbols
 from .filter import FilterTrace
 
-l = logging.getLogger(__name__)
-hdlr = logging.FileHandler("../replay.log")
-l.addHandler(hdlr)
+l = logging.getLogger("hase")
 
 ELF_MAGIC = b"\x7fELF"
 
@@ -337,14 +335,17 @@ class Tracer(object):
                 'calloc': all_hookable_symbols['calloc'],
             }
 
+        self.omitted_section = []
         self.setup_hook()
+
 
         self.filter = FilterTrace(
             self.project, 
             self.cfg, 
             self.trace,
             self.hooked_symbols,
-            self.cdanalyzer.gdb
+            self.cdanalyzer.gdb,
+            self.omitted_section
         )
 
         self.use_callstate = True
@@ -404,6 +405,22 @@ class Tracer(object):
             self.project.hook_symbol(
                 symname, func()
             )
+        for symname in addr_symbols:
+            if symname in self.hooked_symbols.keys():
+                r = self.cdanalyzer.gdb.get_func_range(symname)
+                func = self.hooked_symbols[symname]
+                if r != [0, 0]:
+                    self.project.hook(
+                        r[0], func(), length=r[1]
+                    )
+                    self.omitted_section.append(r)
+
+    def test_rep_ins(self, state):
+        capstone = state.block().capstone
+        first_ins = capstone.insns[0].insn
+        # NOTE: maybe better way is use prefix == 0xf2, 0xf3 (crc32 exception)
+        ins_repr = first_ins.mnemonic
+        return ins_repr.startswith('rep')
 
     def jump_match(self, old_state, choice, branch):
         if old_state.addr == branch.addr and choice.addr == branch.ip:
@@ -422,8 +439,11 @@ class Tracer(object):
 
     def find_next_branch(self, state, branch):
         # type: (SimState, Branch) -> SimState
+        CNT_LIMIT = 2000
+        REP_LIMIT = 128
         cnt = 0
-        while cnt < 200:
+        rep_cnt = 0
+        while cnt < CNT_LIMIT:
             cnt += 1
             self.debug_state.append(state)
             try:
@@ -431,10 +451,26 @@ class Tracer(object):
                     state, 
                     num_inst=1)
             except:
+                # weird syscall ip issue
+                # currently just try to repair ip
                 state._ip = self.debug_state[-2].addr
                 step = self.project.factory.successors(
                     state, 
                     num_inst=1)
+            # weird stpcpy -> IFuncResolver issue
+            artifacts = getattr(step, 'artifacts', None)
+            if artifacts and 'procedure' in artifacts.keys() \
+                and artifacts['name'] == 'IFuncResolver':
+                func = self.filter.find_function(self.debug_state[-2].addr)
+                if func:
+                    addr = self.project.loader.find_symbol(func.name).rebased_addr
+                    step = self.project.factory.successors(
+                        state,
+                        num_inst=1,
+                        force_addr=addr
+                    )
+                else:
+                    raise Exception("Cannot resolve function")
             # l.debug("0x%x", state.addr)
             all_choices = {
                 'sat': step.successors,
@@ -447,7 +483,7 @@ class Tracer(object):
             choices += all_choices['unsat']
             # choices += all_choices['unconstrained']
             old_state = state
-            sys.stderr.write(
+            l.warning(
                 repr(cnt) + ' ' +
                 repr(state) + ' ' +
                 # repr(all_choices) + ' ' +
@@ -464,13 +500,15 @@ class Tracer(object):
                 if old_state.addr == branch.addr:
                     if self.jump_match(old_state, choice, branch):
                         return choice
-            # FIXME: this now incurs problem, since a -> c may jump across c
-            # better way is in last else branch, but it will incurs SimUnsatError
-            """
-            if len(all_choices['sat']) == 1:
-                state = all_choices['sat'][0]
-                continue
-            """
+            # NOTE: need to consider repz here, if repz repeats for less than N times, 
+            # then, it should still be on sat path
+            if self.test_rep_ins(state):
+                rep_cnt += 1
+                if rep_cnt < REP_LIMIT and len(all_choices['sat']) == 1:
+                    state = all_choices['sat'][0]
+                    continue
+            else:
+                rep_cnt = 0
             for choice in choices:
                 if self.jump_was_not_taken(
                     old_state, choice):

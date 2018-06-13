@@ -1,5 +1,5 @@
 from angr import SimProcedure
-from angr.procedures import SIM_PROCEDURES
+from angr.procedures import SIM_PROCEDURES, SIM_LIBRARIES
 import procedures
 
 from typing import Dict, List, Any
@@ -9,9 +9,25 @@ from typing import Dict, List, Any
 # TODO: rearrange this
 
 
+addr_symbols = [
+    '__strcmp_sse2',
+    '__strchr_sse2',
+    '__strncpy_sse2',
+    '__memcpy_sse2',
+    '__memcpy_sse2_unaligned',
+    '__memset_sse2',
+    '__strncasecmp_l_avx',
+    'malloc',
+    'calloc',
+    'realloc',
+    'free',
+    'memalign',
+]
+
+
 unsupported_symbols = [
-    ('__new_exitfn', 'atexit', 'no simulation'),
-    ('getenv', 'getenv', 'wrong branch'),
+    # ('__new_exitfn', 'atexit', 'no simulation'),
+    # ('getenv', 'getenv', 'wrong branch'),
     # ('_IO_do_allocate', 'fread_unlocked', 'wrong branch'),
 ]
 
@@ -39,6 +55,13 @@ def hook_user_procedures(dct, hook_IO = True):
             if isinstance(obj, type) and SimProcedure in obj.__mro__:
                 if not getattr(obj, 'INCOMPLETE', False):
                     dct[op] = obj
+                if getattr(obj, 'IS_SYSCALL', False):
+                    ins = obj(display_name=op)
+                    ins.cc = None
+                    ins.is_syscall = True
+                    ins.NO_RET = False
+                    ins.ADDS_EXITS = False
+                    SIM_LIBRARIES['linux'].procedures[op] = ins
 
 
 def hook_alias_procedures(dct):
@@ -46,6 +69,12 @@ def hook_alias_procedures(dct):
     for decr_sym, sym in alias_sym.items():
         if sym in dct.keys():
             dct[decr_sym] = dct[sym]
+
+
+# FIXME: it would be too hack to use inspect or something to generate
+# Simprocedure, but the argument may have weird case
+def hook_fallback_procedures(dct):
+    pass
 
 
 all_hookable_symbols = {} # type: Dict[str, Any]

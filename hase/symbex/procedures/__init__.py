@@ -4,8 +4,14 @@ import memory_operation
 import group_operation
 import miscs
 import socket_operation
+import time_operation
 
+from collections import OrderedDict
 from typing import Dict
+
+
+# TODO: make a general resymbolic wrapper for may-raise exception procedures
+
 
 __all__ = [
     'file_operation',
@@ -13,6 +19,7 @@ __all__ = [
     'group_operation',
     'miscs',
     'socket_operation',
+    'time_operation',
 ]
 
 
@@ -41,7 +48,7 @@ def add_alias_s(dct, sym, *args):
         dct[decr_sym] = sym
 
 
-alias_symbols = {} # type: Dict[str, str]
+alias_symbols = OrderedDict() # type: OrderedDict
 
 
 unlocked_IO_symbols = [
@@ -52,9 +59,23 @@ unlocked_IO_symbols = [
     'fgets', 'fputs',
     'fileno', 'getc',
     'fputc', 'fgetc',
-    'clearerr'
+    'clearerr',
 ]
 add_alias(alias_symbols, unlocked_IO_symbols, lambda s: s + '_unlocked')
+
+
+add_alias(alias_symbols,
+    [
+        'getpagesize', 'stpcpy', 'strdup',
+        'strtok_r', 'register_atfork', 'sigaction',
+        'stat', 'fstat', 'lstat',
+        'fcntl', 'getpid',
+        'open', 'open64', 'openat', 'openat64',
+        'read', 'write', 'close',
+        'socket',
+    ],
+    lambda s: '__' + s
+)
 
 
 posix64_IO_symbols = [
@@ -62,6 +83,7 @@ posix64_IO_symbols = [
     'ftello', 'fseeko',
     'open', 'fstat', 'stat'
     '__xstat', '__lxstat', '__fxstat',
+    'statfs', 'fstatfs',
     'readdir', 'opendir',
     'lseek', 'lstat',
     'fgetpos', 'fsetpos', 
@@ -69,6 +91,13 @@ posix64_IO_symbols = [
     'telldir', 'seekdir', 'rewinddir', 'closedir'
 ]
 add_alias(alias_symbols, posix64_IO_symbols, lambda s: s + '64')
+
+
+nocancel_symbols = [
+    'open', 'open64', 'openat', 'openat64',
+    'read', 'write', 'close'
+]
+add_alias(alias_symbols, nocancel_symbols, lambda s: '__' + s + '_nocancel')
 
 
 libc_general_symbols = [
@@ -79,26 +108,34 @@ libc_general_symbols = [
 add_alias(alias_symbols, libc_general_symbols, lambda s: '__libc_' + s)
 
 
+# TODO: https://github.com/lattera/glibc/blob/a2f34833b1042d5d8eeb263b4cf4caaea138c4ad/libio/Versions
 add_alias(alias_symbols,
-    ['feof', 'getc', 'putc', 'puts'],
+    [
+        'feof', 'getc', 'putc', 'puts', 'ferrof',
+        'peekc_unlocked', 'vfscanf', 'vfprintf',
+        'seekoff', 'seekpos', 'padn', 'sgetn',
+        'fwide', 'fwrite', 'fread', 'fclose', 'fdopen',
+        'fflush', 'fgetpos', 'fgetpos64', 'fprintf'
+        'fgets', 'fopen', 'fopen64', 'fputs', 'printf',
+        'fsetpos', 'fsetpos64', 'ftell', 'fwide', 
+        'seekoff', 'seekpos', 'setbuffer', 'setvbuf',
+        'ungetc', 'vsprintf', 'vdprintf', 'vsscanf',
+    ],
     lambda s: '_IO_' + s
 )
 
 
-add_alias(alias_symbols,
-    [
-        'getpagesize', 'stpcpy', 'strdup',
-        'strtok_r', '__register_atfork' 
-    ],
-    lambda s: '__' + s
-)
+sse2_symbols = [
+    'memcpy', 'memset', 'strcmp', 'strchr',
+    'strncpy', 'strnlen', 'strlen'
+]
+add_alias(alias_symbols, sse2_symbols, lambda s: '__' + s + '_sse2')
 
 
-add_alias(alias_symbols, ['strtol'], lambda s: '__' + s + '_internal')
-
-
+add_alias_s(alias_symbols, 'strtol', '__strtol_internal')
+add_alias_s(alias_symbols, 'strncasecmp', '__strncasecmp_l_avx')
 add_alias_s(alias_symbols, 'abort', '__assert_fail', '__stack_chk_fail')
-add_alias_s(alias_symbols, 'memcpy', 'bcopy', 'bmove')
+add_alias_s(alias_symbols, 'memcpy', 'memmove', 'bcopy', 'bmove')
 add_alias_s(alias_symbols, 'memcmp', 'bcmp')
 add_alias_s(alias_symbols, 'memset', 'bzero')
 add_alias_s(alias_symbols, 'strchr', 'index')
@@ -107,3 +144,21 @@ add_alias_s(alias_symbols, 'exit', 'exit_group')
 add_alias_s(alias_symbols, 'getuid', 'geteuid')
 add_alias_s(alias_symbols, 'getgid', 'getegid')
 
+
+# TODO: add all sse2 symbols
+add_alias_s(alias_symbols, 
+    'memcpy', 
+    '__memcpy_sse2_unaligned'
+)
+
+
+S_CHAR = 8
+S_INT = 32
+S_LONG = 64
+S_ARCH = -1
+
+fallback_symbols = {
+    'fgetc': S_CHAR,
+    'lseek': S_ARCH,
+    'fileno': S_INT
+}

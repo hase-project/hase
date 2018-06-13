@@ -69,8 +69,8 @@ class FilterBase(object):
 
 
 class FilterTrace():
-    def __init__(self, project, cfg, trace, hooked_symbol, gdb):
-        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], Any) -> None
+    def __init__(self, project, cfg, trace, hooked_symbol, gdb, omitted_section):
+        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], Any, List[List[Int]]) -> None
         # FIXME: super cannot work for reload
         # super(FilterTrace, self).__init__(project, cfg, trace, hooked_symbol)
         self.project = project
@@ -82,7 +82,7 @@ class FilterTrace():
         self.hooked_symbol = hooked_symbol
         self.new_trace = [] # type: List[Branch]
         self.gdb = gdb
-        self.omitted_section = [] # type: List[Tuple[int, int]]
+        self.omitted_section = omitted_section # type: List[List[int, int]]
         self.analyze_unsupported()
 
         self.hooked_symname = self.hooked_symbol.keys()
@@ -178,6 +178,9 @@ class FilterTrace():
         self.call_parent = defaultdict(lambda: None) # type: defaultdict
         hooked_parent = None # last 2 unhooked
         is_current_hooked = False
+        # FIXME: seems dso object not always this one
+        dso_sym = self.project.loader.find_symbol('_dl_find_dso_for_object')
+        plt_sym = None
         for event in self.trace:
             present = True
             if self.test_plt_vdso(event.addr) or \
@@ -217,6 +220,11 @@ class FilterTrace():
                     # NOTE: function entry, testing is hooked
                     sym = self.find_function(event.ip)
                     parent = self.find_function(event.addr)
+                    # NOTE: plt -> dso -> libc
+                    if isinstance(sym, FakeSymbol):
+                        plt_sym = sym
+                    if parent == dso_sym:
+                        self.call_parent[dso_sym] = plt_sym
                     self.call_parent[sym] = parent
                     if fname in self.hooked_symname:
                         is_current_hooked = True
