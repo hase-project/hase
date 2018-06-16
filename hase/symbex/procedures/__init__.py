@@ -72,7 +72,7 @@ add_alias(alias_symbols,
         'fcntl', 'getpid',
         'open', 'open64', 'openat', 'openat64',
         'read', 'write', 'close',
-        'socket',
+        'socket', 'gettext', 'dgettext', 'dcgettext',
     ],
     lambda s: '__' + s
 )

@@ -227,3 +227,8 @@ class iswpunct(SimProcedure):
 class strncasecmp(SimProcedure):
     def run(self, a_addr, b_addr, limit):
         return self.state.se.BVS('strncasecmp', self.state.arch.bits)
+
+
+class strspn(SimProcedure):
+    def run(self, str1, str2):
+        return self.state.se.BVS('strspn', self.state.arch.bits)

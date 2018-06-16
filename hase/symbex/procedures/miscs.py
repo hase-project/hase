@@ -74,3 +74,22 @@ class sethostid(SimProcedure):
         return self.state.se.BVV(0, 32)
 
 
+class gettext(SimProcedure):
+    def run(self, msgid):
+        malloc = SIM_PROCEDURES['libc']['malloc']
+        str_addr = self.inline_call(malloc, self.state.libc.max_str_len).ret_expr
+        return self.state.se.If(
+            self.state.se.BoolS('gettext'),
+            str_addr,
+            msgid
+        )
+
+
+class dgettext(SimProcedure):
+    def run(self, domain, msgid):
+        return self.inline_call(gettext, msgid).ret_expr
+
+
+class dcgettext(SimProcedure):
+    def run(self, domain, msgid, category):
+        return self.inline_call(gettext, msgid).ret_expr

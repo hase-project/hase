@@ -6,6 +6,7 @@ import os
 import sys
 import struct
 import archinfo
+import claripy
 from angr import sim_options as so
 from angr.state_plugins.sim_action import SimActionExit
 from angr.knowledge_plugins.functions.function import Function
@@ -307,7 +308,8 @@ class Tracer(object):
 
         remove_simplications = {
             so.LAZY_SOLVES, so.EFFICIENT_STATE_MERGING,
-            so.TRACK_CONSTRAINT_ACTIONS
+            so.TRACK_CONSTRAINT_ACTIONS,
+            so.ALL_FILES_EXIST,
         } | so.simplification
 
         # workaround for main, should not be required in future
@@ -322,22 +324,15 @@ class Tracer(object):
             show_progressbar=True
         )
 
-        self.use_hook = True
+        self.use_hook = False
+        self.omitted_section = []
 
         if self.use_hook:
             self.hooked_symbols = all_hookable_symbols.copy()
+            self.setup_hook()
         else:
-            self.hooked_symbols = {
-                'strcmp': all_hookable_symbols['strcmp'],
-                'strlen': all_hookable_symbols['strlen'],
-                'setlocale': all_hookable_symbols['setlocale'],
-                'malloc': all_hookable_symbols['malloc'],
-                'calloc': all_hookable_symbols['calloc'],
-            }
-
-        self.omitted_section = []
-        self.setup_hook()
-
+            self.hooked_symbols = {}
+            self.project._sim_procedures = {}
 
         self.filter = FilterTrace(
             self.project, 
@@ -439,7 +434,7 @@ class Tracer(object):
 
     def find_next_branch(self, state, branch):
         # type: (SimState, Branch) -> SimState
-        CNT_LIMIT = 2000
+        CNT_LIMIT = 200
         REP_LIMIT = 128
         cnt = 0
         rep_cnt = 0
@@ -521,9 +516,18 @@ class Tracer(object):
                     state = choices[0]
                 else:
                     raise Exception("Unable to continue")
-            if state in all_choices['unsat'] and not self.debug_unsat: # type: ignore
-                self.debug_sat = old_state
-                self.debug_unsat = state
+            if not state.solver.satisfiable(): # type: ignore
+                sat_constraints = old_state.solver._solver.constraints
+                unsat_constraints = state.solver._solver.constraints
+                sat_uuid = map(lambda c: c.uuid, sat_constraints)
+                for i, c in enumerate(unsat_constraints):
+                    if c.uuid in sat_uuid:
+                        unsat_constraints[i] = claripy.Not(c)
+                state.solver._solver._cached_satness = True
+                state.solver._solver.constraints = old_state.solver._solver.constraints
+                if not self.debug_unsat:
+                    self.debug_sat = old_state
+                    self.debug_unsat = state
         print(choices, state, branch)
         raise Exception("Unable to continue")
 
