@@ -11,10 +11,12 @@ class SymbolicMeta(type):
     def __new__(cls, name, base, attrs):
         if '_fields_' not in attrs.keys():
             raise Exception("Need _fields_")
-        fields = attrs['_fields_']
-        for i, f in enumerate(fields):
+        fields = []
+        for f in fields:
             if getattr(f[1], 'is_symstruct', False):
-                fields[i][1] = f[1].c_cls
+                fields.append((f[0], f[1].c_cls))
+            else:
+                fields.append(f)
 
         class CTypeStruct(Structure):
             _fields_ = fields
@@ -23,12 +25,12 @@ class SymbolicMeta(type):
         attrs['c_cls'] = CTypeStruct
         attrs['size'] = sizeof(CTypeStruct)
 
-        new_cls = super(SymbolicMeta, cls).__new__(name, base, attrs)
+        new_cls = super(SymbolicMeta, cls).__new__(cls, name, base, attrs)
         return new_cls
 
 
 # disable pylint error
-class SymStruct():
+class SymStruct(object):
     def __init__(self, buf):
         self.buf = buf        
 
@@ -85,7 +87,7 @@ class SymStruct():
 class sigset_t(SymStruct):
     __metaclass__ = SymbolicMeta
     _fields_ = [
-        ('__bits', c_ulong * 128 / sizeof(c_long))
+        ('__bits', c_ulong * (128 / sizeof(c_long)))
     ]
 
 
@@ -94,10 +96,10 @@ class sigaction(SymStruct):
     _fields_ = [
         ('sa_handler', POINTER(CFUNCTYPE(None, c_int))),
         # void (*sa_sigaction)(int, siginfo_t*, void*)
-        ('sa_sigaction', POINTER(CFUNCTYPE(None, int, c_void_p, c_void_p))),
+        ('sa_sigaction', POINTER(CFUNCTYPE(None, c_int, c_void_p, c_void_p))),
         ('sa_mask', sigset_t),
         ('sa_flags', c_int),
-        ('sa_restorer', POINTER(CFUNCTYPE(None, None)))
+        ('sa_restorer', POINTER(CFUNCTYPE(None)))
     ]
 
 
@@ -160,4 +162,59 @@ class sysinfo_t(SymStruct):
         ('freehigh', c_ulong),
         ('mem_unit', c_uint),
         ('_f', c_char * 2)
+    ]
+
+
+class stat_t(SymStruct):
+    __metaclass__ = SymbolicMeta
+    _fields_ = [
+        ('st_dev', c_ulong),
+        ('st_ino', c_ulong),
+        ('st_nlink', c_ulong),
+        ('st_mode', c_uint),
+        ('st_uid', c_uint),
+        ('st_gid', c_uint),
+        ('__pad0', c_int),
+        ('st_rdev', c_ulong),
+        ('st_size', c_ulong),
+        ('st_blksize', c_ulong),
+        ('st_blocks', c_ulong),
+        ('st_atime', c_ulong),
+        ('st_atimensec', c_ulong),
+        ('st_mtime', c_ulong),
+        ('st_mtimensec', c_ulong),
+        ('st_ctime', c_ulong),
+        ('st_ctimensec', c_ulong),
+        ('glibc_reserved[3]', c_ulong * 3)
+    ]
+ 
+
+class statfs_t(SymStruct):
+    __metaclass__ = SymbolicMeta
+    _fields_ = [
+        ('f_type', c_long),
+        ('f_bsize', c_long),
+        ('f_blocks', c_ulong),
+        ('f_bfree', c_ulong),
+        ('f_bavail', c_ulong),
+        ('f_files', c_ulong),
+        ('f_ffree', c_ulong),
+        ('f_fsid', c_int * 2),
+        ('f_namelen' ,c_long),
+        ('f_frsize', c_long),
+        ('f_flags', c_long),
+        ('f_spare[4]', c_long * 4)        
+    ]
+
+
+class passwd(SymStruct):
+    __metaclass__ = SymbolicMeta
+    _fields_ = [
+        ('pw_name', c_char_p),
+        ('pw_passwd', c_char_p),
+        ('pw_uid', c_uint),
+        ('pw_gid', c_uint),
+        ('pw_gecos', c_char_p),
+        ('pw_dir', c_char_p),
+        ('pw_shell', c_char_p)
     ]

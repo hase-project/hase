@@ -93,3 +93,9 @@ class dgettext(SimProcedure):
 class dcgettext(SimProcedure):
     def run(self, domain, msgid, category):
         return self.inline_call(gettext, msgid).ret_expr
+
+
+# NOTE: this function is not recorded by ltrace? and cannot be resolved by angr
+class __sched_cpucount(SimProcedure):
+    def run(self, setsize, setp):
+        return self.state.se.BVS('__sched_cpucount', 32)

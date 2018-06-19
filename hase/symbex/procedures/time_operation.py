@@ -4,6 +4,7 @@ from angr import SimProcedure
 from angr.procedures import SIM_PROCEDURES
 from angr.errors import SimProcedureError
 
+from .helper import minmax
 
 class localtime_r(SimProcedure):
     def run(self, timep, result):
@@ -99,3 +100,18 @@ class gmtime(SimProcedure):
 class mktime(SimProcedure):
     def run(self, tm):
         return self.state.se.BVS("mktime", 64)
+
+
+class strftime(SimProcedure):
+    def parse_format(self, fmt_str):
+        pass
+
+    def run(self, ptr, maxsize, fmt_str, timeptr):
+        if self.state.se.symbolic(fmt_str):
+            pass
+        if self.state.se.symbolic(maxsize):
+            size = self.state.se.eval(maxsize)
+        else:
+            size = minmax(self, maxsize, self.state.libc.max_str_len)
+        self.state.memory.store(ptr, self.state.se.BVS('strftime', size * 8))
+        return self.state.se.BVS('strtime', 32)

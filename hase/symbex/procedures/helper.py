@@ -1,9 +1,5 @@
 # Need to resymbolize hooks
-'''
-getpid/getppid/getuid/getgid
-strlen/strnlen/strcmp/strncmp
-memcmp/memncmp/
-'''
+
 
 
 def test_concrete_value(proc, sym, value):
@@ -15,14 +11,30 @@ def test_concrete_value(proc, sym, value):
 
 def errno_success(proc):
     return proc.state.se.If(
-        'errno',
-        0, -1
+        proc.state.se.BoolS('errno'),
+        proc.state.se.BVV(0, proc.state.arch.bits),
+        proc.state.se.BVV(-1, proc.state.arch.bits)
+    )
+
+
+def null_success(proc, sym):
+    return proc.state.se.If(
+        proc.state.se.BoolS('errno'),
+        sym,
+        proc.state.se.BVV(0, proc.state.arch.bits)
     )
 
 
 def minmax(proc, sym, upper=None):
-    min_v = proc.state.se.min(sym)
-    max_v = proc.state.se.max(sym)
-    if upper:
-        return max(min_v, min(max_v, upper))
-    return max_v
+    try:
+        min_v = proc.state.se.min(sym)
+        max_v = proc.state.se.max(sym)
+        if upper:
+            return max(min_v, min(max_v, upper))
+        return max_v
+    except:
+        if upper:
+            return upper
+        else:
+            raise Exception("Cannot eval value")
+

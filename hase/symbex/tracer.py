@@ -7,6 +7,8 @@ import sys
 import struct
 import archinfo
 import claripy
+import gc
+from capstone import x86_const
 from angr import sim_options as so
 from angr.state_plugins.sim_action import SimActionExit
 from angr.knowledge_plugins.functions.function import Function
@@ -324,7 +326,7 @@ class Tracer(object):
             show_progressbar=True
         )
 
-        self.use_hook = False
+        self.use_hook = True
         self.omitted_section = []
 
         if self.use_hook:
@@ -411,11 +413,101 @@ class Tracer(object):
                     self.omitted_section.append(r)
 
     def test_rep_ins(self, state):
+        # NOTE: rep -> sat or unsat
         capstone = state.block().capstone
         first_ins = capstone.insns[0].insn
         # NOTE: maybe better way is use prefix == 0xf2, 0xf3 (crc32 exception)
         ins_repr = first_ins.mnemonic
         return ins_repr.startswith('rep')
+
+    def repair_alloca_ins(self, state):
+        # NOTE: alloca problem, focus on sub rsp, rax
+        # Typical usage: alloca(strlen(x))
+        capstone = state.block().capstone
+        first_ins = capstone.insns[0].insn
+        if first_ins.mnemonic == 'sub':
+            if first_ins.operands[0].reg in (x86_const.X86_REG_RSP, x86_const.X86_REG_RBP) \
+                and first_ins.operands[1].type == 1:
+                reg_name = first_ins.reg_name(first_ins.operands[1].reg)
+                reg_v = getattr(state.regs, reg_name)
+                if state.se.symbolic(reg_v):
+                    setattr(state.regs, reg_name, state.libc.max_str_len)
+
+    def repair_jump_ins(self, state, branch):
+        # NOTE: typical case: switch(getchar())
+        if state.addr != branch.addr:
+            return False
+        jump_ins = ['jmp', 'call'] # currently not deal with jcc regs
+        capstone = state.block().capstone
+        first_ins = capstone.insns[0].insn
+        ins_repr = first_ins.mnemonic
+        for ins in jump_ins:
+            if ins_repr.startswith(ins) and first_ins.operands[0].type == 1:
+                reg_name = first_ins.op_str
+                reg_v = getattr(state.regs, reg_name)
+                if state.se.symbolic(reg_v) or state.se.eval(reg_v) != branch.ip:
+                    setattr(state.regs, reg_name, branch.ip)
+                    return False
+            # TODO: read jump table and repair register?
+            # NOTE: for jmp [base + index*scale + disp], directly use force_addr
+            if ins_repr.startswith(ins) and first_ins.operands[0].type == 3:
+                self.last_jump_table = state
+                mem = first_ins.operands[0].value.mem
+                target = mem.disp
+                if mem.index:
+                    reg_index_name = first_ins.reg_name(mem.index)
+                    reg_index = getattr(state.regs, reg_index_name)
+                    if state.se.symbolic(reg_index):
+                        return True
+                    else:
+                        target += state.se.eval(reg_index) * mem.scale
+                if mem.base:
+                    reg_base_name = first_ins.reg_name(mem.base)
+                    reg_base = getattr(state.regs, reg_base_name)
+                    if state.se.symbolic(reg_base):
+                        return True
+                    else:
+                        target += state.se.eval(reg_base)
+                ip_mem = state.memory.load(target, 8, endness='Iend_LE')
+                if not state.se.symbolic(ip_mem):
+                    jump_target = state.se.eval(ip_mem)
+                    if jump_target != branch.ip:
+                        return True
+                else:
+                    return True
+        return False
+
+    def repair_ip(self, state):
+        try:
+            addr = state.se.eval(state._ip)
+            # NOTE: repair IFuncResolver
+            if self.project.loader.find_object_containing(addr) == self.project.loader.extern_object:
+                func = self.project._sim_procedures.get(addr, None)
+                if func:
+                    funcname = func.kwargs['funcname']
+                    libf = self.project.loader.find_symbol(funcname)
+                    if libf:
+                        addr = libf.rebased_addr
+        except:
+            # NOTE: currently just try to repair ip for syscall
+            addr = self.debug_state[-2].addr
+        return addr
+
+    def repair_func_resolver(self, state, step):
+        artifacts = getattr(step, 'artifacts', None)
+        if artifacts and 'procedure' in artifacts.keys() \
+            and artifacts['name'] == 'IFuncResolver':
+            func = self.filter.find_function(self.debug_state[-2].addr)
+            if func:
+                addr = self.project.loader.find_symbol(func.name).rebased_addr
+                step = self.project.factory.successors(
+                    state,
+                    num_inst=1,
+                    force_addr=addr
+                )
+            else:
+                raise Exception("Cannot resolve function")
+        return step
 
     def jump_match(self, old_state, choice, branch):
         if old_state.addr == branch.addr and choice.addr == branch.ip:
@@ -441,31 +533,26 @@ class Tracer(object):
         while cnt < CNT_LIMIT:
             cnt += 1
             self.debug_state.append(state)
+            force_jump = self.repair_jump_ins(state, branch)
+            self.repair_alloca_ins(state)
+            addr = self.repair_ip(state)
             try:
                 step = self.project.factory.successors(
                     state, 
-                    num_inst=1)
-            except:
-                # weird syscall ip issue
-                # currently just try to repair ip
-                state._ip = self.debug_state[-2].addr
-                step = self.project.factory.successors(
-                    state, 
-                    num_inst=1)
-            # weird stpcpy -> IFuncResolver issue
-            artifacts = getattr(step, 'artifacts', None)
-            if artifacts and 'procedure' in artifacts.keys() \
-                and artifacts['name'] == 'IFuncResolver':
-                func = self.filter.find_function(self.debug_state[-2].addr)
-                if func:
-                    addr = self.project.loader.find_symbol(func.name).rebased_addr
-                    step = self.project.factory.successors(
-                        state,
-                        num_inst=1,
-                        force_addr=addr
+                    num_inst=1,
+                    force_addr=addr
+                )
+                step = self.repair_func_resolver(state, step)
+                if force_jump:
+                    new_state = state.copy()
+                    step.add_successor(
+                        new_state,
+                        branch.ip,
+                        state.se.true,
+                        'Ijk_Boring'
                     )
-                else:
-                    raise Exception("Cannot resolve function")
+            except KeyboardInterrupt:
+                raise Exception("Manually stop")
             # l.debug("0x%x", state.addr)
             all_choices = {
                 'sat': step.successors,
@@ -478,6 +565,7 @@ class Tracer(object):
             choices += all_choices['unsat']
             # choices += all_choices['unconstrained']
             old_state = state
+            # TODO: add successors with no constraint if match branch.addr
             l.warning(
                 repr(cnt) + ' ' +
                 repr(state) + ' ' +
@@ -553,8 +641,12 @@ class Tracer(object):
         states = []
         states.append(State(self.trace[0], simstate))
         self.debug_unsat = None
-        self.debug_state = deque(maxlen=100) # type: deque
+        self.debug_state = deque(maxlen=40) # type: deque
+        cnt = 0
         for event in self.trace[1:]:
+            cnt += 1
+            if not cnt % 500:
+                gc.collect()
             l.debug("look for jump: 0x%x -> 0x%x" % (event.addr, event.ip))
             assert self.valid_address(event.addr) and self.valid_address(
                 event.ip)

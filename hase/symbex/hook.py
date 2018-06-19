@@ -69,6 +69,14 @@ def hook_alias_procedures(dct):
     for decr_sym, sym in alias_sym.items():
         if sym in dct.keys():
             dct[decr_sym] = dct[sym]
+            obj = dct[sym]
+            if getattr(obj, 'IS_SYSCALL', False):
+                ins = obj(display_name=decr_sym)
+                ins.cc = None
+                ins.is_syscall = True
+                ins.NO_RET = False
+                ins.ADDS_EXITS = False
+                SIM_LIBRARIES['linux'].procedures[decr_sym] = ins
 
 
 # FIXME: it would be too hack to use inspect or something to generate

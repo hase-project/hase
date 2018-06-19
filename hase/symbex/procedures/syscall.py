@@ -2,6 +2,7 @@ import claripy
 from angr import SimProcedure
 from angr.procedures import SIM_PROCEDURES
 from angr.errors import SimProcedureError
+from angr.storage.file import Flags
 
 from .helper import *
 from .sym_struct import * # pylint: disable=W0614
@@ -31,8 +32,11 @@ class connect(SimProcedure):
 
     def run(self, sockfd, addr, addrlen):
         # NOTE: recv from angr == read, so connect does nothing
-        # TODO: deal with sockaddr?
-        return self.state.posix.open(sockfd)
+        # FIXME: actually angr.posix has open_socket and socket_queue
+        new_filename = '/tmp/angr_implicit_%d' % self.state.posix.autotmp_counter
+        self.state.posix.autotmp_counter += 1
+        self.state.posix.open(new_filename, Flags.O_RDWR, preferred_fd=sockfd)
+        return errno_success(self)
         
 
 class access(SimProcedure):
@@ -214,3 +218,158 @@ class alarm(SimProcedure):
 
     def run(self, seconds):
         return self.state.se.BVS('alarm', 32)
+
+
+class getpid(SimProcedure):
+    IS_SYSCALL = True
+
+    def run(self):
+        return self.state.se.BVS('getpid', 32)
+
+
+class getppid(SimProcedure):
+    IS_SYSCALL = True
+
+    def run(self):
+        return self.state.se.BVS('getppid', 32)
+
+
+class getgid(SimProcedure):
+    IS_SYSCALL = True
+
+    def run(self):
+        return self.state.se.BVS('getgid', 32)
+
+
+class getpgid(SimProcedure):
+    IS_SYSCALL = True
+
+    def run(self):
+        return self.state.se.BVS('getpgid', 32)
+
+
+class getuid(SimProcedure):
+    IS_SYSCALL = True
+
+    def run(self):
+        return self.state.se.BVS('getuid', 32)
+
+
+class getgrp(SimProcedure):
+    IS_SYSCALL = True
+
+    def run(self):
+        return self.state.se.BVS('getgrp', 32)
+
+
+class getpgrp(SimProcedure):
+    IS_SYSCALL = True
+
+    def run(self):
+        return self.state.se.BVS('getpgrp', 32)
+
+
+class ioctl(SimProcedure):
+    IS_SYSCALL = True
+    ARGS_MISMATCH = True
+    def run(self, fd, request):
+        return errno_success(self)
+
+
+class openat(SimProcedure):
+    IS_SYSCALL = True
+
+    def run(self, dirfd, pathname, flags, mode=0644):
+        xopen = SIM_PROCEDURES['posix']['open']
+        # XXX: Actually name is useless, we just want to open a SimFile
+        return self.inline_call(xopen, pathname, flags, mode).ret_expr
+
+
+class stat(SimProcedure):
+    IS_SYSCALL = True
+
+    def run(self, file_path, stat_buf):
+        # NOTE: make everything symbolic now
+        stat_t(stat_buf).store_all(self)
+        return errno_success(self)
+
+
+class lstat(SimProcedure):
+    IS_SYSCALL = True
+
+    def run(self, file_path, stat_buf):
+        ret_expr = self.inline_call(stat, file_path, stat_buf).ret_expr
+        return ret_expr
+
+
+class fstat(SimProcedure):
+    IS_SYSCALL = True
+
+    def run(self, fd, stat_buf):
+        # NOTE: since file_path doesn't matter
+        return self.inline_call(stat, fd, stat_buf).ret_expr
+
+
+class fstatat(SimProcedure):
+    IS_SYSCALL = True
+
+    def run(self, dirfd, pathname, stat_buf, flags):
+        return self.inline_call(stat, pathname, stat_buf).ret_expr
+
+
+class newfstatat(SimProcedure):
+    IS_SYSCALL = True
+
+    def run(self, dirfd, pathname, stat_buf, flags):
+        return self.inline_call(stat, pathname, stat_buf).ret_expr
+
+
+class fcntl(SimProcedure):
+    ARGS_MISMATCH = True
+    IS_SYSCALL = True
+    def run(self, fd, cmd):
+        return self.state.se.BVS('fcntl', 32)
+
+
+class fadvise64(SimProcedure):
+    IS_SYSCALL = True
+    def run(self, fd, offset, len, advise):
+        return errno_success(self)
+
+
+class statfs(SimProcedure):
+    IS_SYSCALL = True
+    
+    def run(self, path, statfs_buf):
+        statfs_t(statfs_buf).store_all(self)
+        return errno_success(self)
+        
+
+class fstatfs(SimProcedure):
+    IS_SYSCALL = True
+
+    def run(self, fd, stat_buf):
+        return self.inline_call(statfs, fd, stat_buf).ret_expr
+
+
+class dup(SimProcedure):
+    IS_SYSCALL = True
+
+    def run(self, oldfd):
+        return self.state.se.BVS('dup', 32)
+
+
+class dup2(SimProcedure):
+    IS_SYSCALL = True
+
+    def run(self, oldfd, newfd):
+        return self.state.se.BVS('dup2', 32)
+
+
+class dup3(SimProcedure):
+    IS_SYSCALL = True
+
+    def run(self, oldfd, newfd, flags):
+        return self.state.se.BVS('dup3', 32)
+
+

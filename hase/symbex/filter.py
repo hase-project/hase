@@ -176,7 +176,7 @@ class FilterTrace():
         # NOTE: assume the hooked function should have return
         self.new_trace = []
         self.call_parent = defaultdict(lambda: None) # type: defaultdict
-        hooked_parent = None # last 2 unhooked
+        hooked_parent = None
         is_current_hooked = False
         # FIXME: seems dso object not always this one
         dso_sym = self.project.loader.find_symbol('_dl_find_dso_for_object')
@@ -214,6 +214,12 @@ class FilterTrace():
                                 cur_func = parent
                         else:
                             break
+                # at least when we get back to main object, it should be unhooked
+                if is_current_hooked and \
+                    not self.test_plt_vdso(event.ip) and \
+                    self.project.loader.find_object_containing(event.ip) == self.main_object:
+                    is_current_hooked = False
+                    hooked_parent = None
             else:
                 flg, fname = self.test_function_entry(event.ip)
                 if flg:                    

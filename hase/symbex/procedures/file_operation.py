@@ -7,6 +7,7 @@ from angr.procedures.stubs.format_parser import FormatParser
 from angr.errors import SimProcedureError
 from angr.storage.file import Flags
 
+from .syscall import stat, fstat, lstat
 
 # NOTE: if we hook one of the file operation, we need to hook all of these
 # Or the FILE struct will be inconsistent. But if we don't use them, angr's IO operations will have wrong branch
@@ -14,15 +15,6 @@ from angr.storage.file import Flags
 # freopen, openat, __fbufsize, __fpending, flushlbf, fpurge
 # vprintf, vfprintf, vsprintf, vsnprintf
 # TODO: maybe load concrete file?
-
-
-class openat(SimProcedure):
-    IS_SYSCALL = True
-
-    def run(self, dirfd, pathname, flags, mode=0644):
-        xopen = SIM_PROCEDURES['posix']['open']
-        # XXX: Actually name is useless, we just want to open a SimFile
-        return self.inline_call(xopen, pathname, flags, mode).ret_expr
 
 
 class ferror(SimProcedure):
@@ -82,73 +74,6 @@ class freopen(SimProcedure):
     INCOMPLETE = True
     def run(self, file_ptr, mode_ptr, stream_ptr):
         pass
-
-
-# FIXME: current angr stat is useless, posix.fstat is also not working
-# https://github.com/angr/angr/blob/d6f248d115dd9a7fcf6e1e3bf370e6ebce12a5dd/angr/procedures/linux_kernel/stat.py
-# https://github.com/angr/angr/blob/4549e20355c5a60c918ab5169753dd2d3c73e66d/angr/state_plugins/posix.py#L329
-class stat(SimProcedure):
-    IS_SYSCALL = True
-
-    def run(self, file_path, stat_buf):
-        # NOTE: make everything symbolic now
-        self._store_amd64(stat_buf)
-        return self.state.se.BVV(0, 64)
-
-    def _store_amd64(self, stat_buf):
-        store = lambda offset, sym, bits: self.state.memory.store(
-            stat_buf + offset,
-            self.state.se.BVS(sym, bits)
-        )
-        # https://code.woboq.org/userspace/glibc/sysdeps/unix/sysv/linux/x86/bits/stat.h.html#stat
-        store(0x00, "st_dev", 64)
-        store(0x08, "st_ino", 64)
-        store(0x10, "st_nlink", 64)
-        store(0x18, "st_mode", 32)
-        store(0x1c, "st_uid", 32)
-        store(0x20, "st_gid", 32)
-        store(0x24, "__pad0" ,32)
-        store(0x28, "st_rdev", 64)
-        store(0x30, "st_size", 64)
-        store(0x38, "st_blksize", 64)
-        store(0x40, "st_blocks", 64)
-        store(0x48, "st_atime", 64)
-        store(0x50, "st_atimensec", 64)
-        store(0x58, "st_mtime", 64)
-        store(0x60, "st_mtimensec", 64)
-        store(0x68, "st_ctime", 64)
-        store(0x70, "st_ctimensec", 64)
-        store(0x78, "glibc_reserved[3]", 64*3)
-
-
-class lstat(SimProcedure):
-    IS_SYSCALL = True
-
-    def run(self, file_path, stat_buf):
-        ret_expr = self.inline_call(stat, file_path, stat_buf).ret_expr
-        return ret_expr
-
-
-class fstat(SimProcedure):
-    IS_SYSCALL = True
-
-    def run(self, fd, stat_buf):
-        # NOTE: since file_path doesn't matter
-        return self.inline_call(stat, fd, stat_buf).ret_expr
-
-
-class fstatat(SimProcedure):
-    IS_SYSCALL = True
-
-    def run(self, dirfd, pathname, stat_buf, flags):
-        return self.inline_call(stat, pathname, stat_buf).ret_expr
-
-
-class newfstatat(SimProcedure):
-    IS_SYSCALL = True
-
-    def run(self, dirfd, pathname, stat_buf, flags):
-        return self.inline_call(stat, pathname, stat_buf).ret_expr
 
 
 # NOTE: posix extra
@@ -301,77 +226,14 @@ class __read_chk(SimProcedure):
         return self.inline_call(read, fd, buf, nbytes).ret_expr
 
 
-class fcntl(SimProcedure):
-    ARGS_MISMATCH = True
-    IS_SYSCALL = True
-    def run(self, fd, cmd):
-        return self.state.se.BVS('fcntl', 32)
-
-
 class posix_fadvise(SimProcedure):
     def run(self, fd, offset, len, advise):
-        return 0
+        return self.state.se.BVS('posiv_fadvise', 32)
 
 
-class fadvise64(SimProcedure):
-    IS_SYSCALL = True
-    def run(self, fd, offset, len, advise):
-        return 0
-
-
-class statfs(SimProcedure):
-    IS_SYSCALL = True
-    
-    def run(self, path, statfs_buf):
-        # NOTE: make everything symbolic now
-        self._store_amd64(statfs_buf)
-        return self.state.se.BVV(0, 64)
-
-    def _store_amd64(self, statfs_buf):
-        store = lambda offset, sym, bits: self.state.memory.store(
-            statfs_buf + offset,
-            self.state.se.BVS(sym, bits)
-        )
-        # https://code.woboq.org/userspace/glibc/sysdeps/unix/sysv/linux/bits/statfs.h.html#statfs
-        store(0x00, "f_type", 64)
-        store(0x08, "f_bsize", 64)
-        store(0x10, "f_blocks", 32)
-        store(0x14, "f_bfree", 32)
-        store(0x18, "f_bavail", 32)
-        store(0x1c, "f_files", 32)
-        store(0x20, "f_ffree" ,32)
-        store(0x28, "f_fsid", 64)
-        store(0x30, "f_namelen", 64)
-        store(0x38, "f_frsize", 64)
-        store(0x40, "f_flags", 64)
-        store(0x48, "f_spare[4]", 64 * 4)
-        
-
-class fstatfs(SimProcedure):
-    IS_SYSCALL = True
-
-    def run(self, fd, stat_buf):
-        return self.inline_call(statfs, fd, stat_buf).ret_expr
-
-
-class dup(SimProcedure):
-    IS_SYSCALL = True
-
-    def run(self, oldfd):
-        return self.state.se.BVS('dup', 32)
-
-
-class dup2(SimProcedure):
-    IS_SYSCALL = True
-
-    def run(self, oldfd, newfd):
-        return self.state.se.BVS('dup', 32)
-
-
-class dup3(SimProcedure):
-    IS_SYSCALL = True
-
-    def run(self, oldfd, newfd, flags):
-        return self.state.se.BVS('dup', 32)
+class getdelim(SimProcedure):
+    INCOMPLETE = True
+    def run(self, lineptr, n, delimiter, stream):
+        pass
 
 

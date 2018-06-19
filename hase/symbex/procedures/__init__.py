@@ -5,6 +5,7 @@ import group_operation
 import miscs
 import socket_operation
 import time_operation
+import syscall
 
 from collections import OrderedDict
 from typing import Dict
@@ -20,6 +21,7 @@ __all__ = [
     'miscs',
     'socket_operation',
     'time_operation',
+    'syscall',
 ]
 
 
@@ -73,6 +75,7 @@ add_alias(alias_symbols,
         'open', 'open64', 'openat', 'openat64',
         'read', 'write', 'close',
         'socket', 'gettext', 'dgettext', 'dcgettext',
+        'connect', 'getdelim',
     ],
     lambda s: '__' + s
 )
@@ -95,7 +98,7 @@ add_alias(alias_symbols, posix64_IO_symbols, lambda s: s + '64')
 
 nocancel_symbols = [
     'open', 'open64', 'openat', 'openat64',
-    'read', 'write', 'close'
+    'read', 'write', 'close', 'connect'
 ]
 add_alias(alias_symbols, nocancel_symbols, lambda s: '__' + s + '_nocancel')
 
