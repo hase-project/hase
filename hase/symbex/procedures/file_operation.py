@@ -8,6 +8,7 @@ from angr.errors import SimProcedureError
 from angr.storage.file import Flags
 
 from .syscall import stat, fstat, lstat
+from .helper import minmax
 
 # NOTE: if we hook one of the file operation, we need to hook all of these
 # Or the FILE struct will be inconsistent. But if we don't use them, angr's IO operations will have wrong branch
@@ -203,21 +204,32 @@ class __snprintf_chk(FormatParser):
     ARGS_MISMATCH = True
     # FIXME: check maxlen
     def run(self, dst_ptr, maxlen, flag, strlen):
-        fmt_str = self._parse(4)
-        out_str = fmt_str.replace(5, self.arg)
-        self.state.memory.store(dst_ptr, out_str)
-        self.state.memory.store(dst_ptr + (out_str.size() / 8), self.state.se.BVV(0, 8))
-        return self.state.se.BVV(out_str.size() / 8, self.state.arch.bits)
+        try:
+            fmt_str = self._parse(4)
+            out_str = fmt_str.replace(5, self.arg)
+            self.state.memory.store(dst_ptr, out_str)
+            self.state.memory.store(dst_ptr + (out_str.size() / 8), self.state.se.BVV(0, 8))
+            return self.state.se.BVV(out_str.size() / 8, self.state.arch.bits)
+        except:
+            if self.state.se.symbolic(maxlen):
+                l = minmax(self, maxlen, self.state.libc.max_buffer_size)
+            else:
+                l = self.state.se.eval(maxlen)
+            self.state.memory.store(dst_ptr, self.state.se.BVS('snprintf', l * 8))
+            return self.state.se.BVS('length', self.state.arch.bits)
 
 
 class __sprintf_chk(FormatParser):
     ARGS_MISMATCH = True
     def run(self, dst_ptr, flag, strlen):
+        '''
         fmt_str = self._parse(3)
         out_str = fmt_str.replace(4, self.arg)
         self.state.memory.store(dst_ptr, out_str)
         self.state.memory.store(dst_ptr + (out_str.size() / 8), self.state.se.BVV(0, 8))
         return self.state.se.BVV(out_str.size() / 8, self.state.arch.bits)
+        '''
+        return self.inline_call(__snprintf_chk, dst_ptr, self.state.libc.max_buffer_size, flag, strlen)
 
 
 class __read_chk(SimProcedure):
@@ -232,8 +244,17 @@ class posix_fadvise(SimProcedure):
 
 
 class getdelim(SimProcedure):
-    INCOMPLETE = True
     def run(self, lineptr, n, delimiter, stream):
-        pass
+        malloc = SIM_PROCEDURES['libc']['malloc']
+        # Actually a realloc(*lineptr, size)
+        a_addr = self.inline_call(malloc, self.state.libc.max_buffer_size).ret_expr
+        self.state.memory.store(a_addr, self.state.se.BVS('getdelim', self.state.libc.max_buffer_size * 8))
+        self.state.memory.store(lineptr, a_addr)
+        self.state.memory.store(n, self.state.se.BVS('getdelim', self.state.arch.bits))
+        return self.state.se.BVS('getdelim', self.state.arch.bits)
 
+
+class getline(SimProcedure):
+    def run(self, lineptr, n, stream):
+        return self.inline_call(getdelim, lineptr, n, '\n', stream).ret_expr
 

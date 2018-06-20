@@ -8,6 +8,7 @@ import struct
 import archinfo
 import claripy
 import gc
+import signal
 from capstone import x86_const
 from angr import sim_options as so
 from angr.state_plugins.sim_action import SimActionExit
@@ -16,6 +17,7 @@ from angr import SimState, SimProcedure, PointerWrapper, SIM_PROCEDURES
 from typing import List, Any, Dict, Tuple, Optional
 from pygdbmi.gdbcontroller import GdbController
 from collections import deque
+from memory_profiler import profile
 
 from ..perf import read_trace, Branch
 from ..pwn_wrapper import ELF, Coredump
@@ -28,6 +30,30 @@ from .filter import FilterTrace
 l = logging.getLogger("hase")
 
 ELF_MAGIC = b"\x7fELF"
+
+
+class HaseTimeoutException(Exception):
+    pass
+
+
+def timeout(seconds=10):
+    def wrapper(func):
+        original_handler = signal.getsignal(signal.SIGALRM)
+        def timeout_handler(signum, frame):
+            signal.signal(signal.SIGALRM, original_handler)
+            raise HaseTimeoutException("Timeout")
+        def inner(*args, **kwargs):
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(seconds)
+            try:
+                res = func(*args, **kwargs)
+            except:
+                raise
+            finally:
+                signal.alarm(0)
+            return res
+        return inner
+    return wrapper
 
 
 class CoredumpGDB():
@@ -347,8 +373,6 @@ class Tracer(object):
 
         self.use_callstate = True
 
-        # NOTE: weird, angr invokes SimMemoryAddressException when use concrete value to read
-        
         if self.use_callstate:
             self.start_state = self.project.factory.call_state(
                 start_address,
@@ -358,6 +382,9 @@ class Tracer(object):
                     so.TRACK_JMP_ACTIONS,
                     so.CONSERVATIVE_READ_STRATEGY,
                     so.CONSERVATIVE_WRITE_STRATEGY,
+                    so.BYPASS_UNSUPPORTED_IRCCALL,
+                    so.BYPASS_UNSUPPORTED_IRDIRTY,
+                    # so.DOWNSIZE_Z3,
                 ]),
                 remove_options=remove_simplications)
 
@@ -536,23 +563,40 @@ class Tracer(object):
             force_jump = self.repair_jump_ins(state, branch)
             self.repair_alloca_ins(state)
             addr = self.repair_ip(state)
+            is_interrupt = False
+            next_addr = None
+            if state.addr in self.skip_addr.keys():
+                state._ip = self.skip_addr[state.addr]
+                continue
             try:
                 step = self.project.factory.successors(
-                    state, 
+                    state,
                     num_inst=1,
                     force_addr=addr
                 )
-                step = self.repair_func_resolver(state, step)
-                if force_jump:
-                    new_state = state.copy()
-                    step.add_successor(
-                        new_state,
-                        branch.ip,
-                        state.se.true,
-                        'Ijk_Boring'
-                    )
             except KeyboardInterrupt:
-                raise Exception("Manually stop")
+                # NOTE: should have a timeout fallback
+                insns = state.block().capstone.insns
+                if state.addr != branch.addr and len(insns) > 1:
+                    is_interrupt = True
+                    next_addr = insns[1].address
+                    self.skip_addr[state.addr] = next_addr
+                else:
+                    import traceback
+                    traceback.print_exc()
+                    raise Exception("Manually stop")
+            if is_interrupt:
+                state._ip = next_addr
+                continue
+            step = self.repair_func_resolver(state, step)
+            if force_jump:
+                new_state = state.copy()
+                step.add_successor(
+                    new_state,
+                    branch.ip,
+                    state.se.true,
+                    'Ijk_Boring'
+                )
             # l.debug("0x%x", state.addr)
             all_choices = {
                 'sat': step.successors,
@@ -606,16 +650,20 @@ class Tracer(object):
                     raise Exception("Unable to continue")
             if not state.solver.satisfiable(): # type: ignore
                 sat_constraints = old_state.solver._solver.constraints
-                unsat_constraints = state.solver._solver.constraints
+                unsat_constraints = list(state.solver._solver.constraints)
                 sat_uuid = map(lambda c: c.uuid, sat_constraints)
                 for i, c in enumerate(unsat_constraints):
-                    if c.uuid in sat_uuid:
+                    if c.uuid not in sat_uuid:
                         unsat_constraints[i] = claripy.Not(c)
                 state.solver._solver._cached_satness = True
-                state.solver._solver.constraints = old_state.solver._solver.constraints
+                state.solver._solver.constraints = unsat_constraints
                 if not self.debug_unsat:
                     self.debug_sat = old_state
                     self.debug_unsat = state
+            for c in choices:
+                if c != state:
+                    c.downsize()
+                    del c
         print(choices, state, branch)
         raise Exception("Unable to continue")
 
@@ -641,11 +689,13 @@ class Tracer(object):
         states = []
         states.append(State(self.trace[0], simstate))
         self.debug_unsat = None
-        self.debug_state = deque(maxlen=40) # type: deque
+        self.debug_state = deque(maxlen=5) # type: deque
+        self.skip_addr = {}
         cnt = 0
         for event in self.trace[1:]:
             cnt += 1
             if not cnt % 500:
+                l.warning('Do a garbage collection')
                 gc.collect()
             l.debug("look for jump: 0x%x -> 0x%x" % (event.addr, event.ip))
             assert self.valid_address(event.addr) and self.valid_address(

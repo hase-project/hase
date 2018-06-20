@@ -57,12 +57,13 @@ class stpncpy(SimProcedure):
 class __memcpy_chk(SimProcedure):
     def run(self, dest, src, len, destlen):
         memcpy = SIM_PROCEDURES['libc']['memcpy']
-        return self.inline_call(memcpy, desr, src, len).ret_expr
+        return self.inline_call(memcpy, dest, src, len).ret_expr
 
 
 class __memmove_chk(SimProcedure):
     def run(self, dest, src, len, destlen):
-        return self.inline_call(memmove, dest, src, len).ret_expr
+        memcpy = SIM_PROCEDURES['libc']['memcpy']
+        return self.inline_call(memcpy, dest, src, len).ret_expr
 
 
 class __mempcpy_chk(SimProcedure):
@@ -102,6 +103,23 @@ class __strncpy_chk(SimProcedure):
     def run(self, s1, s2, n, s1len):
         strncpy = SIM_PROCEDURES['libc']['strncpy']
         return self.inline_call(strncpy, s1, s2, n).ret_expr
+
+
+'''
+class printf(FormatParser):
+    ARGS_MISMATCH = True
+    def run(self):
+        stdout = self.state.posix.get_fd(1)
+        if stdout is None:
+            return -1
+
+        fmt_str = self._parse(0)
+        if fmt_str:
+            for i, c in enumerate(fmt_str.components):
+                if c.spec_type == 'n':
+                    self.state.memory.store(self.args(i), self.state.se.BVS('format_%n', 32))
+        return self.state.se.BVS('printf', 32)
+'''
 
 
 class isalnum(SimProcedure):
@@ -232,3 +250,17 @@ class strncasecmp(SimProcedure):
 class strspn(SimProcedure):
     def run(self, str1, str2):
         return self.state.se.BVS('strspn', self.state.arch.bits)
+
+
+class memchr(SimProcedure):
+    def run(self, ptr, ch, count):
+        strchr = SIM_PROCEDURES['libc']['strchr']
+        ret_expr = self.inline_call(strchr, ptr, ch).ret_expr
+        return self.state.se.If(
+            'exceed_count',
+            ret_expr,
+            self.state.se.BVV(0, self.state.arch.bits)
+        )
+
+
+# TODO: add strrchr and memrchr?

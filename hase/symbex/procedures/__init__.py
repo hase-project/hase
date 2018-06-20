@@ -4,6 +4,7 @@ import memory_operation
 import group_operation
 import miscs
 import socket_operation
+import string_operation
 import time_operation
 import syscall
 
@@ -20,6 +21,7 @@ __all__ = [
     'group_operation',
     'miscs',
     'socket_operation',
+    'string_operation',
     'time_operation',
     'syscall',
 ]
