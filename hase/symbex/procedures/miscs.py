@@ -55,7 +55,18 @@ class sigaction(SimProcedure):
 # FIXME: do real things
 class atexit(SimProcedure):
     def run(self, func_ptr):
+        if not self.state.se.symbolic(func_ptr):
+            self.state.libc.exit_handler.append(self.state.se.eval(func_ptr))
         return self.state.se.BVV(0, self.state.arch.bits)
+
+
+class exit(SimProcedure):
+    def run(self, exit_code):
+        if len(self.state.libc.exit_handler):
+            func_addr = self.state.libc.exit_handler[0]
+            self.state._ip = func_addr
+        else:
+            self.exit(exit_code)
 
 
 class __cxa_atexit(SimProcedure):
@@ -65,7 +76,7 @@ class __cxa_atexit(SimProcedure):
 
 class gethostid(SimProcedure):
     def run(self):
-        return self.state.se.BVS('hostid', self.state.arch.bits)
+        return self.state.se.Unconstrained('hostid', self.state.arch.bits)
 
 
 class sethostid(SimProcedure):
@@ -98,4 +109,4 @@ class dcgettext(SimProcedure):
 # NOTE: this function is not recorded by ltrace? and cannot be resolved by angr
 class __sched_cpucount(SimProcedure):
     def run(self, setsize, setp):
-        return self.state.se.BVS('__sched_cpucount', 32)
+        return self.state.se.Unconstrained('__sched_cpucount', 32)

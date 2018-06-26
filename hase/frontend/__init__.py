@@ -49,10 +49,17 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.jupiter_widget.kernel_client = self.kernel_client
         self.jupiter_widget.reset()
 
+        self.file_cache = {}
+
     def slider_change(self):
         v = self.time_slider.value()
         addr = self.states[-(v+1)].address()
         self.set_location(self.addr_map[addr][0], self.addr_map[addr][1])
+        shell = self.kernel_client.kernel.shell
+        shell.active_state = self.states[-(v+1)]
+        user_ns = shell.user_ns
+        # user_ns['gdbs'].modify_active(len(self.states) - v - 1)
+        user_ns['active_state'] = shell.active_state
 
     def set_slider(self, addr_map, states):
         # type: (List[Union[str, int]], List[Any]) -> None
@@ -63,29 +70,28 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.time_slider.setTickPosition(QtWidgets.QSlider.TicksLeft)
         self.time_slider.setTickInterval(len(states) - 1)
         self.time_slider.valueChanged.connect(self.slider_change)
+        self.time_slider.setValue(0)
 
     def set_location(self, source_file, line):
         # type: (str, int) -> None
         if source_file != '??':
-            try:
-                lexer = pygments.lexers.get_lexer_for_filename(str(source_file))
-                formatter_opts = dict(
-                    linenos="inline", linespans="line", hl_lines=[line])
-                html_formatter = pygments.formatters.get_formatter_by_name(
-                    "html", **formatter_opts)
-                css = html_formatter.get_style_defs('.highlight')
-                # TODO: very slow to open file each time, pre-prepare tokens
-                with open(str(source_file)) as f:
-                    tokens = lexer.get_tokens(f.read())
-                source = pygments.format(tokens, html_formatter)
+            css, source = self.file_cache[source_file]
+            if css:
                 self.code_view.setHtml(code_template.format(css, source.encode('utf-8')))
                 self.code_view.scrollToAnchor("line-%d" % max(0, line - 10))
-            except:
+            else:
                 self.code_view.clear()
                 self.code_view.append("{}:{}".format(source_file, line))
         else:
             self.code_view.clear()
             self.code_view.append("Unresolved source code")
+
+    def set_variable(self):
+        shell = self.kernel_client.kernel.shell
+        user_ns = shell.user_ns
+        var = user_ns['gdbs'].read_variables()
+        for v in var:
+            self.var_view.addItem(v['name'])
 
     def setup_ipython(self, app, window):
         # type: (QtWidgets.QApplication, MainWindow) -> None
@@ -102,6 +108,23 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         config.TerminalIPythonApp.display_banner = ""
         from . import ipython_extension
         shell.extension_manager.load_extension(ipython_extension.__name__)
+
+    def cache_tokens(self, addr_map):
+        for filename, line in addr_map.values():
+            if filename != '??':
+                try:
+                    lexer = pygments.lexers.get_lexer_for_filename(str(filename))
+                    formatter_opts = dict(
+                        linenos="inline", linespans="line", hl_lines=[line])
+                    html_formatter = pygments.formatters.get_formatter_by_name(
+                        "html", **formatter_opts)
+                    css = html_formatter.get_style_defs('.highlight')
+                    with open(str(filename)) as f:
+                        tokens = lexer.get_tokens(f.read())
+                    source = pygments.format(tokens, html_formatter)
+                    self.file_cache[filename] = (css, source)
+                except:
+                    self.file_cache[filename] = (None, None)
 
     def clear_viewer(self):
         self.code_view.clear()

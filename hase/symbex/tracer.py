@@ -334,19 +334,20 @@ class Tracer(object):
                     event.ip == start or event.ip == main:
                 self.trace = trace[idx:]
 
+        add_options = {
+            so.TRACK_JMP_ACTIONS,
+            so.CONSERVATIVE_READ_STRATEGY,
+            so.CONSERVATIVE_WRITE_STRATEGY,
+            so.BYPASS_UNSUPPORTED_IRCCALL,
+            so.BYPASS_UNSUPPORTED_IRDIRTY,
+            # so.DOWNSIZE_Z3,
+        }
+
         remove_simplications = {
             so.LAZY_SOLVES, so.EFFICIENT_STATE_MERGING,
             so.TRACK_CONSTRAINT_ACTIONS,
-            so.ALL_FILES_EXIST,
+            # so.ALL_FILES_EXIST, # the problem is, when having this, simfd either None or exist, no If
         } | so.simplification
-
-        # workaround for main, should not be required in future
-        if self.trace[0].addr == 0 or self.trace[0].ip == main:
-            start_address = self.trace[0].ip
-        else:
-            start_address = self.trace[0].addr
-
-        assert start_address != 0
 
         self.cfg = self.project.analyses.CFGFast(
             show_progressbar=True
@@ -362,54 +363,58 @@ class Tracer(object):
             self.hooked_symbols = {}
             self.project._sim_procedures = {}
 
+        self.from_initial = False
+
         self.filter = FilterTrace(
             self.project, 
             self.cfg, 
             self.trace,
             self.hooked_symbols,
             self.cdanalyzer.gdb,
-            self.omitted_section
+            self.omitted_section,
+            self.from_initial,
+            self.elf.statically_linked,
         )
 
-        self.use_callstate = True
+        self.old_trace = self.trace
+        self.trace = self.filter.filtered_trace()
 
-        if self.use_callstate:
+        if self.from_initial or self.filter.start_idx == 0 or self.filter.start_idx == -len(self.old_trace):
+            # workaround for main, should not be required in future
+            if self.trace[0].addr == 0 or self.trace[0].ip == main:
+                start_address = self.trace[0].ip
+            else:
+                start_address = self.trace[0].addr
+        else:
+            start_address = self.trace[0].addr
+
+        assert start_address != 0
+        
+        if self.from_initial:
             self.start_state = self.project.factory.call_state(
                 start_address,
                 *args,
                 stack_base=rbp,
-                add_options=set([
-                    so.TRACK_JMP_ACTIONS,
-                    so.CONSERVATIVE_READ_STRATEGY,
-                    so.CONSERVATIVE_WRITE_STRATEGY,
-                    so.BYPASS_UNSUPPORTED_IRCCALL,
-                    so.BYPASS_UNSUPPORTED_IRDIRTY,
-                    # so.DOWNSIZE_Z3,
-                ]),
+                add_options=add_options,
                 remove_options=remove_simplications)
-
-            self.setup_argv()
         else:
             self.start_state = self.project.factory.blank_state(
-                add_options=set([
-                    so.TRACK_JMP_ACTIONS,
-                    so.CONSERVATIVE_READ_STRATEGY,
-                ]),
+                addr=start_address,
+                add_options=add_options,
                 remove_options=remove_simplications)
 
+        self.setup_argv()
         self.simgr = self.project.factory.simgr(
             self.start_state,
             save_unsat=True,
             hierarchy=False,
             save_unconstrained=True)
 
-        self.old_trace = self.trace
-        self.trace = self.filter.filtered_trace()
-
         # For debugging
         # self.project.pt = self
 
     def setup_argv(self):
+        # TODO: if argv is modified by users, this won't help
         args = self.cdanalyzer.call_argv('main')
         argv_addr = args[1]
         for i in range(len(self.coredump.argv)):
@@ -446,6 +451,19 @@ class Tracer(object):
         # NOTE: maybe better way is use prefix == 0xf2, 0xf3 (crc32 exception)
         ins_repr = first_ins.mnemonic
         return ins_repr.startswith('rep')
+
+    def repair_exit_handler(self, state, step):
+        artifacts = getattr(step, 'artifacts', None)
+        if artifacts and 'procedure' in artifacts.keys() \
+            and artifacts['name'] == 'exit':
+            if len(state.libc.exit_handler):
+                addr = state.libc.exit_handler[0]
+                step = self.project.factory.successors(
+                    state,
+                    num_inst=1,
+                    force_addr=addr
+                )
+        return step
 
     def repair_alloca_ins(self, state):
         # NOTE: alloca problem, focus on sub rsp, rax
@@ -536,6 +554,14 @@ class Tracer(object):
                 raise Exception("Cannot resolve function")
         return step
 
+    def last_match(self, choice, branch):
+        # if last trace is A -> A
+        if branch == self.trace[-1] and branch.addr == branch.ip:
+            if choice.addr == branch.addr and branch.addr == branch.ip:
+                l.debug("jump 0%x -> 0%x", choice.addr, choice.addr)
+                return True
+        return False
+
     def jump_match(self, old_state, choice, branch):
         if old_state.addr == branch.addr and choice.addr == branch.ip:
             l.debug("jump 0%x -> 0%x", old_state.addr, choice.addr)
@@ -589,6 +615,7 @@ class Tracer(object):
                 state._ip = next_addr
                 continue
             step = self.repair_func_resolver(state, step)
+            step = self.repair_exit_handler(state, step)
             if force_jump:
                 new_state = state.copy()
                 step.add_successor(
@@ -624,6 +651,8 @@ class Tracer(object):
             except:
                 pass
             for choice in choices:
+                if self.last_match(choice, branch):
+                    return choice
                 if old_state.addr == branch.addr:
                     if self.jump_match(old_state, choice, branch):
                         return choice
@@ -674,14 +703,15 @@ class Tracer(object):
     def constrain_registers(self, state):
         # type: (State) -> None
         # FIXME: if exception caught is omitted by hook?
-        assert state.registers['rip'].value == self.coredump.registers['rip']
-        registers = [
-            "gs", "rip", "rdx", "r15", "rax", "rsi", "rcx", "r14", "fs", "r12",
-            "r13", "r10", "r11", "rbx", "r8", "r9", "rbp", "eflags", "rdi"
-        ]
-        # TODO: constrain $rsp when we switch to CallState
-        for name in registers:
-            state.registers[name] = self.coredump.registers[name]
+        # If same address, then give registers
+        if state.registers['rip'].value == self.coredump.registers['rip']:
+            # don't give rbp, rsp
+            registers = [
+                "gs", "rip", "rdx", "r15", "rax", "rsi", "rcx", "r14", "fs", "r12",
+                "r13", "r10", "r11", "rbx", "r8", "r9", "eflags", "rdi"
+            ]
+            for name in registers:
+                state.registers[name] = self.coredump.registers[name]
 
     def run(self):
         # type: () -> List[State]
@@ -692,6 +722,9 @@ class Tracer(object):
         self.debug_state = deque(maxlen=5) # type: deque
         self.skip_addr = {}
         cnt = 0
+        interval = max(1, len(self.trace) // 1000)
+        length = len(self.trace) - 1
+        
         for event in self.trace[1:]:
             cnt += 1
             if not cnt % 500:
@@ -703,7 +736,8 @@ class Tracer(object):
             self.current_branch = event
             new_simstate = self.find_next_branch(simstate, event)
             simstate = new_simstate
-            states.append(State(event, new_simstate))
+            if cnt % interval == 0 or cnt == length:
+                states.append(State(event, new_simstate))
         self.constrain_registers(states[-1])
 
         return states

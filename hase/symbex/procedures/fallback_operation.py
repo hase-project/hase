@@ -15,13 +15,13 @@ def generate_run(lib, name, ret_size=32, ret_expr=None):
             if ret_expr:
                 return ret_expr
             else:
-                return proc.state.se.BVS(name, ret_size)
+                return proc.state.se.Unconstrained(name, ret_size)
     return func
 
 
 class atoi(SimProcedure):
     def run(self, s):
-        return self.state.se.BVS('atoi', 32)
+        return self.state.se.Unconstrained('atoi', 32)
 
 
 

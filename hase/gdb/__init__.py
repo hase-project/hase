@@ -14,6 +14,7 @@ from pygdbmi.gdbcontroller import GdbController
 from typing import Tuple, IO, Any, Optional
 
 from ..symbex.state import State
+from ..path import APP_ROOT
 
 logging.basicConfig()
 l = logging.getLogger(__name__)
@@ -33,14 +34,17 @@ class GdbRegSpace(object):
         # type: (str) -> str
         if name in ["cs", "ss", "ds", "es"]:
             return "xx"
-        reg = self.active_state.registers[name]
-        if reg.size == 32:
-            fmt = "<I"
-        elif reg.size == 64:
-            fmt = "<Q"
-        else:
-            raise Exception("Unsupported bit width %d" % reg.size)
-        return struct.pack(fmt, reg.value).encode("hex")
+        try:
+            reg = self.active_state.registers[name]
+            if reg.size == 32:
+                fmt = "<I"
+            elif reg.size == 64:
+                fmt = "<Q"
+            else:
+                raise Exception("Unsupported bit width %d" % reg.size)
+            return struct.pack(fmt, reg.value).encode("hex")
+        except:
+            return "xx" * 8
 
     def __setitem__(self, name, value):
         # type: (str, int) -> None
@@ -65,9 +69,6 @@ class GdbMemSpace(object):
     def __init__(self, active_state, cda):
         self.active_state = active_state
         self.cda = cda
-        self.stack_offset = self.cda.registers['rsp'] - self.active_state.registers['rsp'].value
-        self.stack_start = self.cda.stack_start - self.stack_offset
-        self.stack_stop = self.cda.stack_stop - self.stack_offset
 
     def __getitem__(self, addr):
         # type: (int) -> str
@@ -194,8 +195,8 @@ def compute_checksum(data):
 
 
 class GdbServer(object):
-    def __init__(self, active_state, binary, cda):
-        # type: (State, str, Any) -> None
+    def __init__(self, states, binary, cda, active_state=None):
+        # type: (State, str, Any, Optional[State]) -> None
         master, ptsname = create_pty()
         self.master = master
         self.COMMANDS = {
@@ -214,17 +215,48 @@ class GdbServer(object):
             '?': self.stop_reason,
             '!': self.extend_mode,
         }
-        self.active_state = active_state
+        self.states = states
+        self.active_state = active_state if active_state else states[-1]
         self.regs = GdbRegSpace(self.active_state)
         self.mem = GdbMemSpace(self.active_state, cda)
         self.packet_size = PAGESIZE
         self.libs = GdbSharedLibrary(self.active_state, self.packet_size)
-        self.gdb = GdbController()
+        self.gdb = GdbController(gdb_args=['--quiet', '--nx', '--interpreter=mi2'])
         self.gdb.write("-target-select remote %s" % ptsname, timeout_sec=10)
         self.thread = threading.Thread(target=self.run)
         self.thread.start()
 
-        self.gdb.write("-file-exec-and-symbols %s" % binary, timeout_sec=10)
+        self.gdb.write("-file-exec-and-symbols %s" % binary, timeout_sec=100)
+        self.gdb.write('set stack-cache off', timeout_sec=100)
+
+    def modify_active(self, idx):
+        self.active_state = self.states[idx]
+        self.regs.active_state = self.active_state
+        self.mem.active_state = self.active_state
+        self.libs.active_state = self.active_state
+        self.write_request('c')
+
+    def read_variables(self):
+        py_file = APP_ROOT.join("gdb/gdb_get_locals.py")
+        resp = self.write_request('python execfile (\"{}\")'.format(py_file))
+        res = []
+        for r in resp:
+            print(r)
+            if 'payload' in r.keys() and \
+                isinstance(r['payload'], unicode) and \
+                r['payload'].startswith('ARGS:'):
+                l = r['payload'].split(' ')
+                name = l[1]
+                tystr = l[2].replace('_', ' ')
+                idr = int(l[3])
+                addr = int(l[4].replace('\\n', ''), 16)
+                res.append({
+                    'name': name,
+                    'type': tystr,
+                    'indirect': idr,
+                    'addr': addr
+                })
+        return res
 
     def eval_expression(self, expr):
         # type: (str) -> None
@@ -260,16 +292,6 @@ class GdbServer(object):
             buf += data
             buf = self.process_data(buf)
 
-    @property
-    def active_state(self):
-        # type: () -> State
-        return self.state
-
-    @active_state.setter
-    def active_state(self, state):
-        # type: (State) -> None
-        self.state = state
-
     def process_data(self, buf):
         # type: (str) -> str
         while len(buf):
@@ -277,7 +299,8 @@ class GdbServer(object):
                 buf = buf[1:]
                 if len(buf) == 0:
                     return buf
-
+            if '$' not in buf:
+                return buf
             begin = buf.index("$") + 1
             end = buf.index("#")
             if begin >= 0 and end < len(buf):

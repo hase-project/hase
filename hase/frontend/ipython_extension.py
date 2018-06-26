@@ -150,8 +150,36 @@ class HaseMagics(Magics):
                             addr_map[i][0] = new_f
                 addr_map[k][0] = new_f
 
+        self.window.cache_tokens(addr_map)
+        self.window.set_slider(user_ns["addr_map"], user_ns["states"])
+        self.window.set_location(*addr_map[self.active_state.address()])
+        self.gdb_init('')
+
+    @args(info="USAGE: args")
+    @line_magic("args")
+    def variable(self, query):
+        user_ns = self.shell.user_ns
+        v = self.window.time_slider.value()
+        addr_map = user_ns['addr_map']
+        states = user_ns['states']
+        if addr_map[states[-(v+1)].address()][0] != '??':
+            self.window.set_variable()
+        else:
+            print("Cannot retrieve args on unresolvable source code")        
+
+    @args(info="USAGE: init")
+    @line_magic("init")
+    def gdb_init(self, query):
+        user_ns = self.shell.user_ns
+        if 'gdbs' in user_ns.keys():
+            user_ns['gdbs'].gdb.exit()
+        states = user_ns['states']
+        addr_map = user_ns['addr_map']
+        executable = user_ns['executable']
+        v = self.window.time_slider.value()
         user_ns["gdbs"] = gdb.GdbServer(
-            self.active_state, executable, user_ns["tracer"].cdanalyzer)
+            states, executable, 
+            user_ns["tracer"].cdanalyzer, states[-(v+1)])
         user_ns["gdbs"].write_request("dir {}".format(
             ':'.join([os.path.dirname(str(p)) for p, _ in addr_map.values()])
         ))
@@ -162,8 +190,12 @@ class HaseMagics(Magics):
             print("Loading: {}".format(libname))
             user_ns["gdbs"].write_request("sharedlibrary {}".format(libname))
 
-        self.window.set_slider(user_ns["addr_map"], user_ns["states"])
-        self.window.set_location(*addr_map[self.active_state.address()])
+    @args(info="USAGE: update")
+    @line_magic("update")
+    def gdb_update(self, query):
+        user_ns = self.shell.user_ns
+        v = self.window.time_slider.value()
+        user_ns['gdbs'].modify_active(len(self.window.states) - v - 1)
 
     @line_magic("p")
     def print_value(self, query):

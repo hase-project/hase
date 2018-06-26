@@ -23,7 +23,7 @@ class rt_sigprocmask(SimProcedure):
     def run(self, how, set, oldset):
         # TODO: do real signal registery?
         if not test_concrete_value(self, oldset, 0):
-            self.state.memory.store(oldset, self.state.se.BVS('oldset', 128 * 8))
+            self.state.memory.store(oldset, self.state.se.Unconstrained('oldset', 128 * 8))
         return errno_success(self)
             
 
@@ -43,7 +43,7 @@ class access(SimProcedure):
     IS_SYSCALL = True
 
     def run(self, pathname, mode):
-        return self.state.se.BVS("access", 32)
+        return self.state.se.Unconstrained("access", 32)
 
 
 class getgroups(SimProcedure):
@@ -51,7 +51,7 @@ class getgroups(SimProcedure):
 
     def run(self, size, list):
         # TODO: actually read groups to state
-        return self.state.se.BVS('getgroups', 32)
+        return self.state.se.Unconstrained('getgroups', 32)
 
 
 class setgroups(SimProcedure):
@@ -90,7 +90,7 @@ class getpriority(SimProcedure):
         calling process, the process group of the calling process, or the
         real user ID of the calling process.
         '''
-        return self.state.se.BVS('getpriority', 32)
+        return self.state.se.Unconstrained('getpriority', 32)
 
 
 class setpriority(SimProcedure):
@@ -129,7 +129,7 @@ class set_tid_address(SimProcedure):
     def run(self, tidptr):
         # Currently we have no multiple process
         # so no set_child_tid or clear_child_tid
-        return self.state.se.BVS('set_tid_address', 32)
+        return self.state.se.Unconstrained('set_tid_address', 32)
 
     
 class kill(SimProcedure):
@@ -202,14 +202,14 @@ class futex(SimProcedure):
 
     def run(self, uaddr, futex_op, val, timeout, uaddr2, val3):
         # do nothing
-        return self.state.se.BVS('futex', 32)
+        return self.state.se.Unconstrained('futex', 32)
 
 
 class readlink(SimProcedure):
     IS_SYSCALL = True
 
     def run(self, path, buf, bufsize):
-        self.state.memory.store(buf, self.state.se.BVS('readlink', bufsize * 8))
+        self.state.memory.store(buf, self.state.se.Unconstrained('readlink', bufsize * 8))
         return errno_success(self)
 
     
@@ -217,56 +217,56 @@ class alarm(SimProcedure):
     IS_SYSCALL = True
 
     def run(self, seconds):
-        return self.state.se.BVS('alarm', 32)
+        return self.state.se.Unconstrained('alarm', 32)
 
 
 class getpid(SimProcedure):
     IS_SYSCALL = True
 
     def run(self):
-        return self.state.se.BVS('getpid', 32)
+        return self.state.se.Unconstrained('getpid', 32)
 
 
 class getppid(SimProcedure):
     IS_SYSCALL = True
 
     def run(self):
-        return self.state.se.BVS('getppid', 32)
+        return self.state.se.Unconstrained('getppid', 32)
 
 
 class getgid(SimProcedure):
     IS_SYSCALL = True
 
     def run(self):
-        return self.state.se.BVS('getgid', 32)
+        return self.state.se.Unconstrained('getgid', 32)
 
 
 class getpgid(SimProcedure):
     IS_SYSCALL = True
 
     def run(self):
-        return self.state.se.BVS('getpgid', 32)
+        return self.state.se.Unconstrained('getpgid', 32)
 
 
 class getuid(SimProcedure):
     IS_SYSCALL = True
 
     def run(self):
-        return self.state.se.BVS('getuid', 32)
+        return self.state.se.Unconstrained('getuid', 32)
 
 
 class getgrp(SimProcedure):
     IS_SYSCALL = True
 
     def run(self):
-        return self.state.se.BVS('getgrp', 32)
+        return self.state.se.Unconstrained('getgrp', 32)
 
 
 class getpgrp(SimProcedure):
     IS_SYSCALL = True
 
     def run(self):
-        return self.state.se.BVS('getpgrp', 32)
+        return self.state.se.Unconstrained('getpgrp', 32)
 
 
 class ioctl(SimProcedure):
@@ -328,7 +328,7 @@ class fcntl(SimProcedure):
     ARGS_MISMATCH = True
     IS_SYSCALL = True
     def run(self, fd, cmd):
-        return self.state.se.BVS('fcntl', 32)
+        return self.state.se.Unconstrained('fcntl', 32)
 
 
 class fadvise64(SimProcedure):
@@ -356,20 +356,20 @@ class dup(SimProcedure):
     IS_SYSCALL = True
 
     def run(self, oldfd):
-        return self.state.se.BVS('dup', 32)
+        return self.state.se.Unconstrained('dup', 32)
 
 
 class dup2(SimProcedure):
     IS_SYSCALL = True
 
     def run(self, oldfd, newfd):
-        return self.state.se.BVS('dup2', 32)
+        return self.state.se.Unconstrained('dup2', 32)
 
 
 class dup3(SimProcedure):
     IS_SYSCALL = True
 
     def run(self, oldfd, newfd, flags):
-        return self.state.se.BVS('dup3', 32)
+        return self.state.se.Unconstrained('dup3', 32)
 
 

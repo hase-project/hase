@@ -37,7 +37,7 @@ class getlogin_r(SimProcedure):
                 size = minmax(self, namesize, self.state.libc.max_str_len)
             else:
                 size = self.state.se.eval(namesize)
-        self.state.memory.store(name, self.state.se.BVS('getlogin_r', size * 8))
+        self.state.memory.store(name, self.state.se.Unconstrained('getlogin_r', size * 8))
         return errno_success(self)
 
 
@@ -70,7 +70,7 @@ class getpwuid_r(SimProcedure):
                 size = minmax(self, bufsize, self.state.libc.max_str_len)
             else:
                 size = self.state.se.eval(bufsize)
-            self.state.memory.store(buffer, self.state.se.BVS('getpwuid_r', size * 8))
+            self.state.memory.store(buffer, self.state.se.Unconstrained('getpwuid_r', size * 8))
         if not test_concrete_value(self, result, 0):
             self.state.memory.store(result, pwd)
         return errno_success(self)

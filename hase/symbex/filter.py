@@ -69,13 +69,11 @@ class FilterBase(object):
 
 
 class FilterTrace():
-    def __init__(self, project, cfg, trace, hooked_symbol, gdb, omitted_section):
-        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], Any, List[List[Int]]) -> None
-        # FIXME: super cannot work for reload
-        # super(FilterTrace, self).__init__(project, cfg, trace, hooked_symbol)
+    def __init__(self, project, cfg, trace, \
+        hooked_symbol, gdb, omitted_section, \
+        from_initial, static_link):
+        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], Any, List[List[Int]], Bool, Bool) -> None
         self.project = project
-        # FIXME: actually a copy should be better to preserve unhooked state
-        # however, cfg.copy() don't copy kb...
         self.main_cfg = cfg
         self.main_object = project.loader.main_object
         self.trace = trace
@@ -84,6 +82,8 @@ class FilterTrace():
         self.gdb = gdb
         self.omitted_section = omitted_section # type: List[List[int, int]]
         self.analyze_unsupported()
+        self.from_initial = from_initial
+        self.static_link = static_link
 
         self.hooked_symname = self.hooked_symbol.keys()
         self.callgraph = self.main_cfg.kb.functions.callgraph
@@ -171,17 +171,33 @@ class FilterTrace():
             return True, symname
         return False, ''
 
+    def analyze_start(self, least_reserve=2000):
+        start_idx = 0
+        self.start_idx = start_idx
+        if len(self.trace) < least_reserve or self.from_initial:
+            return self.trace, 0
+        for idx in range(-least_reserve, -len(self.trace) - 1, -1):
+            event = self.trace[idx]
+            if not self.test_plt_vdso(event.addr):
+                func = self.find_function(event.addr)
+                if func and func.name == 'main':
+                    start_idx = idx
+                    break
+        self.start_idx = start_idx
+        return self.trace[start_idx:], start_idx
+
     def analyze_trace(self):
         # type: () -> None
         # NOTE: assume the hooked function should have return
         self.new_trace = []
         self.call_parent = defaultdict(lambda: None) # type: defaultdict
+        cut_trace, _ = self.analyze_start()
         hooked_parent = None
         is_current_hooked = False
         # FIXME: seems dso object not always this one
         dso_sym = self.project.loader.find_symbol('_dl_find_dso_for_object')
         plt_sym = None
-        for event in self.trace:
+        for event in cut_trace:
             present = True
             if self.test_plt_vdso(event.addr) or \
                 self.test_ld(event.addr) or \
@@ -214,12 +230,14 @@ class FilterTrace():
                                 cur_func = parent
                         else:
                             break
-                # at least when we get back to main object, it should be unhooked
-                if is_current_hooked and \
-                    not self.test_plt_vdso(event.ip) and \
-                    self.project.loader.find_object_containing(event.ip) == self.main_object:
-                    is_current_hooked = False
-                    hooked_parent = None
+                # At least when we get back to main object, it should be unhooked
+                # NOTE: that doesn't work for static compiled object
+                if not self.static_link:
+                    if is_current_hooked and \
+                        not self.test_plt_vdso(event.ip) and \
+                        self.project.loader.find_object_containing(event.ip) == self.main_object:
+                        is_current_hooked = False
+                        hooked_parent = None
             else:
                 flg, fname = self.test_function_entry(event.ip)
                 if flg:                    
