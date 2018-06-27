@@ -155,17 +155,20 @@ class HaseMagics(Magics):
         self.window.set_location(*addr_map[self.active_state.address()])
         self.gdb_init('')
 
-    @args(info="USAGE: args")
-    @line_magic("args")
-    def variable(self, query):
+    @args(info="USAGE: info")
+    @line_magic("info")
+    def gdb_information(self, query):
+        self.gdb_update('')
         user_ns = self.shell.user_ns
         v = self.window.time_slider.value()
         addr_map = user_ns['addr_map']
         states = user_ns['states']
+        self.window.set_regs()
         if addr_map[states[-(v+1)].address()][0] != '??':
+            user_ns['gdbs'].write_request('bt')
             self.window.set_variable()
         else:
-            print("Cannot retrieve args on unresolvable source code")        
+            print("Cannot retrieve variables on unresolvable source code")        
 
     @args(info="USAGE: init")
     @line_magic("init")

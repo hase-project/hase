@@ -327,7 +327,7 @@ class Tracer(object):
         rbp = self.cdanalyzer.frame_rbp('main')
 
         if not rbp:
-            rbp = 0x7fffffffcf00
+            rbp = 0x7ffffffcf00
 
         for (idx, event) in enumerate(self.trace):
             if event.addr == start or event.addr == main or \
@@ -402,6 +402,7 @@ class Tracer(object):
                 addr=start_address,
                 add_options=add_options,
                 remove_options=remove_simplications)
+            self.start_state.regs.rbp = rbp
 
         self.setup_argv()
         self.simgr = self.project.factory.simgr(

@@ -4,6 +4,8 @@ import sys
 import logging
 from PyQt5 import QtWidgets
 from PyQt5.uic import loadUiType
+from PyQt5.QtGui import QTextCursor
+from PyQt5.QtWidgets import QTableWidgetItem, QAbstractScrollArea
 import pygments
 import pygments.lexers
 import pygments.formatters
@@ -49,17 +51,24 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.jupiter_widget.kernel_client = self.kernel_client
         self.jupiter_widget.reset()
 
+        self.var_view.setColumnCount(4)
+        self.var_view.setHorizontalHeaderLabels(['Name', 'Type', 'Address', 'Value'])
+        self.var_view.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+        self.reg_view.setColumnCount(2)
+        self.reg_view.setHorizontalHeaderLabels(['Name', 'Value'])
+        self.reg_view.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+
         self.file_cache = {}
 
     def slider_change(self):
         v = self.time_slider.value()
         addr = self.states[-(v+1)].address()
-        self.set_location(self.addr_map[addr][0], self.addr_map[addr][1])
         shell = self.kernel_client.kernel.shell
         shell.active_state = self.states[-(v+1)]
         user_ns = shell.user_ns
         # user_ns['gdbs'].modify_active(len(self.states) - v - 1)
         user_ns['active_state'] = shell.active_state
+        self.set_location(self.addr_map[addr][0], self.addr_map[addr][1])
 
     def set_slider(self, addr_map, states):
         # type: (List[Union[str, int]], List[Any]) -> None
@@ -74,10 +83,19 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
     def set_location(self, source_file, line):
         # type: (str, int) -> None
+        user_ns = shell.user_ns
+        active_state = user_ns['active_state']
+        insns = active_state.simstate.block().capstone.insns
         if source_file != '??':
-            css, source = self.file_cache[source_file]
+            css, source = self.file_cache[source_file][line]
+            shell = self.kernel_client.kernel.shell
             if css:
                 self.code_view.setHtml(code_template.format(css, source.encode('utf-8')))
+                cursor = self.code_view.textCursor()
+                cursor.movePosition(QTextCursor.Start)
+                cursor.movePosition(QTextCursor.Down, n=line - 1)
+                cursor.movePosition(QTextCursor.EndOfLine)
+                cursor.insertText('\t' + str(insns[0]))
                 self.code_view.scrollToAnchor("line-%d" % max(0, line - 10))
             else:
                 self.code_view.clear()
@@ -85,13 +103,71 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         else:
             self.code_view.clear()
             self.code_view.append("Unresolved source code")
+            for insn in insns:
+                self.code_view.append('\t' + str(insn))
 
     def set_variable(self):
         shell = self.kernel_client.kernel.shell
         user_ns = shell.user_ns
         var = user_ns['gdbs'].read_variables()
-        for v in var:
-            self.var_view.addItem(v['name'])
+        self.var_view.setRowCount(0)
+        self.var_view.setRowCount(len(var))
+        for i, v in enumerate(var):
+            name_item = QTableWidgetItem()
+            name_item.setText(v['name'])
+            self.var_view.setItem(i, 0, name_item)
+            type_item = QTableWidgetItem()
+            type_item.setText(v['type'].strip() + ' ' + '*' * v['indirect'])
+            self.var_view.setItem(i, 1, type_item)
+            addr_item = QTableWidgetItem()
+            addr_item.setText(hex(v['addr']))
+            self.var_view.setItem(i, 2, addr_item)            
+            value_item = QTableWidgetItem()
+            value_item.setText(repr(
+                user_ns['active_state'].simstate.memory.load(
+                    v['addr'], v['size'], endness='Iend_LE')))
+            self.var_view.setItem(i, 3, value_item)
+        self.var_view.resizeColumnsToContents()        
+
+    def set_regs(self):
+        shell = self.kernel_client.kernel.shell
+        user_ns = shell.user_ns
+        active_state = user_ns['active_state']
+        insns = active_state.simstate.block().capstone.insns
+        insn = insns[0].insn
+        self.reg_view.setRowCount(0)
+        for op in insn.operands:
+            # OP_REG
+            if op.type == 1:
+                rname = insn.reg_name(op.value.reg)
+                rname_item = QTableWidgetItem()
+                rname_item.setText(rname)
+                value_item = QTableWidgetItem()
+                value_item.setText(repr(getattr(active_state.simstate.regs, rname)))
+                self.reg_view.insertRow(self.reg_view.rowCount())
+                self.reg_view.setItem(self.reg_view.rowCount() - 1, 0, rname_item)
+                self.reg_view.setItem(self.reg_view.rowCount() - 1, 1, value_item)
+            # OP_MEM
+            elif op.type == 3:
+                if op.value.mem.base:
+                    rname = insn.reg_name(op.value.mem.base)
+                    rname_item = QTableWidgetItem()
+                    rname_item.setText(rname)
+                    value_item = QTableWidgetItem()
+                    value_item.setText(repr(getattr(active_state.simstate.regs, rname)))
+                    self.reg_view.insertRow(self.reg_view.rowCount())
+                    self.reg_view.setItem(self.reg_view.rowCount() - 1, 0, rname_item)
+                    self.reg_view.setItem(self.reg_view.rowCount() - 1, 1, value_item)
+                if op.value.mem.index:
+                    rname = insn.reg_name(op.value.mem.index)
+                    rname_item = QTableWidgetItem()
+                    rname_item.setText(rname)
+                    value_item = QTableWidgetItem()
+                    value_item.setText(repr(getattr(active_state.simstate.regs, rname)))
+                    self.reg_view.insertRow(self.reg_view.rowCount())
+                    self.reg_view.setItem(self.reg_view.rowCount() - 1, 0, rname_item)
+                    self.reg_view.setItem(self.reg_view.rowCount() - 1, 1, value_item)
+        self.reg_view.resizeColumnsToContents()        
 
     def setup_ipython(self, app, window):
         # type: (QtWidgets.QApplication, MainWindow) -> None
@@ -112,6 +188,8 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
     def cache_tokens(self, addr_map):
         for filename, line in addr_map.values():
             if filename != '??':
+                if filename not in self.file_cache.keys():
+                    self.file_cache[filename] = {}
                 try:
                     lexer = pygments.lexers.get_lexer_for_filename(str(filename))
                     formatter_opts = dict(
@@ -122,9 +200,9 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                     with open(str(filename)) as f:
                         tokens = lexer.get_tokens(f.read())
                     source = pygments.format(tokens, html_formatter)
-                    self.file_cache[filename] = (css, source)
+                    self.file_cache[filename][line] = (css, source)
                 except:
-                    self.file_cache[filename] = (None, None)
+                    self.file_cache[filename][line] = (None, None)
 
     def clear_viewer(self):
         self.code_view.clear()
