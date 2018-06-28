@@ -23,7 +23,7 @@ from ..perf import read_trace, Branch
 from ..pwn_wrapper import ELF, Coredump
 from ..mapping import Mapping
 
-from .state import State
+from .state import State, StateManager
 from .hook import all_hookable_symbols, addr_symbols
 from .filter import FilterTrace
 
@@ -56,8 +56,7 @@ def timeout(seconds=10):
     return wrapper
 
 
-class CoredumpGDB():
-        
+class CoredumpGDB():        
     def __init__(self, elf, coredump):
         self.coredump = coredump
         self.elf = elf
@@ -172,14 +171,18 @@ class CoredumpGDB():
         resp = self.write_request("info symbol {}".format(addr))
         return resp[1]['payload']
 
-    def get_rbp(self, n):
-        # type: (int) -> int
-        resp = self.write_request("info frame {}".format(n))
-        idx = resp[8]['payload'].find('rbp at')
-        if idx == -1:
+    def get_reg(self, reg_name):
+        resp = self.write_request("info reg {}".format(reg_name))
+        if len(resp) < 5 or not resp[2]['payload'].startswith('\\t'):
             return 0
-        value = int(resp[8]['payload'][idx+7:].partition(',')[0], 16)
-        return value
+        return int(resp[2]['payload'][2:], 16)   
+
+    def get_stack_base(self, n):
+        # type: (int) -> Tuple[int, int]
+        self.write_request("select-frame {}".format(n))
+        rsp_value = self.get_reg('rsp')
+        rbp_value = self.get_reg('rbp')
+        return rsp_value, rbp_value
 
     def get_func_range(self, name):
         # type: (str) -> List[int]
@@ -250,10 +253,10 @@ class CoredumpAnalyzer():
                 return args
         raise Exception("Unknown function {} in backtrace".format(name))
 
-    def frame_rbp(self, name):
+    def stack_base(self, name):
         for bt in self.backtrace:
             if bt['func'] == name:
-                return self.gdb.get_rbp(int(bt['index']))
+                return self.gdb.get_stack_base(int(bt['index']))
 
 
 def build_load_options(mappings):
@@ -324,10 +327,12 @@ class Tracer(object):
         # NOTE: gdb sometimes take this wrong
         args[0] = self.coredump.argc
 
-        rbp = self.cdanalyzer.frame_rbp('main')
+        rsp, rbp = self.cdanalyzer.stack_base('main')
 
         if not rbp:
             rbp = 0x7ffffffcf00
+        if not rsp:
+            rsp = 0x7ffffffcf00
 
         for (idx, event) in enumerate(self.trace):
             if event.addr == start or event.addr == main or \
@@ -354,7 +359,7 @@ class Tracer(object):
         )
 
         self.use_hook = True
-        self.omitted_section = []
+        self.omitted_section = [] # type: List[List[int]]
 
         if self.use_hook:
             self.hooked_symbols = all_hookable_symbols.copy()
@@ -390,19 +395,22 @@ class Tracer(object):
 
         assert start_address != 0
         
-        if self.from_initial:
+        if self.from_initial or self.filter.start_idx == 0 or self.filter.start_idx == -len(self.old_trace):
             self.start_state = self.project.factory.call_state(
                 start_address,
                 *args,
-                stack_base=rbp,
                 add_options=add_options,
                 remove_options=remove_simplications)
+                # from main entry, then push rbp, mov rbp, rsp, sub rsp, n
+            self.start_state.regs.rsp = rbp + 8
         else:
             self.start_state = self.project.factory.blank_state(
                 addr=start_address,
                 add_options=add_options,
                 remove_options=remove_simplications)
+            self.start_state.regs.rsp = rsp
             self.start_state.regs.rbp = rbp
+
 
         self.setup_argv()
         self.simgr = self.project.factory.simgr(
@@ -653,10 +661,10 @@ class Tracer(object):
                 pass
             for choice in choices:
                 if self.last_match(choice, branch):
-                    return choice
+                    return choice, choice
                 if old_state.addr == branch.addr:
                     if self.jump_match(old_state, choice, branch):
-                        return choice
+                        return old_state, choice
             # NOTE: need to consider repz here, if repz repeats for less than N times, 
             # then, it should still be on sat path
             if self.test_rep_ins(state):
@@ -687,7 +695,7 @@ class Tracer(object):
                         unsat_constraints[i] = claripy.Not(c)
                 state.solver._solver._cached_satness = True
                 state.solver._solver.constraints = unsat_constraints
-                if not self.debug_unsat:
+                if not self.debug_unsat: # type: ignore
                     self.debug_sat = old_state
                     self.debug_unsat = state
             for c in choices:
@@ -715,15 +723,15 @@ class Tracer(object):
                 state.registers[name] = self.coredump.registers[name]
 
     def run(self):
-        # type: () -> List[State]
+        # type: () -> StateManager
         simstate = self.simgr.active[0]
-        states = []
-        states.append(State(self.trace[0], simstate))
-        self.debug_unsat = None
+        states = StateManager(len(self.trace))
+        states.add(State(0, self.trace[0], None, simstate))
+        self.debug_unsat = None # type: Optional[SimState]
         self.debug_state = deque(maxlen=5) # type: deque
-        self.skip_addr = {}
+        self.skip_addr = {} # type: Dict[int, int]
         cnt = 0
-        interval = max(1, len(self.trace) // 1000)
+        interval = max(1, len(self.trace) // 1500)
         length = len(self.trace) - 1
         
         for event in self.trace[1:]:
@@ -735,10 +743,10 @@ class Tracer(object):
             assert self.valid_address(event.addr) and self.valid_address(
                 event.ip)
             self.current_branch = event
-            new_simstate = self.find_next_branch(simstate, event)
+            old_simstate, new_simstate = self.find_next_branch(simstate, event)
             simstate = new_simstate
-            if cnt % interval == 0 or cnt == length:
-                states.append(State(event, new_simstate))
+            if cnt % interval == 0 or length - cnt < 150:
+                states.add(State(cnt, event, old_simstate, new_simstate))
         self.constrain_registers(states[-1])
 
         return states

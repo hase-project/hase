@@ -216,9 +216,21 @@ class HaseMagics(Magics):
 
     @args(comp=op_restrict(1), info="USAGE: gdb ...")
     @line_magic("gdb")
-    def gdb(self, query):
+    def gdb_angr(self, query):
         try:
             resp = self.shell.user_ns['gdbs'].write_request(query)
+            for r in resp:
+                if r['payload']:
+                    print(r['payload'].replace('\\n', '\n').replace(
+                        '\\t', '\t'))
+        except Exception:
+            pass
+
+    @args(comp=op_restrict(1), info="USAGE: gdb-core ...")
+    @line_magic("gdb-core")
+    def gdb_core(self, query):
+        try:
+            resp = self.shell.user_ns['tracer'].cdanalyzer.gdb.write_request(query)
             for r in resp:
                 if r['payload']:
                     print(r['payload'].replace('\\n', '\n').replace(

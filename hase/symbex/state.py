@@ -1,4 +1,5 @@
 from __future__ import absolute_import, division, print_function
+import bisect
 from angr import SimState
 from cle import ELF
 from typing import Dict, Tuple, Optional, List, Union, Any
@@ -57,10 +58,13 @@ class Memory(object):
 
 
 class State(object):
-    def __init__(self, branch, simstate):
-        # type: (Branch, SimState) -> None
+    def __init__(self, index, branch, from_simstate, to_simstate):
+        # type: (int, Branch, SimState, SimState) -> None
+        self.index = index
         self.branch = branch
-        self.simstate = simstate
+        self.from_simstate = from_simstate
+        self.to_simstate = to_simstate
+        self.simstate = to_simstate
 
     def eval(self, expression):
         # type: (BV) -> Any
@@ -101,3 +105,23 @@ class State(object):
         a = Addr2line()
         a.add_addr(obj, self.simstate.addr)
         return a.compute()[self.simstate.addr]
+
+
+class StateManager(object):
+    def __init__(self, length):
+        self.index_to_state = [None] * length
+        self.ordered_index = []
+    
+    def add(self, state):
+        self.index_to_state[state.index] = state
+        bisect.insort_left(self.ordered_index, state.index)
+    
+    def __getitem__(self, index):
+        pos = bisect.bisect_left(self.ordered_index, index)
+        if self.ordered_index[pos] == index:
+            return self.index_to_state[index]
+        else:
+            # TODO: recompute from last
+            start_pos = self.ordered_index[pos]
+            start_state = self.index_to_state[start_pos]
+            return None

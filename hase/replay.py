@@ -7,7 +7,7 @@ import shutil
 import sys
 from typing import List, Any, Dict
 
-from .symbex.tracer import Tracer, State
+from .symbex.tracer import Tracer, State, StateManager
 from .mapping import Mapping
 from .path import Tempdir
 
@@ -41,7 +41,7 @@ class Replay(object):
             executable_root=str(self.tempdir.join("binaries")))
 
     def run(self):
-        # type: () -> List[State]
+        # type: () -> StateManager
         if not self.tracer:
             self.prepare_tracer()
         return self.tracer.run()
@@ -86,7 +86,7 @@ def replay_trace(report):
 
 
 def replay_command(args):
-    # type: (argparse.Namespace) -> List[State]
+    # type: (argparse.Namespace) -> StateManager
     with replay_trace(args.report) as rt:
         return rt.run()
 

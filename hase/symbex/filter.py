@@ -72,7 +72,7 @@ class FilterTrace():
     def __init__(self, project, cfg, trace, \
         hooked_symbol, gdb, omitted_section, \
         from_initial, static_link):
-        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], Any, List[List[Int]], Bool, Bool) -> None
+        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], Any, List[List[int]], bool, bool) -> None
         self.project = project
         self.main_cfg = cfg
         self.main_object = project.loader.main_object
@@ -80,7 +80,7 @@ class FilterTrace():
         self.hooked_symbol = hooked_symbol
         self.new_trace = [] # type: List[Branch]
         self.gdb = gdb
-        self.omitted_section = omitted_section # type: List[List[int, int]]
+        self.omitted_section = omitted_section # type: List[List[int]]
         self.analyze_unsupported()
         self.from_initial = from_initial
         self.static_link = static_link

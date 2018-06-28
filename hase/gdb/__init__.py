@@ -13,7 +13,7 @@ import xml.etree.ElementTree as ET
 from pygdbmi.gdbcontroller import GdbController
 from typing import Tuple, IO, Any, Optional
 
-from ..symbex.state import State
+from ..symbex.state import State, StateManager
 from ..path import APP_ROOT
 
 logging.basicConfig()
@@ -196,7 +196,7 @@ def compute_checksum(data):
 
 class GdbServer(object):
     def __init__(self, states, binary, cda, active_state=None):
-        # type: (State, str, Any, Optional[State]) -> None
+        # type: (StateManager, str, Any, Optional[State]) -> None
         master, ptsname = create_pty()
         self.master = master
         self.COMMANDS = {
@@ -241,7 +241,6 @@ class GdbServer(object):
         resp = self.write_request('python execfile (\"{}\")'.format(py_file))
         res = []
         for r in resp:
-            print(r)
             if 'payload' in r.keys() and \
                 isinstance(r['payload'], unicode) and \
                 r['payload'].startswith('ARGS:'):

@@ -53,12 +53,21 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
         self.var_view.setColumnCount(4)
         self.var_view.setHorizontalHeaderLabels(['Name', 'Type', 'Address', 'Value'])
-        self.var_view.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+        # self.var_view.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
         self.reg_view.setColumnCount(2)
         self.reg_view.setHorizontalHeaderLabels(['Name', 'Value'])
-        self.reg_view.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+        # self.reg_view.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
 
         self.file_cache = {}
+
+    def eval_value(self, active_state, value):
+        if value.uninitialized:
+            return 'uninitialized'
+        try:
+            v = hex(active_state.simstate.se.eval(value))
+        except:
+            v = 'symbolic'
+        return v
 
     def slider_change(self):
         v = self.time_slider.value()
@@ -83,12 +92,12 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
     def set_location(self, source_file, line):
         # type: (str, int) -> None
+        shell = self.kernel_client.kernel.shell
         user_ns = shell.user_ns
         active_state = user_ns['active_state']
         insns = active_state.simstate.block().capstone.insns
         if source_file != '??':
             css, source = self.file_cache[source_file][line]
-            shell = self.kernel_client.kernel.shell
             if css:
                 self.code_view.setHtml(code_template.format(css, source.encode('utf-8')))
                 cursor = self.code_view.textCursor()
@@ -123,7 +132,8 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             addr_item.setText(hex(v['addr']))
             self.var_view.setItem(i, 2, addr_item)            
             value_item = QTableWidgetItem()
-            value_item.setText(repr(
+            value_item.setText(self.eval_value(
+                user_ns['active_state'],
                 user_ns['active_state'].simstate.memory.load(
                     v['addr'], v['size'], endness='Iend_LE')))
             self.var_view.setItem(i, 3, value_item)
@@ -143,7 +153,9 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                 rname_item = QTableWidgetItem()
                 rname_item.setText(rname)
                 value_item = QTableWidgetItem()
-                value_item.setText(repr(getattr(active_state.simstate.regs, rname)))
+                value_item.setText(self.eval_value(
+                    active_state,
+                    getattr(active_state.simstate.regs, rname)))
                 self.reg_view.insertRow(self.reg_view.rowCount())
                 self.reg_view.setItem(self.reg_view.rowCount() - 1, 0, rname_item)
                 self.reg_view.setItem(self.reg_view.rowCount() - 1, 1, value_item)
@@ -154,7 +166,9 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                     rname_item = QTableWidgetItem()
                     rname_item.setText(rname)
                     value_item = QTableWidgetItem()
-                    value_item.setText(repr(getattr(active_state.simstate.regs, rname)))
+                    value_item.setText(self.eval_value(
+                        active_state,
+                        getattr(active_state.simstate.regs, rname)))
                     self.reg_view.insertRow(self.reg_view.rowCount())
                     self.reg_view.setItem(self.reg_view.rowCount() - 1, 0, rname_item)
                     self.reg_view.setItem(self.reg_view.rowCount() - 1, 1, value_item)
@@ -163,7 +177,9 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                     rname_item = QTableWidgetItem()
                     rname_item.setText(rname)
                     value_item = QTableWidgetItem()
-                    value_item.setText(repr(getattr(active_state.simstate.regs, rname)))
+                    value_item.setText(self.eval_value(
+                        active_state,
+                        getattr(active_state.simstate.regs, rname)))
                     self.reg_view.insertRow(self.reg_view.rowCount())
                     self.reg_view.setItem(self.reg_view.rowCount() - 1, 0, rname_item)
                     self.reg_view.setItem(self.reg_view.rowCount() - 1, 1, value_item)

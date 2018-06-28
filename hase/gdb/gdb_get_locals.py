@@ -1,9 +1,11 @@
 import gdb # pylint: disable=E0401
 import sys
 
+from typing import List, Any
+
 frame = gdb.selected_frame()
 blk = frame.block()
-res = []
+res = [] # type: List[Any]
 while not blk.is_global and not blk.is_static:
     res += [(s.name, s.type, s.value) for s in blk]
     blk = blk.superblock
