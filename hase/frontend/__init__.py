@@ -4,7 +4,8 @@ import sys
 import logging
 from PyQt5 import QtWidgets
 from PyQt5.uic import loadUiType
-from PyQt5.QtGui import QTextCursor
+from PyQt5.QtCore import QSize
+from PyQt5.QtGui import QTextCursor, QIcon, QPixmap
 from PyQt5.QtWidgets import QTableWidgetItem, QAbstractScrollArea
 import pygments
 import pygments.lexers
@@ -14,7 +15,6 @@ from typing import Tuple, Any, List, Union
 
 from ..path import APP_ROOT
 from ..record import DEFAULT_LOG_DIR
-
 
 EXIT_NORMAL = 0
 EXIT_REBOOT = 1
@@ -58,6 +58,26 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.reg_view.setHorizontalHeaderLabels(['Name', 'Value'])
         # self.reg_view.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
 
+        self.up_button.setIcon(QIcon(str(APP_ROOT.join('frontend/icon/up.png'))))
+        self.up_button.setIconSize(QSize(15, 15))
+        self.up_button.clicked.connect(self.push_up)
+        self.up_button.setEnabled(False)
+        
+        self.upto_button.setIcon(QIcon(str(APP_ROOT.join('frontend/icon/upto.png'))))
+        self.upto_button.setIconSize(QSize(15, 15))
+        self.upto_button.clicked.connect(self.push_upto)
+        self.upto_button.setEnabled(False)
+        
+        self.down_button.setIcon(QIcon(str(APP_ROOT.join('frontend/icon/down.png'))))
+        self.down_button.setIconSize(QSize(15, 15))
+        self.down_button.clicked.connect(self.push_down)
+        self.down_button.setEnabled(False)
+        
+        self.downto_button.setIcon(QIcon(str(APP_ROOT.join('frontend/icon/downto.png'))))
+        self.downto_button.setIconSize(QSize(15, 15))
+        self.downto_button.clicked.connect(self.push_downto)
+        self.downto_button.setEnabled(False)
+
         self.file_cache = {}
 
     def eval_value(self, active_state, value):
@@ -69,26 +89,57 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             v = 'symbolic'
         return v
 
+    def push_upto(self):
+        v = self.time_slider.value()
+        self.time_slider.setValue(min(self.time_slider.maximum(), v + 1))
+        self.slider_change()
+
+    def push_downto(self):
+        v = self.time_slider.value()
+        self.time_slider.setValue(max(self.time_slider.minimum(), v - 1))
+        self.slider_change()
+
+    def push_up(self):
+        user_ns = self.kernel_client.kernel.shell.user_ns
+        active_state = user_ns['active_state']
+        print(active_state)
+        new_state = self.states[active_state.index - 1]
+        user_ns['active_state'] = new_state
+        self.set_location(*self.addr_map[new_state.address()])
+        user_ns['gdbs'].active_state = user_ns['active_state']
+        # user_ns['gdbs'].update_active()
+        
+    def push_down(self):
+        user_ns = self.kernel_client.kernel.shell.user_ns
+        active_state = user_ns['active_state']
+        new_state = self.states[active_state.index + 1]
+        user_ns['active_state'] = new_state
+        self.set_location(*self.addr_map[new_state.address()])
+        user_ns['gdbs'].active_state = user_ns['active_state']
+        # user_ns['gdbs'].update_active()
+
     def slider_change(self):
         v = self.time_slider.value()
-        addr = self.states[-(v+1)].address()
         shell = self.kernel_client.kernel.shell
-        shell.active_state = self.states[-(v+1)]
+        shell.active_state = self.states.get_major(-(v+1))
+        addr = shell.active_state.address()
         user_ns = shell.user_ns
-        # user_ns['gdbs'].modify_active(len(self.states) - v - 1)
         user_ns['active_state'] = shell.active_state
+        user_ns['gdbs'].active_state = user_ns['active_state']
+        # user_ns['gdbs'].update_active()
         self.set_location(self.addr_map[addr][0], self.addr_map[addr][1])
 
     def set_slider(self, addr_map, states):
         # type: (List[Union[str, int]], List[Any]) -> None
+        # NOTE: slider is for major states
         self.addr_map = addr_map
         self.states = states
         self.time_slider.setMinimum(0)
-        self.time_slider.setMaximum(len(states) - 1)
+        self.time_slider.setMaximum(states.len_major - 1)
         self.time_slider.setTickPosition(QtWidgets.QSlider.TicksLeft)
-        self.time_slider.setTickInterval(len(states) - 1)
-        self.time_slider.valueChanged.connect(self.slider_change)
+        self.time_slider.setTickInterval(states.len_major - 1)
         self.time_slider.setValue(0)
+        self.time_slider.valueChanged.connect(self.slider_change)
 
     def set_location(self, source_file, line):
         # type: (str, int) -> None
@@ -231,6 +282,12 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         for f in files:
             if str(f.basename()).endswith(".tar.gz"):
                 self.code_view.append(str(f.basename()))
+
+    def enable_buttons(self):
+        self.up_button.setEnabled(True)
+        self.upto_button.setEnabled(True)
+        self.down_button.setEnabled(True)
+        self.downto_button.setEnabled(True)
 
     def shutdown_kernel(self):
         print('Shutting down kernel...')

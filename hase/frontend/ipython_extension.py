@@ -121,12 +121,19 @@ class HaseMagics(Magics):
             executable = rep.executable
             states = rep.run()
             addr2line = annotate.Addr2line()
-            for s in states:
-                # XXX: ExternSegment has offset as str (even its repr is broken)
+            '''
+            for s in states.major_states:
                 if s.object() in rep.tracer.project.loader.all_elf_objects:
-                    # TODO: address == ip, show s.addr?
+                    # TODO: show addr, ip at same time?
                     addr2line.add_addr(s.object(), s.address())
+            '''
+            # NOTE: we calculate all trace instead of state
+            for s in rep.tracer.trace:
+                obj = rep.tracer.project.loader.find_object_containing(s.ip)
+                if obj in rep.tracer.project.loader.all_elf_objects:
+                    addr2line.add_addr(obj, s.ip)
             addr_map = addr2line.compute()
+            
 
         self.active_state = states[-1]
         user_ns["addr_map"] = addr_map
@@ -151,6 +158,7 @@ class HaseMagics(Magics):
                 addr_map[k][0] = new_f
 
         self.window.cache_tokens(addr_map)
+        self.window.enable_buttons()
         self.window.set_slider(user_ns["addr_map"], user_ns["states"])
         self.window.set_location(*addr_map[self.active_state.address()])
         self.gdb_init('')
@@ -160,11 +168,10 @@ class HaseMagics(Magics):
     def gdb_information(self, query):
         self.gdb_update('')
         user_ns = self.shell.user_ns
-        v = self.window.time_slider.value()
         addr_map = user_ns['addr_map']
-        states = user_ns['states']
+        active_state = user_ns['active_state']
         self.window.set_regs()
-        if addr_map[states[-(v+1)].address()][0] != '??':
+        if addr_map[active_state.address()][0] != '??':
             user_ns['gdbs'].write_request('bt')
             self.window.set_variable()
         else:
@@ -177,12 +184,12 @@ class HaseMagics(Magics):
         if 'gdbs' in user_ns.keys():
             user_ns['gdbs'].gdb.exit()
         states = user_ns['states']
+        active_state = user_ns['active_state']
         addr_map = user_ns['addr_map']
         executable = user_ns['executable']
-        v = self.window.time_slider.value()
         user_ns["gdbs"] = gdb.GdbServer(
             states, executable, 
-            user_ns["tracer"].cdanalyzer, states[-(v+1)])
+            user_ns["tracer"].cdanalyzer, active_state)
         user_ns["gdbs"].write_request("dir {}".format(
             ':'.join([os.path.dirname(str(p)) for p, _ in addr_map.values()])
         ))
@@ -197,8 +204,8 @@ class HaseMagics(Magics):
     @line_magic("update")
     def gdb_update(self, query):
         user_ns = self.shell.user_ns
-        v = self.window.time_slider.value()
-        user_ns['gdbs'].modify_active(len(self.window.states) - v - 1)
+        user_ns['gdbs'].active_state = user_ns['active_state']
+        user_ns['gdbs'].update_active()
 
     @line_magic("p")
     def print_value(self, query):

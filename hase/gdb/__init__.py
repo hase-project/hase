@@ -216,7 +216,7 @@ class GdbServer(object):
             '!': self.extend_mode,
         }
         self.states = states
-        self.active_state = active_state if active_state else states[-1]
+        self.active_state = active_state if active_state else states.get_major(-1)
         self.regs = GdbRegSpace(self.active_state)
         self.mem = GdbMemSpace(self.active_state, cda)
         self.packet_size = PAGESIZE
@@ -229,8 +229,7 @@ class GdbServer(object):
         self.gdb.write("-file-exec-and-symbols %s" % binary, timeout_sec=100)
         self.gdb.write('set stack-cache off', timeout_sec=100)
 
-    def modify_active(self, idx):
-        self.active_state = self.states[idx]
+    def update_active(self):
         self.regs.active_state = self.active_state
         self.mem.active_state = self.active_state
         self.libs.active_state = self.active_state

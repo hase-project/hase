@@ -725,8 +725,8 @@ class Tracer(object):
     def run(self):
         # type: () -> StateManager
         simstate = self.simgr.active[0]
-        states = StateManager(len(self.trace))
-        states.add(State(0, self.trace[0], None, simstate))
+        states = StateManager(self, len(self.trace))
+        states.add_major(State(0, self.trace[0], None, simstate))
         self.debug_unsat = None # type: Optional[SimState]
         self.debug_state = deque(maxlen=5) # type: deque
         self.skip_addr = {} # type: Dict[int, int]
@@ -746,7 +746,7 @@ class Tracer(object):
             old_simstate, new_simstate = self.find_next_branch(simstate, event)
             simstate = new_simstate
             if cnt % interval == 0 or length - cnt < 150:
-                states.add(State(cnt, event, old_simstate, new_simstate))
+                states.add_major(State(cnt, event, old_simstate, new_simstate))
         self.constrain_registers(states[-1])
 
         return states

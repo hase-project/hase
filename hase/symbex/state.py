@@ -108,20 +108,46 @@ class State(object):
 
 
 class StateManager(object):
-    def __init__(self, length):
+    def __init__(self, tracer, length):
+        self.tracer = tracer
         self.index_to_state = [None] * length
+        # Better have something like skip-table
         self.ordered_index = []
+        self.major_index = []
     
     def add(self, state):
+        # NOTE: major means the interval stubs
         self.index_to_state[state.index] = state
         bisect.insort_left(self.ordered_index, state.index)
-    
+
+    def add_major(self, state):
+        # NOTE: major means the interval stubs
+        self.add(state)
+        bisect.insort_left(self.major_index, state.index)
+
+    @property
+    def major_states(self):
+        return [self.index_to_state[i] for i in self.major_index]
+
+    def get_major(self, index):
+        return self.index_to_state[self.major_index[index]]
+
+    @property
+    def len_major(self):
+        return len(self.major_index)
+
+    def __len__(self):
+        return len(self.ordered_index)
+
     def __getitem__(self, index):
         pos = bisect.bisect_left(self.ordered_index, index)
-        if self.ordered_index[pos] == index:
-            return self.index_to_state[index]
-        else:
-            # TODO: recompute from last
-            start_pos = self.ordered_index[pos]
-            start_state = self.index_to_state[start_pos]
-            return None
+        if self.ordered_index[pos] != index:
+            start_pos = self.ordered_index[pos - 1]
+            simstate = self.index_to_state[start_pos].simstate
+            diff = index - start_pos
+            for i in range(diff):
+                event = self.tracer.trace[start_pos + i + 1]
+                from_simstate, simstate = self.tracer.find_next_branch(simstate, event)
+                if diff - i < 15:
+                    self.add(State(start_pos + i + 1, event, from_simstate, simstate))
+        return self.index_to_state[index]
