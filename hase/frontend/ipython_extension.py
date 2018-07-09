@@ -158,6 +158,7 @@ class HaseMagics(Magics):
                 addr_map[k][0] = new_f
 
         self.window.cache_tokens(addr_map)
+        self.window.add_states(user_ns["states"], user_ns["tracer"])
         self.window.enable_buttons()
         self.window.set_slider(user_ns["addr_map"], user_ns["states"])
         self.window.set_location(*addr_map[self.active_state.address()])

@@ -73,7 +73,7 @@ class Addr2line(object):
 
     def compute(self):
         # type: () -> Dict[int, List[Union[str, int]]]
-        addr_map = {}
+        addr_map = {} # type: Dict[int, List[Union[str, int]]]
         for dso, addresses in self.dsos.items():
             relative_addrs = []
 

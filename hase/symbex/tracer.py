@@ -745,7 +745,7 @@ class Tracer(object):
             self.current_branch = event
             old_simstate, new_simstate = self.find_next_branch(simstate, event)
             simstate = new_simstate
-            if cnt % interval == 0 or length - cnt < 150:
+            if cnt % interval == 0 or length - cnt < 50:
                 states.add_major(State(cnt, event, old_simstate, new_simstate))
         self.constrain_registers(states[-1])
 

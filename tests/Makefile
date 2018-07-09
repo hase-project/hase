@@ -1,5 +1,5 @@
 
-CC 		= musl-gcc
+CC 		= gcc
 CCFLAGS = -g -static # -fno-plt
 SRCS	= ./src
 BINS	= ./bin

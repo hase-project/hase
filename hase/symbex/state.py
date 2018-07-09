@@ -109,18 +109,20 @@ class State(object):
 
 class StateManager(object):
     def __init__(self, tracer, length):
+        # type: (Any, int) -> None
         self.tracer = tracer
-        self.index_to_state = [None] * length
+        self.index_to_state = [None] * length # type: List[Optional[State]]
         # Better have something like skip-table
-        self.ordered_index = []
-        self.major_index = []
+        self.ordered_index = [] # type: List[int]
+        self.major_index = [] # type: List[int]
     
     def add(self, state):
-        # NOTE: major means the interval stubs
+        # type: (State) -> None
         self.index_to_state[state.index] = state
         bisect.insort_left(self.ordered_index, state.index)
 
     def add_major(self, state):
+        # type: (State) -> None
         # NOTE: major means the interval stubs
         self.add(state)
         bisect.insort_left(self.major_index, state.index)
@@ -130,24 +132,27 @@ class StateManager(object):
         return [self.index_to_state[i] for i in self.major_index]
 
     def get_major(self, index):
-        return self.index_to_state[self.major_index[index]]
+        # type: (int) -> State
+        return self.index_to_state[self.major_index[index]] # type: ignore
 
     @property
     def len_major(self):
         return len(self.major_index)
 
     def __len__(self):
+        # type: () -> int
         return len(self.ordered_index)
 
     def __getitem__(self, index):
+        # type: (int) -> State
         pos = bisect.bisect_left(self.ordered_index, index)
         if self.ordered_index[pos] != index:
             start_pos = self.ordered_index[pos - 1]
-            simstate = self.index_to_state[start_pos].simstate
+            simstate = self.index_to_state[start_pos].simstate # type: ignore
             diff = index - start_pos
             for i in range(diff):
                 event = self.tracer.trace[start_pos + i + 1]
                 from_simstate, simstate = self.tracer.find_next_branch(simstate, event)
                 if diff - i < 15:
                     self.add(State(start_pos + i + 1, event, from_simstate, simstate))
-        return self.index_to_state[index]
+        return self.index_to_state[index] # type: ignore

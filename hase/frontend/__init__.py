@@ -5,14 +5,15 @@ import logging
 from PyQt5 import QtWidgets
 from PyQt5.uic import loadUiType
 from PyQt5.QtCore import QSize
-from PyQt5.QtGui import QTextCursor, QIcon, QPixmap
-from PyQt5.QtWidgets import QTableWidgetItem, QAbstractScrollArea
+from PyQt5.QtGui import QTextCursor, QIcon, QPixmap, QPainter
+from PyQt5.QtWidgets import QTableWidgetItem, QAbstractScrollArea, QGraphicsView
 import pygments
 import pygments.lexers
 import pygments.formatters
 from qtconsole.inprocess import QtInProcessKernelManager
 from typing import Tuple, Any, List, Union
 
+from .callgraph import CallGraphManager, CallGraphView
 from ..path import APP_ROOT
 from ..record import DEFAULT_LOG_DIR
 
@@ -78,9 +79,14 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.downto_button.clicked.connect(self.push_downto)
         self.downto_button.setEnabled(False)
 
+        self.cg_button.clicked.connect(self.push_callgraph)
+        self.cg_button.setEnabled(False)
+
         self.file_cache = {}
+        self.callgraph = CallGraphManager()
 
     def eval_value(self, active_state, value):
+        # type: (Any, Any) -> str
         if value.uninitialized:
             return 'uninitialized'
         try:
@@ -89,48 +95,59 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             v = 'symbolic'
         return v
 
+    def update_active(self, new_active):
+        # type: (Any) -> None
+        user_ns = self.kernel_client.kernel.shell.user_ns
+        user_ns['active_state'] = new_active
+        user_ns['gdbs'].active_state = new_active
+        # user_ns['gdbs'].update_active()
+        addr = new_active.address()
+        self.set_location(*self.addr_map[addr])
+
+    def update_active_index(self, active_index):
+        # type: (int) -> None
+        new_state = self.states[active_index]
+        self.update_active(new_state)
+
     def push_upto(self):
+        # type: () -> None
         v = self.time_slider.value()
         self.time_slider.setValue(min(self.time_slider.maximum(), v + 1))
         self.slider_change()
 
     def push_downto(self):
+        # type: () -> None
         v = self.time_slider.value()
         self.time_slider.setValue(max(self.time_slider.minimum(), v - 1))
         self.slider_change()
 
     def push_up(self):
+        # type: () -> None
         user_ns = self.kernel_client.kernel.shell.user_ns
         active_state = user_ns['active_state']
-        print(active_state)
-        new_state = self.states[active_state.index - 1]
-        user_ns['active_state'] = new_state
-        self.set_location(*self.addr_map[new_state.address()])
-        user_ns['gdbs'].active_state = user_ns['active_state']
-        # user_ns['gdbs'].update_active()
+        new_state = self.states[max(0, active_state.index - 1)]
+        self.update_active(new_state)
         
     def push_down(self):
+        # type: () -> None
         user_ns = self.kernel_client.kernel.shell.user_ns
         active_state = user_ns['active_state']
-        new_state = self.states[active_state.index + 1]
-        user_ns['active_state'] = new_state
-        self.set_location(*self.addr_map[new_state.address()])
-        user_ns['gdbs'].active_state = user_ns['active_state']
-        # user_ns['gdbs'].update_active()
+        tracer = user_ns['tracer']
+        new_state = self.states[min(len(tracer.trace) - 1, active_state.index + 1)]
+        self.update_active(new_state)
+
+    def push_callgraph(self):
+        # type: () -> None
+        self.view = CallGraphView(self.callgraph, self)
 
     def slider_change(self):
+        # type: () -> None
         v = self.time_slider.value()
-        shell = self.kernel_client.kernel.shell
-        shell.active_state = self.states.get_major(-(v+1))
-        addr = shell.active_state.address()
-        user_ns = shell.user_ns
-        user_ns['active_state'] = shell.active_state
-        user_ns['gdbs'].active_state = user_ns['active_state']
-        # user_ns['gdbs'].update_active()
-        self.set_location(self.addr_map[addr][0], self.addr_map[addr][1])
+        new_active = self.states.get_major(-(v+1))
+        self.update_active(new_active)
 
     def set_slider(self, addr_map, states):
-        # type: (List[Union[str, int]], List[Any]) -> None
+        # type: (List[Union[str, int]], Any) -> None
         # NOTE: slider is for major states
         self.addr_map = addr_map
         self.states = states
@@ -167,6 +184,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                 self.code_view.append('\t' + str(insn))
 
     def set_variable(self):
+        # type: () -> None
         shell = self.kernel_client.kernel.shell
         user_ns = shell.user_ns
         var = user_ns['gdbs'].read_variables()
@@ -191,6 +209,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.var_view.resizeColumnsToContents()        
 
     def set_regs(self):
+        # type: () -> None
         shell = self.kernel_client.kernel.shell
         user_ns = shell.user_ns
         active_state = user_ns['active_state']
@@ -271,7 +290,13 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                 except:
                     self.file_cache[filename][line] = (None, None)
 
+    def add_states(self, states, tracer):
+        # type: (Any, Any) -> None
+        for s in states.major_states[1:]:
+            self.callgraph.add_node(s, tracer)
+
     def clear_viewer(self):
+        # type: () -> None
         self.code_view.clear()
 
     def append_archive(self):
@@ -284,12 +309,15 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                 self.code_view.append(str(f.basename()))
 
     def enable_buttons(self):
+        # type: () -> None
         self.up_button.setEnabled(True)
         self.upto_button.setEnabled(True)
         self.down_button.setEnabled(True)
         self.downto_button.setEnabled(True)
+        self.cg_button.setEnabled(True)
 
     def shutdown_kernel(self):
+        # type: () -> None
         print('Shutting down kernel...')
         self.kernel_client.stop_channels()
         self.kernel_manager.shutdown_kernel()

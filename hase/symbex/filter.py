@@ -111,6 +111,7 @@ class FilterTrace():
         self.analyze_trace()
     
     def analyze_unsupported(self):
+        # type: () -> None
         for l in unsupported_symbols:
             try:
                 r = self.gdb.get_func_range(l[0])
@@ -152,7 +153,7 @@ class FilterTrace():
         # type: (int) -> Optional[Any]
         for lib, symx in self.syms.items():
             if lib.contains_addr(addr):
-                # FIXME: angr cannot solve plt symbol name
+                # NOTE: angr cannot solve plt symbol name
                 if self.test_plt_vdso(addr):
                     name = self.solve_name_plt(addr)
                     if name:
@@ -172,6 +173,7 @@ class FilterTrace():
         return False, ''
 
     def analyze_start(self, least_reserve=2000):
+        # type: (int) -> Tuple[List[Branch], int]
         start_idx = 0
         self.start_idx = start_idx
         if len(self.trace) < least_reserve or self.from_initial:
@@ -261,6 +263,7 @@ class FilterTrace():
                 self.new_trace.append(event)
         
     def filtered_trace(self, update=False):
+        # type: (bool) -> List[Branch]
         if self.new_trace and not update:
             return self.new_trace
         self.analyze_trace()

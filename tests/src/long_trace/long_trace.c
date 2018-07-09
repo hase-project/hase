@@ -2,11 +2,20 @@
 #include <stdlib.h>
 
 
+struct Test {
+    int a;
+    void* p;
+};
+
+
 int some_function(int argc, int crash) {
     for (int i = 0; i < argc; ++i) {
        printf("%d\n", i);
     }
     // avoid amd64g_dirtyhelper_storeF80
+    struct Test* p = (struct Test*)malloc(sizeof(struct Test));
+    p->a = 20;
+    p->p = malloc(sizeof(struct Test));
     printf("%d\n", 1/crash);
 }
 
