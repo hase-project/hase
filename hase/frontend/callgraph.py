@@ -8,6 +8,8 @@ from PyQt5.QtCore import QPointF, QLineF, QRectF, Qt
 from PyQt5.QtGui import (
     QPainter, QPainterPath, QPen, QBrush, QColor
 )
+from networkx import Graph, spring_layout
+from math import hypot
 
 from typing import Tuple, Any
 
@@ -35,7 +37,7 @@ class StateEdgeText(QGraphicsTextItem):
 
 class StateEdge(QGraphicsLineItem):
     def __init__(self, state_index, from_t, to_t, manager):
-        # type: (int, Tuple[StateNode, QPointF, str, int], Tuple[StateNode, QPointF, str, int], CallGraphManager) -> None
+        # type: (int, List[StateNode, QPointF, str, int], List[StateNode, QPointF, str, int], CallGraphManager) -> None
         super(StateEdge, self).__init__(QLineF(from_t[1], to_t[1]))
         self.from_t = from_t
         self.to_t = to_t
@@ -54,19 +56,15 @@ class StateEdge(QGraphicsLineItem):
             (line.x1() + line.x2()) / 2, 
             (line.y1() + line.y2()) / 2)
 
-    def update_from(self, from_point):
-        # type: (QPointF) -> None
-        line = self.line()
-        line.setP1(from_point)
-        self.setLine(line)
+    def update_pos(self):
+        # type: () -> None
+        addr_node = self.from_t[0]
+        ip_node = self.to_t[0]
+        edge_dir = CallGraphManager.edge_direction(addr_node, ip_node)
+        self.from_t = list((addr_node,) +  edge_dir[0] + (addr_node.addr,))
+        self.to_t = list((ip_node,) +  edge_dir[1] + (ip_node.addr,))
+        self.setLine(QLineF(self.from_t[1], self.to_t[1]))
         self.text.update_pos(self.midpoint())        
-
-    def update_to(self, to_point):
-        # type: (QPointF) -> None
-        line = self.line()
-        line.setP2(to_point)
-        self.setLine(line)
-        self.text.update_pos(self.midpoint())
 
     def mouseDoubleClickEvent(self, event):
         # type: (Any) -> None
@@ -91,9 +89,13 @@ class StateNode(QGraphicsRectItem):
         self.edges = []
         self.str_to_node = {
             'right': self.right_node,
-            'up': self.up_node,
+            'top': self.top_node,
             'left': self.left_node,
-            'down': self.down_node
+            'down': self.down_node,
+            'top_left': self.tl_node,
+            'top_right': self.tr_node,
+            'down_left': self.dl_node,
+            'down_right': self.dr_node,
         }
 
     def set_text(self, text):
@@ -105,7 +107,7 @@ class StateNode(QGraphicsRectItem):
         rect = self.rect()
         return QPointF(self.x() + rect.x() + rect.width(), self.y() + rect.y() + rect.height() / 2)
 
-    def up_node(self):
+    def top_node(self):
         # type: () -> QPointF
         rect = self.rect()
         return QPointF(self.x() + rect.x() + rect.width() / 2, self.y() + rect.y())
@@ -120,27 +122,55 @@ class StateNode(QGraphicsRectItem):
         rect = self.rect()
         return QPointF(self.x() + rect.x()  + rect.width() / 2, self.y() + rect.y() + rect.height())
 
+    def tl_node(self):
+        # type: () -> QPointF
+        rect = self.rect()
+        return QPointF(self.x() + rect.x(), self.y() + rect.y())
+
+    def tr_node(self):
+        # type: () -> QPointF
+        rect = self.rect()
+        return QPointF(self.x() + rect.x() + rect.width(), self.y() + rect.y())
+
+    def dl_node(self):
+        # type: () -> QPointF
+        rect = self.rect()
+        return QPointF(self.x() + rect.x(), self.y() + rect.y() + rect.height())
+
+    def dr_node(self):
+        # type: () -> QPointF
+        rect = self.rect()
+        return QPointF(self.x() + rect.x() + rect.width(), self.y() + rect.y() + rect.height())
+
+    def set_text_edge(self, x, y):
+        # type: (float, float) -> None
+        self.text.setPos(self.rect().topLeft() + QPointF(x, y))
+        for edge in self.edges:
+            edge.update_pos()
+
+    def set_pos(self, x, y):
+        # type: () -> None
+        self._set_text_edge(x, y)
+        self.setPos(QPointF(x, y))
+
     def itemChange(self, change, value):
         # type: (Any, QPointF) -> None
-        ret = QGraphicsRectItem.itemChange(self, change, value)        
         if change == QGraphicsItem.ItemPositionChange:
-                self.text.setPos(self.rect().topLeft() + value)
-                for edge in self.edges:
-                    if edge.from_t[0] == self:
-                        edge.update_from(self.str_to_node[edge.from_t[2]]())
-                    else:
-                        edge.update_to(self.str_to_node[edge.to_t[2]]())
-        return ret 
+            self.set_text_edge(value.x(), value.y())
+        return QGraphicsRectItem.itemChange(self, change, value) 
 
     def __del__(self):
         # weird segfault
         del self.text
 
+    def __hash__(self):
+        return hash((self.name, self.addr))
+
 
 class CallGraphManager(object):
     NODE_MARGIN = 20
-    NODE_WIDTH = 240
-    NODE_HEIGHT = 100
+    NODE_WIDTH = 100
+    NODE_HEIGHT = 30
     NODE_X = NODE_WIDTH + NODE_MARGIN
     NODE_Y = NODE_HEIGHT + NODE_MARGIN
 
@@ -151,24 +181,65 @@ class CallGraphManager(object):
         self.fname_to_index = {}
         self.size = 0
         self.view = None
+        self.graph = Graph()
+        self.valid_scene = True
 
     def double_click(self, state_index):
         # type: (int) -> None
         self.view.double_click(state_index)
 
+    @staticmethod
+    def edge_direction(addr_node, ip_node):
+        # type: (StateNode, StateNode) -> Tuple[Tuple[QPointF, str], Tuple[QPointF, str]]
+        edge_selections = [
+            ('top', 'down'),
+            ('top_right', 'down_left'),
+            ('right', 'left'),
+            ('down_right', 'top_left'),
+            ('down', 'top'),
+            ('down_left', 'top_right'),
+            ('left', 'right'),
+            ('top_left', 'down_right'),
+        ]
+        min_dis = 0x7FFFFFFF
+        min_select = ('top', 'down')
+        min_pos = (addr_node.top_node(), ip_node.down_node())
+        for select in edge_selections:
+            addr_pos = addr_node.str_to_node[select[0]]()
+            ip_pos = ip_node.str_to_node[select[1]]()
+            dis = hypot(addr_pos.x() - ip_pos.x(), addr_pos.y() - ip_pos.y())
+            if dis < min_dis:
+                min_dis = dis
+                min_select = select
+                min_pos = (addr_pos, ip_pos)
+        return ((min_pos[0], min_select[0]), (min_pos[1], min_select[1]))
+
     def create_node(self, fname, text, addr):
         # type: (str, str, int) -> StateNode
         rect = QRectF(
-            self.NODE_X * (self.size % 8), 
-            self.NODE_Y * (self.size // 8), 
+            0, 0,
             self.NODE_WIDTH, self.NODE_HEIGHT)
         node = StateNode(fname, self.size, addr, rect, text, self)
         self.nodes.append(node)
+        self.graph.add_node(node)
         self.fname_to_index[fname] = self.size
         self.size += 1
-        self.scene.addItem(node)
-        self.scene.addItem(node.text)
+        self.valid_scene = False
         return node
+
+    def create_edge(self, state_index, addr_index, ip_index):
+        addr_node = self.nodes[addr_index]
+        ip_node = self.nodes[ip_index]
+        edge_dir = CallGraphManager.edge_direction(addr_node, ip_node)
+        edge = StateEdge(
+            state_index,
+            list((addr_node,) +  edge_dir[0] + (addr_node.addr,)),
+            list((ip_node,) +  edge_dir[1] + (ip_node.addr,)),
+            self
+        )
+        addr_node.edges.append(edge)
+        ip_node.edges.append(edge)
+        return edge
 
     def judge_ret(self, state):
         # type: (Any) -> bool
@@ -217,17 +288,9 @@ class CallGraphManager(object):
         if addr_index > ip_index:
             addr_index, ip_index = ip_index, addr_index
         if (addr_index, ip_index) not in self.edges_index:
-            edge = StateEdge(
-                state_index,
-                (addr_node, addr_node.right_node(), 'right', addr_node.addr),
-                (ip_node, ip_node.left_node(), 'left', ip_node.addr),
-                self
-            )
-            self.scene.addItem(edge)
-            self.scene.addItem(edge.text)
-            self.edges_index.append((addr_index, ip_index))
-            addr_node.edges.append(edge)
-            ip_node.edges.append(edge)
+            self.graph.add_edge(addr_node, ip_node)
+            self.edges_index.append((state_index, addr_index, ip_index))
+        self.valid_scene = False
 
     def add_node(self, state, tracer):
         # type: (Any, Any) -> None
@@ -235,14 +298,30 @@ class CallGraphManager(object):
             addr_node, ip_node = self.get_func_node(state, tracer)
             self.connect_node(state.index, addr_node, ip_node)
 
+    def create_scene(self, scale, iterations=25, update=False):
+        if self.valid_scene and not update:
+            return self.scene
+        del self.scene
+        self.scene = QGraphicsScene()
+        layout = spring_layout(self.graph, iterations=iterations, scale=scale)
+        for node, pos in layout.items():
+            node.set_pos(pos[0], pos[1])
+            self.scene.addItem(node)
+            self.scene.addItem(node.text)
+        for edge_index in self.edges_index:
+            edge = self.create_edge(*edge_index)
+            self.scene.addItem(edge)
+            self.scene.addItem(edge.text)
+        return self.scene
+
 
 class CallGraphView(QGraphicsView):
     def __init__(self, manager, window, parent=None):
         super(CallGraphView, self).__init__(parent)
         manager.view = self
-        self.setScene(manager.scene)
+        self.setScene(manager.create_scene(), 600)
         self.setRenderHint(QPainter.Antialiasing)
-        self.resize(800, 600)
+        self.resize(600, 600)
         self.window = window
         self.show()
 
