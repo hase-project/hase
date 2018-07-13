@@ -4,7 +4,7 @@ CCFLAGS = -g -static # -fno-plt
 SRCS	= ./src
 BINS	= ./bin
 HASEBIN	= ../bin/hase
-TARGETS = control_flow loopy long_trace null_deref
+TARGETS = control_flow loopy long_trace null_deref core_constraint
 
 
 $(TARGETS): 

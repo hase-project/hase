@@ -197,6 +197,7 @@ def compute_checksum(data):
 class GdbServer(object):
     def __init__(self, states, binary, cda, active_state=None):
         # type: (StateManager, str, Any, Optional[State]) -> None
+        # FIXME: this binary is original path
         master, ptsname = create_pty()
         self.master = master
         self.COMMANDS = {
@@ -245,20 +246,17 @@ class GdbServer(object):
                 r['payload'].startswith('ARGS:'):
                 l = r['payload'].split(' ')
                 name = l[1]
-                tystr = l[2].replace(':', ' ')
+                tystr = l[2].replace('%', ' ')
                 idr = int(l[3]) - 1
-                l[4] = l[4].strip()
-                l[4] = l[4].replace('\\n', '')
-                if '&' in l[4]:
-                    ll = l[4].partition('&')
+                addr_comment = l[4].strip().replace('\\n', '')
+                if '&' in addr_comment:
+                    ll = addr_comment.partition('&')
                     addr = int(ll[0], 16)
                     comment = ll[2]
                 else:
-                    addr = int(l[4], 16)
+                    addr = int(addr_comment, 16)
                     comment = ''
-                l[5] = l[5].strip()
-                l[5] = l[5].replace('\\n', '')
-                size = int(l[5])
+                size = int(l[5].strip().replace('\\n', ''))
                 res.append({
                     'name': name,
                     'type': tystr,

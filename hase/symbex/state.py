@@ -64,7 +64,13 @@ class State(object):
         self.branch = branch
         self.from_simstate = from_simstate
         self.to_simstate = to_simstate
-        self.simstate = to_simstate
+        self.is_to_simstate = True
+
+    @property
+    def simstate(self):
+        if self.is_to_simstate:
+            return self.to_simstate
+        return self.from_simstate
 
     def eval(self, expression):
         # type: (BV) -> Any
@@ -144,9 +150,11 @@ class StateManager(object):
         return len(self.ordered_index)
 
     def __getitem__(self, index):
-        # type: (int) -> State
+        # type: (int) -> Tuple[State, bool]
+        is_new = False
         pos = bisect.bisect_left(self.ordered_index, index)
         if self.ordered_index[pos] != index:
+            is_new = True
             start_pos = self.ordered_index[pos - 1]
             simstate = self.index_to_state[start_pos].simstate # type: ignore
             diff = index - start_pos
@@ -155,4 +163,4 @@ class StateManager(object):
                 from_simstate, simstate = self.tracer.find_next_branch(simstate, event)
                 if diff - i < 15:
                     self.add(State(start_pos + i + 1, event, from_simstate, simstate))
-        return self.index_to_state[index] # type: ignore
+        return self.index_to_state[index], is_new # type: ignore

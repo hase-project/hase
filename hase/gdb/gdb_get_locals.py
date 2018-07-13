@@ -13,43 +13,79 @@ while not blk.is_global and not blk.is_static:
         break
 
 
-def parse_print(s):
-    # NOTE: format: $n = [(type*)] addr
+def parse_c_declaration(decl):
+    pos = 0
+
+    def get_token(pos):
+        while decl[pos].isspace():
+            pos += 1
+        c = decl[pos]
+        pos += 1
+        if c == '(':
+            if decl[pos] == ')':
+                pos += 1
+                return pos, '()', 'PARENS'
+            return pos, '', '('
+        elif c == '[':
+            token = ''
+            while decl[pos] != ']':
+                token += decl[pos]
+                pos += 1
+            return pos, token, 'BRACKETS'
+        elif c.isalpha():
+            token = ''
+            while decl[pos].isalnum():
+                token += decl[pos]
+                pos += 1
+            return pos, token, 'IDENTIFIER'
+        elif c == '*':
+            return pos, '*', 'POINTER'
+        else:
+            return pos, c, 'UNKNOWN'
+
+    pos, token, ty = get_token(pos)
+
+
+
+def parse_addr(s):
+    print(s)
     l = s.split(' ')
     # NOTE: ['$n', '=', '('qualifier', 'type', '*)', 'addr\n']
-    tystr = []
-    is_type = False
+    has_type = False
     n = 0
+    # array type: (char (*)[n])
     for i in range(len(l) - 2):
         value = l[i + 2]
-        if value[0] == '(':
-            is_type = True
-            value = value[1:]
         if value[-1] == ')':
-            is_type = False
-            value = value[:-1]
-            indirect = len(value)
+            has_type = True
             n = i
             break
-        if is_type:
-            tystr.append(value)
-    addr = '&'.join(l[n+3:])
-    return tystr, indirect, addr
+    if has_type:
+        addr = '&'.join(l[n+3:])
+    else:
+        addr = '&'.join(l[2:])
+    return addr
 
 
 for name, ty, value in res:
     # TODO: modified to info addr arg => no rbp dependent (no parse for rbp offset 0+-n)
-    tmp_str = "print &{}".format(name)
-    res_str = gdb.execute(tmp_str, to_string=True)
-    res_str = res_str.replace('\n', '')
-    ty, idr, addr = parse_print(res_str)
-    res_str = gdb.execute(
-        "print sizeof({})".format(' '.join(ty) + '*' * (idr - 1)),
+    tmp = 'ptype {}'.format(name)
+    res = gdb.execute(tmp, to_string=True)
+    ty = res.partition('=')[2].strip()
+
+    tmp = "print &{}".format(name)
+    res = gdb.execute(tmp, to_string=True)
+    res = res.replace('\n', '')
+    addr = parse_addr(res)
+
+    res = gdb.execute(
+        "print sizeof({})".format(ty),
         to_string=True
     )
-    res_str = res_str.replace('\n', '')
-    size = res_str.split(' ')[-1]
-    tystr = ':'.join(ty)
-    print(' '.join(['ARGS:', name, tystr, str(idr), addr, size]))
+    res = res.replace('\n', '')
+    size = res.split(' ')[-1]
+    ty = ty.replace(' ', '%')
+
+    print(' '.join(['ARGS:', name, ty, '1', addr, size]))
 
 

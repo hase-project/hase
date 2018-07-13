@@ -129,16 +129,20 @@ class HaseMagics(Magics):
             '''
             # NOTE: we calculate all trace instead of state
             for s in rep.tracer.trace:
-                obj = rep.tracer.project.loader.find_object_containing(s.ip)
-                if obj in rep.tracer.project.loader.all_elf_objects:
-                    addr2line.add_addr(obj, s.ip)
+                addrs = [s.addr, s.ip]
+                for addr in addrs:
+                    obj = rep.tracer.project.loader.find_object_containing(addr)
+                    if obj in rep.tracer.project.loader.all_elf_objects:
+                        addr2line.add_addr(obj, addr)
             addr_map = addr2line.compute()
             
 
-        self.active_state = states[-1]
+        self.active_state = states.major_states[-1]
+
         user_ns["addr_map"] = addr_map
         user_ns["states"] = states
         user_ns['executable'] = executable
+        user_ns['coredump'] = user_ns['tracer'].coredump
         user_ns['active_state'] = self.active_state
 
         for k, v in addr_map.items():
@@ -162,6 +166,7 @@ class HaseMagics(Magics):
         self.window.enable_buttons()
         self.window.set_slider(user_ns["addr_map"], user_ns["states"])
         self.window.set_location(*addr_map[self.active_state.address()])
+        self.window.cache_coredump_constraints()
         self.gdb_init('')
 
     @args(info="USAGE: info")

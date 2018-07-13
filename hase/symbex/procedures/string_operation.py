@@ -5,6 +5,11 @@ from angr.procedures import SIM_PROCEDURES
 from angr.errors import SimProcedureError
 
 
+class atof(SimProcedure):
+    def run(self, ptr):
+        return self.state.solver.FPS('atof', self.state.solver.fp.FSORT_DOUBLE)
+
+
 class strtof(SimProcedure):
     def run(self, nptr, endptr):
         return self.state.solver.FPS('strtof', self.state.solver.fp.FSORT_FLOAT)

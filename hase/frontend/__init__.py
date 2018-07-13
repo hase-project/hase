@@ -82,8 +82,82 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.cg_button.clicked.connect(self.push_callgraph)
         self.cg_button.setEnabled(False)
 
+        self.info_button.clicked.connect(self.push_info)
+        self.info_button.setEnabled(False)
+
+        self.switch_button.clicked.connect(self.push_switch)
+        self.switch_button.setEnabled(False)
+
+        self.time_slider.setEnabled(False)
+
         self.file_cache = {}
         self.callgraph = CallGraphManager()
+
+        self.coredump_constraints = []
+
+    def cache_coredump_constraints(self):
+        user_ns = self.kernel_client.kernel.shell.user_ns
+        tracer = user_ns['tracer']
+        start_state = tracer.start_state
+        active_state = self.states.major_states[-1]
+        coredump = user_ns['coredump']
+        low = active_state.simstate.regs.rsp
+        
+        if start_state.regs.rbp.uninitialized:
+            high = start_state.regs.rsp
+        else:
+            high = start_state.regs.rbp + 1
+        
+        try:
+            low_v = active_state.simstate.se.eval(low)
+        except:
+            # very large range
+            low_v = coredump.stack.start
+        try:
+            high_v = start_state.se.eval(high)
+        except:
+            high_v = coredump.stack.stop
+        
+        for addr in range(low_v, high_v):
+            value = active_state.simstate.memory.load(addr, 1)
+            if value.uninitialized or value.variables == frozenset():
+                continue
+            cmem = coredump.stack[addr]
+            self.coredump_constraints.append(
+                value == cmem
+            )
+
+    def eval_variable(self, active_state, addr, size):
+        # type: (Any, Any) -> str
+        # NOTE: * -> uninitialized / 'E' -> symbolic
+        if not getattr(active_state, 'add_coredump_constraints', False):
+            for c in self.coredump_constraints:
+                old_con = active_state.simstate.se.constraints
+                active_state.simstate.se.add(c)
+                if not active_state.simstate.se.satisfiable():
+                    print('Unsatisfiable coredump constraints: ' + str(c))
+                    active_state.simstate.solver._solver._cached_satness = True
+                    active_state.simstate.solver._solver.constraints = old_con
+            active_state.add_coredump_constraints = True
+        mem = active_state.simstate.memory.load(addr, size, endness='Iend_LE')
+        if mem.uninitialized and mem.variables != frozenset():
+            result = ''
+            for i in range(size):
+                value = active_state.simstate.memory.load(addr + i, 1, endness='Iend_LE')
+                if value.uninitialized:
+                    result += '** '
+                    continue
+                try:
+                    v = hex(active_state.simstate.se.eval(value))[2:]
+                    if len(v) == 1:
+                        v = '0' + v
+                except:
+                    v = 'Er'
+                result += v + ' '
+            result = result[:-1]
+            return result
+        else:
+            return self.eval_value(active_state, mem)
 
     def eval_value(self, active_state, value):
         # type: (Any, Any) -> str
@@ -100,13 +174,21 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         user_ns = self.kernel_client.kernel.shell.user_ns
         user_ns['active_state'] = new_active
         user_ns['gdbs'].active_state = new_active
+        # NOTE: gdb c for every operation is slow
         # user_ns['gdbs'].update_active()
         addr = new_active.address()
         self.set_location(*self.addr_map[addr])
 
     def update_active_index(self, active_index):
         # type: (int) -> None
-        new_state = self.states[active_index]
+        new_state, is_new = self.states[active_index]
+        user_ns = self.kernel_client.kernel.shell.user_ns
+        if is_new:
+            self.callgraph.add_node(new_state, user_ns['tracer'])
+        major_index = self.states.major_index
+        if active_index in major_index:
+            slider_index = len(major_index) - major_index.index(active_index) - 1
+            self.time_slider.setValue(slider_index)
         self.update_active(new_state)
 
     def push_upto(self):
@@ -125,20 +207,39 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         # type: () -> None
         user_ns = self.kernel_client.kernel.shell.user_ns
         active_state = user_ns['active_state']
-        new_state = self.states[max(0, active_state.index - 1)]
-        self.update_active(new_state)
+        state_index = max(0, active_state.index - 1)
+        self.update_active_index(state_index)
         
     def push_down(self):
         # type: () -> None
         user_ns = self.kernel_client.kernel.shell.user_ns
         active_state = user_ns['active_state']
         tracer = user_ns['tracer']
-        new_state = self.states[min(len(tracer.trace) - 1, active_state.index + 1)]
-        self.update_active(new_state)
+        state_index = min(len(tracer.trace) - 1, active_state.index + 1)
+        self.update_active_index(state_index)
 
     def push_callgraph(self):
         # type: () -> None
         self.view = CallGraphView(self.callgraph, self)
+
+    def push_info(self):
+        # type: () -> None
+        user_ns = self.kernel_client.kernel.shell.user_ns
+        active_state = user_ns['active_state']
+        self.set_regs()
+        user_ns['gdbs'].update_active()
+        if self.addr_map[active_state.address()][0] != '??':
+            user_ns['gdbs'].write_request('bt')
+            self.set_variable()
+        else:
+            print("Cannot retrieve variables on unresolvable source code")        
+
+    def push_switch(self):
+        # type: () -> None
+        user_ns = self.kernel_client.kernel.shell.user_ns
+        active_state = user_ns['active_state']
+        active_state.is_to_simstate = not active_state.is_to_simstate
+        self.update_active(active_state)
 
     def slider_change(self):
         # type: () -> None
@@ -151,6 +252,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         # NOTE: slider is for major states
         self.addr_map = addr_map
         self.states = states
+        self.time_slider.setEnabled(True)
         self.time_slider.setMinimum(0)
         self.time_slider.setMaximum(states.len_major - 1)
         self.time_slider.setTickPosition(QtWidgets.QSlider.TicksLeft)
@@ -201,10 +303,9 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             addr_item.setText(hex(v['addr']))
             self.var_view.setItem(i, 2, addr_item)            
             value_item = QTableWidgetItem()
-            value_item.setText(self.eval_value(
+            value_item.setText(self.eval_variable(
                 user_ns['active_state'],
-                user_ns['active_state'].simstate.memory.load(
-                    v['addr'], v['size'], endness='Iend_LE')))
+                v['addr'], v['size']))
             self.var_view.setItem(i, 3, value_item)
         self.var_view.resizeColumnsToContents()        
 
@@ -310,11 +411,14 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
     def enable_buttons(self):
         # type: () -> None
+        # TODO: maintain a button list
         self.up_button.setEnabled(True)
         self.upto_button.setEnabled(True)
         self.down_button.setEnabled(True)
         self.downto_button.setEnabled(True)
         self.cg_button.setEnabled(True)
+        self.info_button.setEnabled(True)
+        self.switch_button.setEnabled(True)
 
     def shutdown_kernel(self):
         # type: () -> None

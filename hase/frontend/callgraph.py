@@ -16,6 +16,18 @@ from typing import Tuple, Any
 # FIXME: sometimes this will segfault, maybe weakref?
 
 
+class StateEdgeArrow(QGraphicsLineItem):
+    def __init__(self, line):
+        # type: (QLineF) -> None
+        super(StateEdgeArrow, self).__init__(line)
+        pen = QPen(QBrush(Qt.blue), 2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+        self.setPen(pen)
+    
+    def update_pos(self, line):
+        # type: (QLineF) -> None
+        self.setLine(line)
+
+
 class StateEdgeText(QGraphicsTextItem):
     def __init__(self, state_index, from_addr, to_addr, manager):
         # type: (int, int, int, CallGraphManager) -> None
@@ -48,6 +60,21 @@ class StateEdge(QGraphicsLineItem):
         self.setFlag(QGraphicsItem.ItemIsSelectable)
         self.text = StateEdgeText(state_index, from_t[3], to_t[3], manager)
         self.text.update_pos(self.midpoint())
+        up_line, down_line = self.arrow_line()
+        self.up_line = StateEdgeArrow(up_line)
+        self.down_line = StateEdgeArrow(down_line)
+
+    def arrow_line(self):
+        # type: () -> Tuple[QLineF, QLineF]
+        line = self.line()
+        angle = line.angle()
+        up_line = QLineF.fromPolar(10, angle + 135)
+        down_line = QLineF.fromPolar(10, angle - 135)
+        up_line.setP1(self.to_t[1])
+        down_line.setP1(self.to_t[1])
+        up_line.setP2(self.to_t[1] + up_line.p2())
+        down_line.setP2(self.to_t[1] + down_line.p2())
+        return up_line, down_line
 
     def midpoint(self):
         # type: () -> QPointF
@@ -64,7 +91,10 @@ class StateEdge(QGraphicsLineItem):
         self.from_t = list((addr_node,) +  edge_dir[0] + (addr_node.addr,))
         self.to_t = list((ip_node,) +  edge_dir[1] + (ip_node.addr,))
         self.setLine(QLineF(self.from_t[1], self.to_t[1]))
-        self.text.update_pos(self.midpoint())        
+        self.text.update_pos(self.midpoint())
+        up_line, down_line = self.arrow_line()
+        self.up_line.update_pos(up_line)
+        self.down_line.update_pos(down_line)
 
     def mouseDoubleClickEvent(self, event):
         # type: (Any) -> None
@@ -74,13 +104,19 @@ class StateEdge(QGraphicsLineItem):
 
 class StateNode(QGraphicsRectItem):
     def __init__(self, name, index, addr, rect, text, manager):
+        self.text = QGraphicsTextItem(text)
+        self.text_width = self.text.boundingRect().width()
+        self.text.setTextWidth(rect.width() - 10)
+        if self.text_width > rect.width() - 10:
+            self.text_width = rect.width() - 10
+        self.text_height = self.text.boundingRect().height()
+        if self.text_height > rect.height():
+            rect.setHeight(self.text_height + 10)
         super(StateNode, self).__init__(rect)
         self.name = name
         self.index = index
         self.addr = addr
-        self.text = QGraphicsTextItem(text)
-        self.text.setPos(rect.topLeft())
-        self.text.setTextWidth(rect.width() - 10)
+        self.text.setPos(rect.topLeft() + QPointF((rect.width() - self.text_width) / 2, 0))
         self.manager = manager
         self.setZValue(1)
         self.setFlag(QGraphicsItem.ItemIsMovable)
@@ -144,14 +180,9 @@ class StateNode(QGraphicsRectItem):
 
     def set_text_edge(self, x, y):
         # type: (float, float) -> None
-        self.text.setPos(self.rect().topLeft() + QPointF(x, y))
+        self.text.setPos(self.rect().topLeft() + QPointF(x, y) + QPointF((self.rect().width() - self.text_width) / 2, 0))
         for edge in self.edges:
             edge.update_pos()
-
-    def set_pos(self, x, y):
-        # type: () -> None
-        self._set_text_edge(x, y)
-        self.setPos(QPointF(x, y))
 
     def itemChange(self, change, value):
         # type: (Any, QPointF) -> None
@@ -193,13 +224,13 @@ class CallGraphManager(object):
         # type: (StateNode, StateNode) -> Tuple[Tuple[QPointF, str], Tuple[QPointF, str]]
         edge_selections = [
             ('top', 'down'),
-            ('top_right', 'down_left'),
+            # ('top_right', 'down_left'),
             ('right', 'left'),
-            ('down_right', 'top_left'),
+            # ('down_right', 'top_left'),
             ('down', 'top'),
-            ('down_left', 'top_right'),
+            # ('down_left', 'top_right'),
             ('left', 'right'),
-            ('top_left', 'down_right'),
+            # ('top_left', 'down_right'),
         ]
         min_dis = 0x7FFFFFFF
         min_select = ('top', 'down')
@@ -298,20 +329,22 @@ class CallGraphManager(object):
             addr_node, ip_node = self.get_func_node(state, tracer)
             self.connect_node(state.index, addr_node, ip_node)
 
-    def create_scene(self, scale, iterations=25, update=False):
-        if self.valid_scene and not update:
-            return self.scene
+    def create_scene(self, scale, k=20, iterations=25):
         del self.scene
+        # we need to create everytime, since C++ wrapper will delete this scene
         self.scene = QGraphicsScene()
-        layout = spring_layout(self.graph, iterations=iterations, scale=scale)
+        layout = spring_layout(self.graph, k=k, iterations=iterations, scale=scale)
         for node, pos in layout.items():
-            node.set_pos(pos[0], pos[1])
+            node.setPos(pos[0], pos[1])
+            node.edges = []
             self.scene.addItem(node)
             self.scene.addItem(node.text)
         for edge_index in self.edges_index:
             edge = self.create_edge(*edge_index)
             self.scene.addItem(edge)
             self.scene.addItem(edge.text)
+            self.scene.addItem(edge.up_line)
+            self.scene.addItem(edge.down_line)
         return self.scene
 
 
@@ -319,9 +352,9 @@ class CallGraphView(QGraphicsView):
     def __init__(self, manager, window, parent=None):
         super(CallGraphView, self).__init__(parent)
         manager.view = self
-        self.setScene(manager.create_scene(), 600)
+        self.setScene(manager.create_scene(400))
         self.setRenderHint(QPainter.Antialiasing)
-        self.resize(600, 600)
+        self.resize(1000, 1000)
         self.window = window
         self.show()
 

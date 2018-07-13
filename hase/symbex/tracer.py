@@ -345,6 +345,7 @@ class Tracer(object):
             so.CONSERVATIVE_WRITE_STRATEGY,
             so.BYPASS_UNSUPPORTED_IRCCALL,
             so.BYPASS_UNSUPPORTED_IRDIRTY,
+            so.CONSTRAINT_TRACKING_IN_SOLVER,
             # so.DOWNSIZE_Z3,
         }
 
@@ -747,6 +748,6 @@ class Tracer(object):
             simstate = new_simstate
             if cnt % interval == 0 or length - cnt < 50:
                 states.add_major(State(cnt, event, old_simstate, new_simstate))
-        self.constrain_registers(states[-1])
+        self.constrain_registers(states.major_states[-1])
 
         return states
