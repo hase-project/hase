@@ -8,13 +8,11 @@ from PyQt5.QtCore import QPointF, QLineF, QRectF, Qt
 from PyQt5.QtGui import (
     QPainter, QPainterPath, QPen, QBrush, QColor
 )
-from networkx import Graph, spring_layout
+# NOTE: requires matplotlib, scipy
+from networkx import Graph, kamada_kawai_layout
 from math import hypot
 
 from typing import Tuple, Any
-
-# FIXME: sometimes this will segfault, maybe weakref?
-
 
 class StateEdgeArrow(QGraphicsLineItem):
     def __init__(self, line):
@@ -55,11 +53,12 @@ class StateEdge(QGraphicsLineItem):
         self.to_t = to_t
         self.state_index = state_index
         self.manager = manager
-        pen = QPen(QBrush(Qt.blue), 3, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+        pen = QPen(QBrush(Qt.blue), 2, Qt.DotLine, Qt.RoundCap, Qt.RoundJoin)
         self.setPen(pen)
         self.setFlag(QGraphicsItem.ItemIsSelectable)
         self.text = StateEdgeText(state_index, from_t[3], to_t[3], manager)
         self.text.update_pos(self.midpoint())
+        self.text.hide()
         up_line, down_line = self.arrow_line()
         self.up_line = StateEdgeArrow(up_line)
         self.down_line = StateEdgeArrow(down_line)
@@ -68,8 +67,8 @@ class StateEdge(QGraphicsLineItem):
         # type: () -> Tuple[QLineF, QLineF]
         line = self.line()
         angle = line.angle()
-        up_line = QLineF.fromPolar(10, angle + 135)
-        down_line = QLineF.fromPolar(10, angle - 135)
+        up_line = QLineF.fromPolar(10, angle + 165)
+        down_line = QLineF.fromPolar(10, angle - 165)
         up_line.setP1(self.to_t[1])
         down_line.setP1(self.to_t[1])
         up_line.setP2(self.to_t[1] + up_line.p2())
@@ -106,12 +105,11 @@ class StateNode(QGraphicsRectItem):
     def __init__(self, name, index, addr, rect, text, manager):
         self.text = QGraphicsTextItem(text)
         self.text_width = self.text.boundingRect().width()
-        self.text.setTextWidth(rect.width() - 10)
-        if self.text_width > rect.width() - 10:
-            self.text_width = rect.width() - 10
+        if self.text_width > rect.width() - 6:
+            rect.setHeight(self.text_width + 6)
         self.text_height = self.text.boundingRect().height()
-        if self.text_height > rect.height():
-            rect.setHeight(self.text_height + 10)
+        if self.text_height > rect.height() - 6:
+            rect.setHeight(self.text_height + 6)
         super(StateNode, self).__init__(rect)
         self.name = name
         self.index = index
@@ -206,7 +204,7 @@ class CallGraphManager(object):
     NODE_Y = NODE_HEIGHT + NODE_MARGIN
 
     def __init__(self):
-        self.scene = QGraphicsScene()
+        self.scene = None
         self.nodes = []
         self.edges_index = []
         self.fname_to_index = {}
@@ -257,6 +255,15 @@ class CallGraphManager(object):
         self.size += 1
         self.valid_scene = False
         return node
+
+    def clear_cache(self):
+        self.nodes = []
+        self.edges_index = []
+        self.fname_to_index = {}
+        self.size = 0
+        self.view = None
+        self.graph = Graph()
+        self.valid_scene = True
 
     def create_edge(self, state_index, addr_index, ip_index):
         addr_node = self.nodes[addr_index]
@@ -329,11 +336,11 @@ class CallGraphManager(object):
             addr_node, ip_node = self.get_func_node(state, tracer)
             self.connect_node(state.index, addr_node, ip_node)
 
-    def create_scene(self, scale, k=20, iterations=25):
-        del self.scene
+    def create_scene(self, scale):
         # we need to create everytime, since C++ wrapper will delete this scene
         self.scene = QGraphicsScene()
-        layout = spring_layout(self.graph, k=k, iterations=iterations, scale=scale)
+        # best among networkx algorithms (boost has a Gursoy-Atun)
+        layout = kamada_kawai_layout(self.graph, scale=scale)
         for node, pos in layout.items():
             node.setPos(pos[0], pos[1])
             node.edges = []
@@ -352,7 +359,7 @@ class CallGraphView(QGraphicsView):
     def __init__(self, manager, window, parent=None):
         super(CallGraphView, self).__init__(parent)
         manager.view = self
-        self.setScene(manager.create_scene(400))
+        self.setScene(manager.create_scene(800))
         self.setRenderHint(QPainter.Antialiasing)
         self.resize(1000, 1000)
         self.window = window

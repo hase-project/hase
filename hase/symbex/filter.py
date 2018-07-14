@@ -174,6 +174,7 @@ class FilterTrace():
 
     def analyze_start(self, least_reserve=2000):
         # type: (int) -> Tuple[List[Branch], int]
+        # FIXME: not working if atexit register a function which is the problem
         start_idx = 0
         self.start_idx = start_idx
         if len(self.trace) < least_reserve or self.from_initial:

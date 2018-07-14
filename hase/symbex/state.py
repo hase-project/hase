@@ -154,6 +154,7 @@ class StateManager(object):
         is_new = False
         pos = bisect.bisect_left(self.ordered_index, index)
         if self.ordered_index[pos] != index:
+            print('Computing new states')
             is_new = True
             start_pos = self.ordered_index[pos - 1]
             simstate = self.index_to_state[start_pos].simstate # type: ignore

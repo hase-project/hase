@@ -68,11 +68,15 @@ def parse_addr(s):
 
 
 for name, ty, value in res:
-    # TODO: modified to info addr arg => no rbp dependent (no parse for rbp offset 0+-n)
+    # TODO: modified to info addr arg => no rbp dependency (no parse for rbp offset 0+-n)
     tmp = 'ptype {}'.format(name)
     res = gdb.execute(tmp, to_string=True)
     ty = res.partition('=')[2].strip()
-
+    # NOTE: struct Ty { ... } *
+    if ty.find('{') != -1:
+        left_b = ty.find('{')
+        right_b = len(ty) - ty[::-1].find('}') - 1
+        ty = ty[0:left_b].strip() + ' ' + ty[right_b+1:].strip()
     tmp = "print &{}".format(name)
     res = gdb.execute(tmp, to_string=True)
     res = res.replace('\n', '')

@@ -111,6 +111,7 @@ class HaseMagics(Magics):
     @args("<report_archive>")
     @line_magic("load")
     def load(self, query):
+        self.window.clear_cache()
         user_ns = self.shell.user_ns
         if not Path(query).exists():
             query = str(DEFAULT_LOG_DIR.join(query))

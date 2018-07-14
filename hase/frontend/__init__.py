@@ -130,7 +130,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
     def eval_variable(self, active_state, addr, size):
         # type: (Any, Any) -> str
         # NOTE: * -> uninitialized / 'E' -> symbolic
-        if not getattr(active_state, 'add_coredump_constraints', False):
+        if not getattr(active_state, 'had_coredump_constraints', False):
             for c in self.coredump_constraints:
                 old_con = active_state.simstate.se.constraints
                 active_state.simstate.se.add(c)
@@ -138,7 +138,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                     print('Unsatisfiable coredump constraints: ' + str(c))
                     active_state.simstate.solver._solver._cached_satness = True
                     active_state.simstate.solver._solver.constraints = old_con
-            active_state.add_coredump_constraints = True
+            active_state.had_coredump_constraints = True
         mem = active_state.simstate.memory.load(addr, size, endness='Iend_LE')
         if mem.uninitialized and mem.variables != frozenset():
             result = ''
@@ -419,6 +419,11 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.cg_button.setEnabled(True)
         self.info_button.setEnabled(True)
         self.switch_button.setEnabled(True)
+
+    def clear_cache(self):
+        self.file_cache = {}
+        self.coredump_constraints = []
+        self.callgraph.clear_cache()
 
     def shutdown_kernel(self):
         # type: () -> None

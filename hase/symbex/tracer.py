@@ -369,7 +369,7 @@ class Tracer(object):
             self.hooked_symbols = {}
             self.project._sim_procedures = {}
 
-        self.from_initial = False
+        self.from_initial = True
 
         self.filter = FilterTrace(
             self.project, 
@@ -411,7 +411,6 @@ class Tracer(object):
                 remove_options=remove_simplications)
             self.start_state.regs.rsp = rsp
             self.start_state.regs.rbp = rbp
-
 
         self.setup_argv()
         self.simgr = self.project.factory.simgr(
