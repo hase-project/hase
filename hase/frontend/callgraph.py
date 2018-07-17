@@ -106,7 +106,7 @@ class StateNode(QGraphicsRectItem):
         self.text = QGraphicsTextItem(text)
         self.text_width = self.text.boundingRect().width()
         if self.text_width > rect.width() - 6:
-            rect.setHeight(self.text_width + 6)
+            rect.setWidth(self.text_width + 6)
         self.text_height = self.text.boundingRect().height()
         if self.text_height > rect.height() - 6:
             rect.setHeight(self.text_height + 6)

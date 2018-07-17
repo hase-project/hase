@@ -181,7 +181,7 @@
     <item row="2" column="4">
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
-       <widget class="QTableWidget" name="reg_view">
+       <widget class="RegTableWidget" name="reg_view">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
           <horstretch>0</horstretch>
@@ -191,7 +191,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QTableWidget" name="var_view">
+       <widget class="VarTableWidget" name="var_view">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
           <horstretch>0</horstretch>
@@ -261,6 +261,16 @@ p, li { white-space: pre-wrap; }
    <extends>QWidget</extends>
    <header>qtconsole.rich_jupyter_widget</header>
    <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>RegTableWidget</class>
+   <extends>QTableWidget</extends>
+   <header>hase.frontend.viewtable</header>
+  </customwidget>
+  <customwidget>
+   <class>VarTableWidget</class>
+   <extends>QTableWidget</extends>
+   <header>hase.frontend.viewtable</header>
   </customwidget>
  </customwidgets>
  <resources/>

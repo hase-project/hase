@@ -6,7 +6,6 @@ from PyQt5 import QtWidgets
 from PyQt5.uic import loadUiType
 from PyQt5.QtCore import QSize
 from PyQt5.QtGui import QTextCursor, QIcon, QPixmap, QPainter
-from PyQt5.QtWidgets import QTableWidgetItem, QAbstractScrollArea, QGraphicsView
 import pygments
 import pygments.lexers
 import pygments.formatters
@@ -52,13 +51,14 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.jupiter_widget.kernel_client = self.kernel_client
         self.jupiter_widget.reset()
 
-        self.var_view.setColumnCount(4)
-        self.var_view.setHorizontalHeaderLabels(['Name', 'Type', 'Address', 'Value'])
-        # self.var_view.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+
         self.reg_view.setColumnCount(2)
         self.reg_view.setHorizontalHeaderLabels(['Name', 'Value'])
-        # self.reg_view.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
 
+        self.var_view.setColumnCount(4)
+        self.var_view.setHorizontalHeaderLabels(['Name', 'Type', 'Address', 'Value'])
+
+        # NOTE: icons are from Google Material Design
         self.up_button.setIcon(QIcon(str(APP_ROOT.join('frontend/icon/up.png'))))
         self.up_button.setIconSize(QSize(15, 15))
         self.up_button.clicked.connect(self.push_up)
@@ -155,9 +155,12 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                     v = 'Er'
                 result += v + ' '
             result = result[:-1]
-            return result
+            return result, 'array'
         else:
-            return self.eval_value(active_state, mem)
+            v = self.eval_value(active_state, mem)
+            if v == 'uninitialized' or v == 'symbolic':
+                return v, 'unknown'
+            return v, 'hex'
 
     def eval_value(self, active_state, value):
         # type: (Any, Any) -> str
@@ -293,20 +296,10 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.var_view.setRowCount(0)
         self.var_view.setRowCount(len(var))
         for i, v in enumerate(var):
-            name_item = QTableWidgetItem()
-            name_item.setText(v['name'])
-            self.var_view.setItem(i, 0, name_item)
-            type_item = QTableWidgetItem()
-            type_item.setText(v['type'].strip() + ' ' + '*' * v['indirect'])
-            self.var_view.setItem(i, 1, type_item)
-            addr_item = QTableWidgetItem()
-            addr_item.setText(hex(v['addr']))
-            self.var_view.setItem(i, 2, addr_item)            
-            value_item = QTableWidgetItem()
-            value_item.setText(self.eval_variable(
+            value, value_type = self.eval_variable(
                 user_ns['active_state'],
-                v['addr'], v['size']))
-            self.var_view.setItem(i, 3, value_item)
+                v['addr'], v['size'])
+            self.var_view.set_var(i, v, value, value_type)
         self.var_view.resizeColumnsToContents()        
 
     def set_regs(self):
@@ -321,40 +314,25 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             # OP_REG
             if op.type == 1:
                 rname = insn.reg_name(op.value.reg)
-                rname_item = QTableWidgetItem()
-                rname_item.setText(rname)
-                value_item = QTableWidgetItem()
-                value_item.setText(self.eval_value(
+                value = self.eval_value(
                     active_state,
-                    getattr(active_state.simstate.regs, rname)))
-                self.reg_view.insertRow(self.reg_view.rowCount())
-                self.reg_view.setItem(self.reg_view.rowCount() - 1, 0, rname_item)
-                self.reg_view.setItem(self.reg_view.rowCount() - 1, 1, value_item)
+                    getattr(active_state.simstate.regs, rname))
+                self.reg_view.append_reg(rname, value)
             # OP_MEM
             elif op.type == 3:
                 if op.value.mem.base:
                     rname = insn.reg_name(op.value.mem.base)
-                    rname_item = QTableWidgetItem()
-                    rname_item.setText(rname)
-                    value_item = QTableWidgetItem()
-                    value_item.setText(self.eval_value(
+                    value = self.eval_value(
                         active_state,
-                        getattr(active_state.simstate.regs, rname)))
-                    self.reg_view.insertRow(self.reg_view.rowCount())
-                    self.reg_view.setItem(self.reg_view.rowCount() - 1, 0, rname_item)
-                    self.reg_view.setItem(self.reg_view.rowCount() - 1, 1, value_item)
+                        getattr(active_state.simstate.regs, rname))
+                    self.reg_view.append_reg(rname, value)
                 if op.value.mem.index:
                     rname = insn.reg_name(op.value.mem.index)
-                    rname_item = QTableWidgetItem()
-                    rname_item.setText(rname)
-                    value_item = QTableWidgetItem()
-                    value_item.setText(self.eval_value(
+                    value = self.eval_value(
                         active_state,
-                        getattr(active_state.simstate.regs, rname)))
-                    self.reg_view.insertRow(self.reg_view.rowCount())
-                    self.reg_view.setItem(self.reg_view.rowCount() - 1, 0, rname_item)
-                    self.reg_view.setItem(self.reg_view.rowCount() - 1, 1, value_item)
-        self.reg_view.resizeColumnsToContents()        
+                        getattr(active_state.simstate.regs, rname))
+                    self.reg_view.append_reg(rname, value)
+        self.reg_view.resizeColumnsToContents()
 
     def setup_ipython(self, app, window):
         # type: (QtWidgets.QApplication, MainWindow) -> None
