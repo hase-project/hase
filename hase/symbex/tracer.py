@@ -300,6 +300,7 @@ class Tracer(object):
         self.project = angr.Project(executable, **options)
 
         self.coredump = Coredump(coredump)
+        self.debug_unsat = None  # type: Optional[SimState]
 
         command = os.path.basename(self.coredump.string(self.coredump.argv[0]))
 
@@ -353,7 +354,7 @@ class Tracer(object):
         )
 
         self.use_hook = True
-        self.omitted_section = []
+        self.omitted_section = [] # type: List[List[int]]
 
         if self.use_hook:
             self.hooked_symbols = all_hookable_symbols.copy()
@@ -363,8 +364,8 @@ class Tracer(object):
             self.project._sim_procedures = {}
 
         self.filter = FilterTrace(
-            self.project, 
-            self.cfg, 
+            self.project,
+            self.cfg,
             self.trace,
             self.hooked_symbols,
             self.cdanalyzer.gdb,
@@ -540,7 +541,7 @@ class Tracer(object):
         if old_state.addr == branch.addr and choice.addr == branch.ip:
             l.debug("jump 0%x -> 0%x", old_state.addr, choice.addr)
             return True
-        return False        
+        return False
 
     def jump_was_not_taken(self, old_state, new_state):
         # was the last control flow change an exit vs call/jump?
@@ -690,7 +691,7 @@ class Tracer(object):
         states.append(State(self.trace[0], simstate))
         self.debug_unsat = None
         self.debug_state = deque(maxlen=5) # type: deque
-        self.skip_addr = {}
+        self.skip_addr = {} # type: Dict[int, int]
         cnt = 0
         for event in self.trace[1:]:
             cnt += 1

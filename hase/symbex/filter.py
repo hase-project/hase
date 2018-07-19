@@ -40,7 +40,7 @@ class FilterBase(object):
         self.gdb = gdb
         self.new_trace = [] # type: List[Branch]
         self.gdb = gdb
-        self.omitted_section = [] # type: List[Tuple[int, int]]
+        self.omitted_section = [] # type: List[List[int]]
         self.analyze_unsupported()
 
     def analyze_unsupported(self):
@@ -70,7 +70,7 @@ class FilterBase(object):
 
 class FilterTrace():
     def __init__(self, project, cfg, trace, hooked_symbol, gdb, omitted_section):
-        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], Any, List[List[Int]]) -> None
+        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], Any, List[List[int]]) -> None
         # FIXME: super cannot work for reload
         # super(FilterTrace, self).__init__(project, cfg, trace, hooked_symbol)
         self.project = project
@@ -82,7 +82,7 @@ class FilterTrace():
         self.hooked_symbol = hooked_symbol
         self.new_trace = [] # type: List[Branch]
         self.gdb = gdb
-        self.omitted_section = omitted_section # type: List[List[int, int]]
+        self.omitted_section = omitted_section
         self.analyze_unsupported()
 
         self.hooked_symname = self.hooked_symbol.keys()

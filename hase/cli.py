@@ -7,7 +7,7 @@ from .record import record_command, DEFAULT_LOG_DIR
 
 
 def parse_arguments(argv):
-    # List[str] -> argeparse.Namespace
+    # type: (List[str]) -> argparse.Namespace
     parser = argparse.ArgumentParser(
         prog=argv[0], description="process crashes")
     parser.add_argument(

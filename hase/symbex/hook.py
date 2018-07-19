@@ -2,7 +2,7 @@ from angr import SimProcedure
 from angr.procedures import SIM_PROCEDURES, SIM_LIBRARIES
 import procedures
 
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 
 # TODO: How to deal with overload function hook?
 # TODO: wchar functions support?
@@ -29,7 +29,7 @@ unsupported_symbols = [
     # ('__new_exitfn', 'atexit', 'no simulation'),
     # ('getenv', 'getenv', 'wrong branch'),
     # ('_IO_do_allocate', 'fread_unlocked', 'wrong branch'),
-]
+]  # type: List[Tuple[str, str, str]]
 
 skip_hook = [
 ] # type: List[str]
