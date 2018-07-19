@@ -40,7 +40,7 @@ class FilterBase(object):
         self.gdb = gdb
         self.new_trace = [] # type: List[Branch]
         self.gdb = gdb
-        self.omitted_section = [] # type: List[Tuple[int, int]]
+        self.omitted_section = [] # type: List[List[int]]
         self.analyze_unsupported()
 
     def analyze_unsupported(self):
