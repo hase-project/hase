@@ -175,7 +175,7 @@ class CoredumpGDB():
         resp = self.write_request("info reg {}".format(reg_name))
         if len(resp) < 5 or not resp[2]['payload'].startswith('\\t'):
             return 0
-        return int(resp[2]['payload'][2:], 16)   
+        return int(resp[2]['payload'][2:].split(' ')[0], 16)
 
     def get_stack_base(self, n):
         # type: (int) -> Tuple[int, int]

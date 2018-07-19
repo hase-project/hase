@@ -43,9 +43,9 @@ class strtold_l(SimProcedure):
 
 class strspn(SimProcedure):
     def run(self, str1, str2):
-        return self.state.se.Unconstrained('strspn', self.state.arch.bits)
+        return self.state.se.Unconstrained('strspn', self.state.arch.bits, uninitialized=False)
 
 
 class strcspn(SimProcedure):
     def run(self, str1, str2):
-        return self.state.se.Unconstrained('strspn', self.state.arch.bits)
+        return self.state.se.Unconstrained('strspn', self.state.arch.bits, uninitialized=False)

@@ -117,139 +117,139 @@ class printf(FormatParser):
         if fmt_str:
             for i, c in enumerate(fmt_str.components):
                 if c.spec_type == 'n':
-                    self.state.memory.store(self.args(i), self.state.se.Unconstrained('format_%n', 32))
-        return self.state.se.Unconstrained('printf', 32)
+                    self.state.memory.store(self.args(i), self.state.se.Unconstrained('format_%n', 32, uninitialized=False))
+        return self.state.se.Unconstrained('printf', 32, uninitialized=False)
 '''
 
 
 class isalnum(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('isalnum', 32)
+        return self.state.se.Unconstrained('isalnum', 32, uninitialized=False)
 
 
 class iswalnum(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('iswalnum', 32)
+        return self.state.se.Unconstrained('iswalnum', 32, uninitialized=False)
 
 
 class isalpha(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('isalpha', 32)
+        return self.state.se.Unconstrained('isalpha', 32, uninitialized=False)
 
 
 class iswalpha(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('iswalpha', 32)
+        return self.state.se.Unconstrained('iswalpha', 32, uninitialized=False)
 
 
 class islower(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('islower', 32)
+        return self.state.se.Unconstrained('islower', 32, uninitialized=False)
 
 
 class iswlower(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('iswlower', 32)
+        return self.state.se.Unconstrained('iswlower', 32, uninitialized=False)
 
 
 class isupper(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('isupper', 32)
+        return self.state.se.Unconstrained('isupper', 32, uninitialized=False)
 
 
 class iswupper(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('iswupper', 32)
+        return self.state.se.Unconstrained('iswupper', 32, uninitialized=False)
 
 
 class isdigit(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('isdigit', 32)
+        return self.state.se.Unconstrained('isdigit', 32, uninitialized=False)
 
 
 class iswdigit(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('iswdigit', 32)
+        return self.state.se.Unconstrained('iswdigit', 32, uninitialized=False)
 
 
 class isxdigit(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('isxdigit', 32)
+        return self.state.se.Unconstrained('isxdigit', 32, uninitialized=False)
 
 
 class iswxdigit(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('iswxdigit', 32)
+        return self.state.se.Unconstrained('iswxdigit', 32, uninitialized=False)
 
 
 class iscntrl(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('iscntrl', 32)
+        return self.state.se.Unconstrained('iscntrl', 32, uninitialized=False)
 
 
 class iswcntrl(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('iswcntrl', 32)
+        return self.state.se.Unconstrained('iswcntrl', 32, uninitialized=False)
 
 
 class isgraph(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('isgraph', 32)
+        return self.state.se.Unconstrained('isgraph', 32, uninitialized=False)
 
 
 class iswgraph(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('iswgraph', 32)
+        return self.state.se.Unconstrained('iswgraph', 32, uninitialized=False)
 
 
 class isspace(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('isspace', 32)
+        return self.state.se.Unconstrained('isspace', 32, uninitialized=False)
 
 
 class iswspace(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('iswspace', 32)
+        return self.state.se.Unconstrained('iswspace', 32, uninitialized=False)
 
 
 class isblank(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('isblank', 32)
+        return self.state.se.Unconstrained('isblank', 32, uninitialized=False)
 
 
 class iswblank(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('iswblank', 32)
+        return self.state.se.Unconstrained('iswblank', 32, uninitialized=False)
 
 
 class isprint(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('isprint', 32)
+        return self.state.se.Unconstrained('isprint', 32, uninitialized=False)
 
 
 class iswprint(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('iswprint', 32)
+        return self.state.se.Unconstrained('iswprint', 32, uninitialized=False)
 
 
 class ispunct(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('ispunct', 32)
+        return self.state.se.Unconstrained('ispunct', 32, uninitialized=False)
 
 
 class iswpunct(SimProcedure):
     def run(self, c):
-        return self.state.se.Unconstrained('iswpunct', 32)
+        return self.state.se.Unconstrained('iswpunct', 32, uninitialized=False)
 
 
 class strncasecmp(SimProcedure):
     def run(self, a_addr, b_addr, limit):
-        return self.state.se.Unconstrained('strncasecmp', self.state.arch.bits)
+        return self.state.se.Unconstrained('strncasecmp', self.state.arch.bits, uninitialized=False)
 
 
 class strspn(SimProcedure):
     def run(self, str1, str2):
-        return self.state.se.Unconstrained('strspn', self.state.arch.bits)
+        return self.state.se.Unconstrained('strspn', self.state.arch.bits, uninitialized=False)
 
 
 class memchr(SimProcedure):

@@ -12,7 +12,7 @@ from PyQt5.QtGui import (
 from networkx import Graph, kamada_kawai_layout
 from math import hypot
 
-from typing import Tuple, Any
+from typing import Tuple, Any, List, Union
 
 class StateEdgeArrow(QGraphicsLineItem):
     def __init__(self, line):
@@ -27,13 +27,19 @@ class StateEdgeArrow(QGraphicsLineItem):
 
 
 class StateEdgeText(QGraphicsTextItem):
-    def __init__(self, state_index, from_addr, to_addr, manager):
-        # type: (int, int, int, CallGraphManager) -> None
-        text = '{} -> {}'.format(hex(from_addr), hex(to_addr))
+    def __init__(self, state_index, from_addr, to_addr, times, manager):
+        # type: (List[int], int, int, int, CallGraphManager) -> None
+        # text = '{} -> {}'.format(hex(from_addr), hex(to_addr))
+        self.times = times
+        text = '[{} times]'.format(self.times)
         super(StateEdgeText, self).__init__(text)
         self.state_index = state_index
         self.manager = manager
         self.setFlag(QGraphicsItem.ItemIsSelectable)
+
+    def update_text(self, times):
+        text = '[{} times]'.format(times)
+        self.setPlainText(text)
 
     def update_pos(self, midpoint):
         # type: (QPointF) -> None
@@ -41,24 +47,25 @@ class StateEdgeText(QGraphicsTextItem):
 
     def mouseDoubleClickEvent(self, event):
         # type: (Any) -> None
-        self.manager.double_click(self.state_index)
+        self.manager.double_click(self.state_index[0])
         event.accept()
 
 
 class StateEdge(QGraphicsLineItem):
-    def __init__(self, state_index, from_t, to_t, manager):
-        # type: (int, List[StateNode, QPointF, str, int], List[StateNode, QPointF, str, int], CallGraphManager) -> None
+    def __init__(self, state_index, from_t, to_t, times, manager):
+        # type: (List[int], list, list, int, CallGraphManager) -> None
         super(StateEdge, self).__init__(QLineF(from_t[1], to_t[1]))
         self.from_t = from_t
         self.to_t = to_t
         self.state_index = state_index
         self.manager = manager
+        self.times = times
         pen = QPen(QBrush(Qt.blue), 2, Qt.DotLine, Qt.RoundCap, Qt.RoundJoin)
         self.setPen(pen)
         self.setFlag(QGraphicsItem.ItemIsSelectable)
-        self.text = StateEdgeText(state_index, from_t[3], to_t[3], manager)
+        self.text = StateEdgeText(state_index, from_t[3], to_t[3], self.times, manager)
         self.text.update_pos(self.midpoint())
-        self.text.hide()
+        # self.text.hide()
         up_line, down_line = self.arrow_line()
         self.up_line = StateEdgeArrow(up_line)
         self.down_line = StateEdgeArrow(down_line)
@@ -97,7 +104,7 @@ class StateEdge(QGraphicsLineItem):
 
     def mouseDoubleClickEvent(self, event):
         # type: (Any) -> None
-        self.manager.double_click(self.state_index)
+        self.manager.double_click(self.state_index[0])
         event.accept()
 
 
@@ -230,7 +237,7 @@ class CallGraphManager(object):
             ('left', 'right'),
             # ('top_left', 'down_right'),
         ]
-        min_dis = 0x7FFFFFFF
+        min_dis = 0x7FFFFFFF + 0.1
         min_select = ('top', 'down')
         min_pos = (addr_node.top_node(), ip_node.down_node())
         for select in edge_selections:
@@ -258,14 +265,14 @@ class CallGraphManager(object):
 
     def clear_cache(self):
         self.nodes = []
-        self.edges_index = []
+        self.edges_index = {}
         self.fname_to_index = {}
         self.size = 0
         self.view = None
         self.graph = Graph()
         self.valid_scene = True
 
-    def create_edge(self, state_index, addr_index, ip_index):
+    def create_edge(self, addr_index, ip_index, state_index, times):
         addr_node = self.nodes[addr_index]
         ip_node = self.nodes[ip_index]
         edge_dir = CallGraphManager.edge_direction(addr_node, ip_node)
@@ -273,6 +280,7 @@ class CallGraphManager(object):
             state_index,
             list((addr_node,) +  edge_dir[0] + (addr_node.addr,)),
             list((ip_node,) +  edge_dir[1] + (ip_node.addr,)),
+            times,
             self
         )
         addr_node.edges.append(edge)
@@ -325,9 +333,12 @@ class CallGraphManager(object):
             return
         if addr_index > ip_index:
             addr_index, ip_index = ip_index, addr_index
-        if (addr_index, ip_index) not in self.edges_index:
+        if (addr_index, ip_index) not in self.edges_index.keys():
             self.graph.add_edge(addr_node, ip_node)
-            self.edges_index.append((state_index, addr_index, ip_index))
+            self.edges_index[(addr_index, ip_index)] = [[state_index], 1]
+        else:
+            self.edges_index[(addr_index, ip_index)][0].append(state_index)
+            self.edges_index[(addr_index, ip_index)][1] += 1
         self.valid_scene = False
 
     def add_node(self, state, tracer):
@@ -346,8 +357,8 @@ class CallGraphManager(object):
             node.edges = []
             self.scene.addItem(node)
             self.scene.addItem(node.text)
-        for edge_index in self.edges_index:
-            edge = self.create_edge(*edge_index)
+        for edge_index, v in self.edges_index.items():
+            edge = self.create_edge(edge_index[0], edge_index[1], v[0], v[1])
             self.scene.addItem(edge)
             self.scene.addItem(edge.text)
             self.scene.addItem(edge.up_line)
@@ -359,7 +370,7 @@ class CallGraphView(QGraphicsView):
     def __init__(self, manager, window, parent=None):
         super(CallGraphView, self).__init__(parent)
         manager.view = self
-        self.setScene(manager.create_scene(800))
+        self.setScene(manager.create_scene(400 + len(manager.nodes) * 10))
         self.setRenderHint(QPainter.Antialiasing)
         self.resize(1000, 1000)
         self.window = window

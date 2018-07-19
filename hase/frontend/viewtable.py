@@ -29,7 +29,6 @@ class VarTableWidget(QTableWidget):
         # self.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
 
     def set_var(self, i, attrs, value, value_type):
-        print(i, attrs, value, value_type)
         name_item = QTableWidgetItem()
         name_item.setText(attrs['name'])
         self.setItem(i, 0, name_item)

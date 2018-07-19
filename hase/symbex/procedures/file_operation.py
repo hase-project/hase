@@ -215,8 +215,8 @@ class __snprintf_chk(FormatParser):
                 l = minmax(self, maxlen, self.state.libc.max_buffer_size)
             else:
                 l = self.state.se.eval(maxlen)
-            self.state.memory.store(dst_ptr, self.state.se.Unconstrained('snprintf', l * 8))
-            return self.state.se.Unconstrained('length', self.state.arch.bits)
+            self.state.memory.store(dst_ptr, self.state.se.Unconstrained('snprintf', l * 8, uninitialized=False))
+            return self.state.se.Unconstrained('length', self.state.arch.bits, uninitialized=False)
 
 
 class __sprintf_chk(FormatParser):
@@ -240,7 +240,7 @@ class __read_chk(SimProcedure):
 
 class posix_fadvise(SimProcedure):
     def run(self, fd, offset, len, advise):
-        return self.state.se.Unconstrained('posiv_fadvise', 32)
+        return self.state.se.Unconstrained('posiv_fadvise', 32, uninitialized=False)
 
 
 class getdelim(SimProcedure):
@@ -248,10 +248,10 @@ class getdelim(SimProcedure):
         malloc = SIM_PROCEDURES['libc']['malloc']
         # Actually a realloc(*lineptr, size)
         a_addr = self.inline_call(malloc, self.state.libc.max_buffer_size).ret_expr
-        self.state.memory.store(a_addr, self.state.se.Unconstrained('getdelim', self.state.libc.max_buffer_size * 8))
+        self.state.memory.store(a_addr, self.state.se.Unconstrained('getdelim', self.state.libc.max_buffer_size * 8, uninitialized=False))
         self.state.memory.store(lineptr, a_addr)
-        self.state.memory.store(n, self.state.se.Unconstrained('getdelim', self.state.arch.bits))
-        return self.state.se.Unconstrained('getdelim', self.state.arch.bits)
+        self.state.memory.store(n, self.state.se.Unconstrained('getdelim', self.state.arch.bits, uninitialized=False))
+        return self.state.se.Unconstrained('getdelim', self.state.arch.bits, uninitialized=False)
 
 
 class getline(SimProcedure):

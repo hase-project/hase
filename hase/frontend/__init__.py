@@ -119,7 +119,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             high_v = coredump.stack.stop
         
         for addr in range(low_v, high_v):
-            value = active_state.simstate.memory.load(addr, 1)
+            value = active_state.simstate.memory.load(addr, 1, endness='Iend_LE')
             if value.uninitialized or value.variables == frozenset():
                 continue
             cmem = coredump.stack[addr]
@@ -128,7 +128,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             )
 
     def eval_variable(self, active_state, addr, size):
-        # type: (Any, Any) -> str
+        # type: (Any, int, int) -> Tuple[str, str]
         # NOTE: * -> uninitialized / 'E' -> symbolic
         if not getattr(active_state, 'had_coredump_constraints', False):
             for c in self.coredump_constraints:

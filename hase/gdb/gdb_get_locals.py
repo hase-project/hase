@@ -70,24 +70,28 @@ def parse_addr(s):
 for name, ty, value in res:
     # TODO: modified to info addr arg => no rbp dependency (no parse for rbp offset 0+-n)
     tmp = 'ptype {}'.format(name)
-    res = gdb.execute(tmp, to_string=True)
-    ty = res.partition('=')[2].strip()
+    result = gdb.execute(tmp, to_string=True)
+    ty = result.partition('=')[2].strip()
     # NOTE: struct Ty { ... } *
     if ty.find('{') != -1:
         left_b = ty.find('{')
         right_b = len(ty) - ty[::-1].find('}') - 1
         ty = ty[0:left_b].strip() + ' ' + ty[right_b+1:].strip()
-    tmp = "print &{}".format(name)
-    res = gdb.execute(tmp, to_string=True)
-    res = res.replace('\n', '')
-    addr = parse_addr(res)
+    try:
+        tmp = "print &{}".format(name)
+        result = gdb.execute(tmp, to_string=True)
+    except Exception as e:
+        # FIXME: non-lvalue case and register case
+        pass
+    result = result.replace('\n', '')
+    addr = parse_addr(result)
 
-    res = gdb.execute(
+    result = gdb.execute(
         "print sizeof({})".format(ty),
         to_string=True
     )
-    res = res.replace('\n', '')
-    size = res.split(' ')[-1]
+    result = result.replace('\n', '')
+    size = result.split(' ')[-1]
     ty = ty.replace(' ', '%')
 
     print(' '.join(['ARGS:', name, ty, '1', addr, size]))

@@ -1,10 +1,10 @@
 
 CC 		= gcc
-CCFLAGS = -g -static # -fno-plt
+CCFLAGS = -g # -static
 SRCS	= ./src
 BINS	= ./bin
 HASEBIN	= ../bin/hase
-TARGETS = control_flow loopy long_trace null_deref core_constraint
+TARGETS = control_flow loopy long_trace null_deref core_constraint heap_location
 
 
 $(TARGETS): 

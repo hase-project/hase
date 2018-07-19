@@ -76,7 +76,7 @@ class __cxa_atexit(SimProcedure):
 
 class gethostid(SimProcedure):
     def run(self):
-        return self.state.se.Unconstrained('hostid', self.state.arch.bits)
+        return self.state.se.Unconstrained('hostid', self.state.arch.bits, uninitialized=False)
 
 
 class sethostid(SimProcedure):
@@ -109,4 +109,4 @@ class dcgettext(SimProcedure):
 # NOTE: this function is not recorded by ltrace? and cannot be resolved by angr
 class __sched_cpucount(SimProcedure):
     def run(self, setsize, setp):
-        return self.state.se.Unconstrained('__sched_cpucount', 32)
+        return self.state.se.Unconstrained('__sched_cpucount', 32, uninitialized=False)
