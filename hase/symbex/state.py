@@ -5,7 +5,7 @@ from cle import ELF
 from typing import Dict, Tuple, Optional, List, Union, Any
 from claripy.ast.bv import BV
 
-from ..pt import Instruction
+from ..pt.events import Instruction
 from ..annotate import Addr2line
 
 

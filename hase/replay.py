@@ -27,7 +27,6 @@ def decode_trace(manifest, mappings, vdso_x64, executable_root):
     return pt.decode(
         trace_per_cpu=trace_per_cpu,
         mappings=mappings,
-        exec_wrapper=manifest["exec_wrapper"],
         pid=coredump["global_pid"],
         tid=coredump["global_tid"],
         cpu_family=trace["cpu_family"],
@@ -109,7 +108,6 @@ class Replay(object):
         coredump = manifest["coredump"]
         coredump["executable"] = str(archive_root.join(coredump["executable"]))
         coredump["file"] = str(archive_root.join(coredump["file"]))
-        manifest["exec_wrapper"] = str(archive_root.join(manifest["exec_wrapper"]))
 
         return manifest
 

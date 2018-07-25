@@ -3,6 +3,8 @@
 #include <Python.h>
 
 #include "mmap.h"
+#include "pt.h"
+#include "tsc.h"
 
 #include <string>
 #include <vector>
@@ -19,11 +21,9 @@ typedef struct {
 } SharedObject;
 
 typedef struct {
+  TscConverter tscConverter;
   struct pt_config config;
-  struct pt_sb_pevent_config peventConfig;
-  std::vector<const char *> perfEventFilenames;
   std::vector<SharedObject> sharedObjects;
-  PyObject *switchCallback;
   Mmap trace;
 } Config;
 

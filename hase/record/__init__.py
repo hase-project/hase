@@ -20,17 +20,17 @@ from ..path import Path, Tempdir, APP_ROOT
 from .signal_handler import SignalHandler
 from .. import pwn_wrapper
 from ..perf import Perf, IncreasePerfBuffer, Trace
+from .ptrace import ptrace_detach, ptrace_me
 
 l = logging.getLogger(__name__)
 
 DEFAULT_LOG_DIR = Path("/var/lib/hase")
-EXEC_WRAPPER = str(APP_ROOT.join("libexec", "exec-wrapper"))
 
 PROT_EXEC = 4
 
 
-def record_process(process, trace_ready_pipe, record_paths):
-    # type: (subprocess.Popen, int, RecordPaths) -> Optional[Tuple[coredumps.Coredump, Trace]]
+def record_process(process, record_paths):
+    # type: (subprocess.Popen, RecordPaths) -> Optional[Tuple[coredumps.Coredump, Trace]]
     handler = coredumps.Handler(
         str(record_paths.coredump),
         str(record_paths.fifo),
@@ -49,10 +49,8 @@ def record_process(process, trace_ready_pipe, record_paths):
             SignalHandler(SIGUSR2, received_coredump):
         write_pid_file(record_paths.pid_file)
 
-        os.write(trace_ready_pipe, b'1')
-
-        res = process.wait()
-        print(res)
+        ptrace_detach(process.pid)
+        process.wait()
 
         if not got_coredump[0]:
             return None
@@ -69,21 +67,8 @@ def record(record_paths, command=None):
     if command is None:
         raise Exception("recording without command is not supported at the moment")
 
-    read_fd, write_fd = os.pipe()
-
-    try:
-        flags = fcntl.fcntl(read_fd, fcntl.F_GETFD)
-        flags |= ~fcntl.FD_CLOEXEC
-        fcntl.fcntl(read_fd, fcntl.F_SETFD, flags) 
-
-        env = os.environ.copy()
-        env['SYNC_PIPE_FD'] = str(read_fd)
-
-        proc = subprocess.Popen([EXEC_WRAPPER] + command, env=env)
-        return record_process(proc, write_fd, record_paths)
-    finally:
-        os.close(read_fd)
-        os.close(write_fd)
+    proc = subprocess.Popen(command, preexec_fn=ptrace_me)
+    return record_process(proc, record_paths)
 
 
 def write_pid_file(pid_file):
@@ -190,8 +175,6 @@ def store_report(job):
                     and os.path.exists(obj.path):
                 paths.add(obj.path)
 
-        paths.add(EXEC_WRAPPER)
-
         for path in paths:
             # FIXME check if elf, only create parent directory once
             archive_path = state_dir.join("binaries", path[1:])
@@ -205,7 +188,6 @@ def store_report(job):
         coredump = manifest["coredump"]
         coredump["executable"] = os.path.join("binaries",
                                               coredump["executable"])
-        manifest["exec_wrapper"] = os.path.join("binaries", EXEC_WRAPPER[1:])
         coredump["file"] = str(state_dir.relpath(core_file))
         append(core_file)
 

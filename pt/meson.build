@@ -3,6 +3,7 @@ src = [
   'module.cpp',
   'config.cpp',
   'mmap.cpp',
+  'tsc.cpp',
 ]
 
 add_global_arguments(['-std=c++17', '-I../inst/include', '-fvisibility=hidden', '-Wno-register'], language: 'cpp')

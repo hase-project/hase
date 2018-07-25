@@ -24,7 +24,7 @@ from .hook import all_hookable_symbols, addr_symbols
 from .filter import FilterTrace
 from .state import State, StateManager
 from .hook import all_hookable_symbols, addr_symbols
-from ..pt import Instruction
+from ..pt.events import Instruction
 
 l = logging.getLogger("hase")
 

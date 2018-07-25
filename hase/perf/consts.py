@@ -47,7 +47,6 @@ class perf_event_attr(ct.Structure):
         ('__reserved_2', ct.c_ushort)
     ]
 
-
 class perf_event_mmap_page(ct.Structure):
     _fields_ = [
         ('version', ct.c_uint),  #
@@ -272,7 +271,12 @@ class EventStructs(object):
     @compute_string_size
     def record_switch_event(self, size):
         # type: (int) -> Type[ct.Structure]
-        return self._event_header([])
+        base = self._event_header([])
+        class RecordSwitch(base):
+            def is_switch_out(self):
+                # otherwise switch in
+                return (self.misc & RecordMisc.PERF_RECORD_MISC_SWITCH_OUT) != 0
+        return RecordSwitch
 
     @compute_string_size
     def record_switch_cpu_wide_event(self, size):

@@ -46,24 +46,6 @@ static std::optional<const char *> getFilename(PyObject *pyFilename) {
   return str;
 }
 
-static std::optional<std::vector<const char *>>
-getPerfEventFilenames(PyObject *pyList) {
-  std::vector<const char *> perfEventFilenames;
-  perfEventFilenames.reserve(PyList_GET_SIZE(pyList));
-
-  for (Py_ssize_t i = 0; i < PyList_GET_SIZE(pyList); i++) {
-    auto item = PyList_GET_ITEM(pyList, i);
-    auto filename = getFilename(item);
-    if (!filename) {
-      return {};
-    }
-
-    perfEventFilenames.push_back(*filename);
-  }
-
-  return perfEventFilenames;
-}
-
 static std::optional<std::vector<SharedObject>>
 getSharedObjects(PyObject *pyList) {
   if (!PyList_Check(pyList)) {
@@ -129,7 +111,7 @@ getSharedObjects(PyObject *pyList) {
       return {};
     }
 
-    sharedObjects[i] = SharedObject{*filename, offset, size, vaddr};
+    sharedObjects.push_back(SharedObject{*filename, offset, size, vaddr});
   }
 
   return sharedObjects;
@@ -138,6 +120,10 @@ getSharedObjects(PyObject *pyList) {
 #define PAGE_ALIGN_DOWN(x) (((size_t)(x)) & ~((size_t)sysconf(_SC_PAGESIZE)-1)
 
 std::optional<Config> getConfig(PyObject *args, PyObject *kwdict) {
+  uint64_t timeZero;
+  uint16_t timeShift;
+  uint32_t timeMult;
+
   struct pt_config config;
   pt_config_init(&config);
 
@@ -155,34 +141,17 @@ std::optional<Config> getConfig(PyObject *args, PyObject *kwdict) {
   config.begin = nullptr;
   config.end = nullptr;
 
-  struct pt_sb_pevent_config pevent = {};
-  pevent.size = sizeof(pevent);
-  pevent.kernel_start = 0xfffff00000000000;
-  pevent.sample_type = 0;
-  pevent.time_zero = 0;
-  pevent.time_shift = 0;
-  pevent.tsc_offset = 0;
-  pevent.time_mult = 1;
-  pevent.primary = 1;
-  pevent.filename = "";
-  pevent.sysroot = "";
-  pevent.vdso_x64 = "";
-
   const char *kwlist[] = {
-      "trace_filename",      //
-      "cpu_family",          //
-      "cpu_model",           //
-      "cpu_stepping",        //
-      "cpuid_0x15_eax",      //
-      "cpuid_0x15_ebx",      //
-      "sample_type",         //
-      "time_zero",           //
-      "time_shift",          //
-      "time_mult",           //
-      "sysroot",             //
-      "vdso_x64",            //
-      "perf_events_per_cpu", //
-      "switch_callback",     //
+      "trace_filename", //
+      "cpu_family",     //
+      "cpu_model",      //
+      "cpu_stepping",   //
+      "cpuid_0x15_eax", //
+      "cpuid_0x15_ebx", //
+      "time_zero",      //
+      "time_shift",     //
+      "time_mult",      //
+      "shared_objects", //
       nullptr,
   };
 
@@ -192,58 +161,39 @@ std::optional<Config> getConfig(PyObject *args, PyObject *kwdict) {
                       "b"  // cpu_stepping
                       "I"  // cpuid_0x15_eax
                       "I"  // cpuid_0x15_ebx
-                      "K"  // sample_type
                       "K"  // time_zero
                       "H"  // time_shift
                       "I"  // time_mult
-                      "s"  // sysroot
-                      "s"  // vdso_x64
-                      "O!" // perf_events_per_cpu
-                      "O"  // switch_callback
+                      "O!" // shared_objects
                       ":decode";
 
   unsigned int cpuid_0x15_eax = 0, cpuid_0x15_ebx = 0;
   const char *traceFilename = nullptr;
-  PyObject *pyPerfEventFilenames = nullptr;
   PyObject *pySharedObjects = nullptr;
-  PyObject *switchCallback = nullptr;
 
   if (!PyArg_ParseTupleAndKeywords(args, kwdict, types,
-                                   const_cast<char **>(kwlist),         //
-                                   &traceFilename,                      //
-                                   &config.cpu.family,                  //
-                                   &config.cpu.model,                   //
-                                   &config.cpu.stepping,                //
-                                   &cpuid_0x15_eax,                     //
-                                   &cpuid_0x15_ebx,                     //
-                                   &pevent.sample_type,                 //
-                                   &pevent.time_zero,                   //
-                                   &pevent.time_shift,                  //
-                                   &pevent.time_mult,                   //
-                                   &pevent.sysroot,                     //
-                                   &pevent.vdso_x64,                    //
-                                   &PyList_Type, &pyPerfEventFilenames, //
-                                   &switchCallback)) {                  //
+                                   const_cast<char **>(kwlist), //
+                                   &traceFilename,              //
+                                   &config.cpu.family,          //
+                                   &config.cpu.model,           //
+                                   &config.cpu.stepping,        //
+                                   &cpuid_0x15_eax,             //
+                                   &cpuid_0x15_ebx,             //
+                                   &timeZero,                   //
+                                   &timeShift,                  //
+                                   &timeMult,                   //
+                                   &PyList_Type,                //
+                                   &pySharedObjects)) {         //
     return {};
   }
 
   config.cpuid_0x15_eax = (uint32_t)cpuid_0x15_eax;
   config.cpuid_0x15_ebx = (uint32_t)cpuid_0x15_ebx;
 
-  if (!PyCallable_Check(switchCallback)) {
-    PyErr_SetString(PyExc_TypeError, "switch_callback must be callable");
+  auto sharedObjects = getSharedObjects(pySharedObjects);
+  if (!sharedObjects) {
     return {};
   }
-
-  auto perfEventFilenames = getPerfEventFilenames(pyPerfEventFilenames);
-  if (!perfEventFilenames) {
-    return {};
-  }
-
-  // auto sharedObjects = getSharedObjects(pySharedObjects);
-  // if (!sharedObjects) {
-  //  return {};
-  //}
 
   int fd = open(traceFilename, O_RDONLY);
   if (fd < 0) {
@@ -270,13 +220,12 @@ std::optional<Config> getConfig(PyObject *args, PyObject *kwdict) {
   config.begin = trace->begin();
   config.end = trace->end();
 
-  Config c = {};
-  c.trace = *std::move(trace);
-  c.config = config;
-  c.peventConfig = pevent;
-  c.perfEventFilenames = *perfEventFilenames;
-  // c.sharedObjects = *sharedObjects;
-  c.switchCallback = switchCallback;
+  Config c = {
+      TscConverter(timeZero, timeShift, timeMult), // tscConverter
+      config,                                      // config
+      *sharedObjects,                              // sharedObjects
+      *std::move(trace),                           // trace
+  };
 
   return c;
 }
