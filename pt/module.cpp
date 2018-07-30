@@ -29,6 +29,7 @@ static PyMethodDef PtMethods[] = {{"decode", (PyCFunction)decode,
 
 PyObjPtr PtError = nullptr;
 PyObjPtr Instruction = nullptr;
+PyObjPtr InstructionClass = nullptr;
 PyObjPtr EnableEvent = nullptr;
 PyObjPtr DisableEvent = nullptr;
 PyObjPtr AsyncDisableEvent = nullptr;
@@ -81,6 +82,10 @@ MOD_INIT(_pt) {
   }
 
   if (!getAttr(ptModule, "Instruction", Instruction)) {
+    return MOD_SUCCESS_VAL(nullptr);
+  }
+
+  if (!getAttr(ptModule, "InstructionClass", InstructionClass)) {
     return MOD_SUCCESS_VAL(nullptr);
   }
 

@@ -4,6 +4,7 @@
 
 namespace hase::pt {
 extern PyObjPtr Instruction;
+extern PyObjPtr InstructionClass;
 extern PyObjPtr EnableEvent;
 extern PyObjPtr DisableEvent;
 extern PyObjPtr AsyncDisableEvent;

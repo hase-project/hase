@@ -38,8 +38,13 @@ PyObjPtr newObject(PyObjPtr &event, const char *fmt, ...) {
   return PyObjPtr(PyObject_CallObject(event.get(), args.get()));
 }
 
-PyObjPtr newInstruction(uint64_t ip, uint8_t size) {
-  return newObject(Instruction, "KB", ip, size);
+PyObjPtr newInstruction(uint64_t ip, uint8_t size, enum pt_insn_class iclass) {
+  PyObjPtr instructionClass(PyObject_CallFunction(InstructionClass.get(), (char*)("I"), (int)iclass));
+  if (!instructionClass) {
+      return nullptr;
+  }
+
+  return newObject(Instruction, "KBO", ip, size, instructionClass.get());
 }
 
 PyObject *newBool(bool v) {
@@ -342,7 +347,7 @@ public:
         status = pt_insn_next(decoder.get(), &insn, sizeof(insn));
 
         if (insn.iclass != ptic_error) {
-          auto instruction = newInstruction(insn.ip, insn.size);
+          auto instruction = newInstruction(insn.ip, insn.size, insn.iclass);
           if (!instruction) {
             return nullptr;
           }

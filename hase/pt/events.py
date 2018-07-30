@@ -1,4 +1,7 @@
+from __future__ import absolute_import, division, print_function
+
 from typing import Optional
+from enum import IntEnum
 
 class TraceEvent(object):
     """
@@ -17,14 +20,43 @@ class TraceEvent(object):
         return '<%s @ 0x%x%s>' % (self.__class__.__name__, self.pos, time)
 
 
+class InstructionClass(IntEnum):
+    # Needs to be in sync with:
+    # https://github.com/01org/processor-trace/blob/0ff8b29b2fd2ebfcc47a747862e948e8b638a020/libipt/include/intel-pt.h.in#L1889
+    # The instruction could not be classified.
+    ptic_error = 0
+    # The instruction is something not listed below.
+    ptic_other = 1
+    # The instruction is a near (function) call. 
+    ptic_call = 2
+    # The instruction is a near (function) return.
+    ptic_return = 3
+    # The instruction is a near unconditional jump.
+    ptic_jump = 4
+    # The instruction is a near conditional jump.
+    ptic_cond_jump = 5
+    # The instruction is a call-like far transfer.
+    # E.g. SYSCALL, SYSENTER, or FAR CALL.
+    ptic_far_call = 6
+    # The instruction is a return-like far transfer.
+    # E.g. SYSRET, SYSEXIT, IRET, or FAR RET.
+    ptic_far_return = 7
+    # The instruction is a jump-like far transfer.
+    # E.g. FAR JMP.
+    ptic_far_jump = 8
+    # The instruction is a PTWRITE.
+    ptic_ptwrite = 9
+
+
 class Instruction(object):
-    def __init__(self, ip, size):
-        # type: (int, int) -> None
+    def __init__(self, ip, size, iclass):
+        # type: (int, int, InstructionClass) -> None
         self.ip = ip
         self.size = size
+        self.iclass = iclass
 
     def __repr__(self):
-        return '<Instruction @ %x>' % self.ip
+        return '<Instruction[%s] @ %x>' % (self.iclass.name, self.ip)
 
 
 class EnableEvent(TraceEvent):

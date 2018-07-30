@@ -10,9 +10,13 @@ from .consts import PerfRecord
 
 
 class CpuTrace(object):
-    def __init__(self, idx, event_path, trace_path):
-        # type: (int, str, str) -> None
+    def __init__(self, idx, event_path, trace_path, start_time, start_pid,
+                 start_tid):
+        # type: (int, str, str, int, int, int) -> None
         self.idx = idx
+        self.start_time = start_time
+        self.start_pid = start_pid
+        self.start_tid = start_tid
         self.event_path = event_path
         self.trace_path = trace_path
 
@@ -60,7 +64,8 @@ class Perf(object):
             with open(event_path, "wb") as event_file:
                 for ev in cpu.events():
                     if ev.type == PerfRecord.PERF_RECORD_MMAP2:
-                        if not ev.filename.startswith("/") or ev.filename == "//anon":
+                        if not ev.filename.startswith(
+                                "/") or ev.filename == "//anon":
                             continue
                     event_file.write(bytearray(ev))
                     count += 1
@@ -72,7 +77,16 @@ class Perf(object):
             with open(trace_path, "wb") as trace_file:
                 for trace in cpu.traces():
                     trace_file.write(trace)
-            cpus.append(CpuTrace(cpu.idx, event_path, trace_path))
+
+            itrace = cpu.itrace_start_event()
+            cpu_trace = CpuTrace(
+                cpu.idx,
+                event_path,
+                trace_path,
+                start_time=itrace.sample_id.time,
+                start_pid=itrace.pid,
+                start_tid=itrace.tid)
+            cpus.append(cpu_trace)
 
         conversion = self.snapshot.tsc_conversion()
         cpuid = self.snapshot.cpuid()

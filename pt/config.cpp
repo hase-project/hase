@@ -142,7 +142,7 @@ std::optional<Config> getConfig(PyObject *args, PyObject *kwdict) {
   config.end = nullptr;
 
   const char *kwlist[] = {
-      "trace_filename", //
+      "trace_path", //
       "cpu_family",     //
       "cpu_model",      //
       "cpu_stepping",   //
@@ -155,7 +155,7 @@ std::optional<Config> getConfig(PyObject *args, PyObject *kwdict) {
       nullptr,
   };
 
-  const char *types = "s"  // trace_filename
+  const char *types = "s"  // trace_path
                       "h"  // cpu_family
                       "b"  // cpu_model
                       "b"  // cpu_stepping
@@ -168,12 +168,12 @@ std::optional<Config> getConfig(PyObject *args, PyObject *kwdict) {
                       ":decode";
 
   unsigned int cpuid_0x15_eax = 0, cpuid_0x15_ebx = 0;
-  const char *traceFilename = nullptr;
+  const char *tracePath = nullptr;
   PyObject *pySharedObjects = nullptr;
 
   if (!PyArg_ParseTupleAndKeywords(args, kwdict, types,
                                    const_cast<char **>(kwlist), //
-                                   &traceFilename,              //
+                                   &tracePath,                  //
                                    &config.cpu.family,          //
                                    &config.cpu.model,           //
                                    &config.cpu.stepping,        //
@@ -195,9 +195,9 @@ std::optional<Config> getConfig(PyObject *args, PyObject *kwdict) {
     return {};
   }
 
-  int fd = open(traceFilename, O_RDONLY);
+  int fd = open(tracePath, O_RDONLY);
   if (fd < 0) {
-    PyErr_SetFromErrnoWithFilename(PyExc_OSError, traceFilename);
+    PyErr_SetFromErrnoWithFilename(PyExc_OSError, tracePath);
     return {};
   }
 
@@ -205,14 +205,14 @@ std::optional<Config> getConfig(PyObject *args, PyObject *kwdict) {
   int r = fstat(fd, &sb);
   if (r < 0) {
     close(fd);
-    PyErr_Format(PyExc_OSError, "failed to fstat %s: %s", traceFilename,
+    PyErr_Format(PyExc_OSError, "failed to fstat %s: %s", tracePath,
                  strerror(errno));
     return {};
   }
 
   auto trace = Mmap::create(nullptr, sb.st_size, PROT_READ, MAP_SHARED, fd, 0);
   if (!trace) {
-    PyErr_Format(PyExc_OSError, "failed to mmap file %s: %s", traceFilename,
+    PyErr_Format(PyExc_OSError, "failed to mmap file %s: %s", tracePath,
                  strerror(errno));
     return {};
   }

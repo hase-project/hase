@@ -65,7 +65,8 @@ def record(record_paths, command=None):
     # type: (RecordPaths, Optional[List[str]]) -> Optional[Tuple[coredumps.Coredump, Trace]]
 
     if command is None:
-        raise Exception("recording without command is not supported at the moment")
+        raise Exception(
+            "recording without command is not supported at the moment")
 
     proc = subprocess.Popen(command, preexec_fn=ptrace_me)
     return record_process(proc, record_paths)
@@ -132,9 +133,14 @@ def serialize_trace(trace, state_dir):
         event_path = str(state_dir.relpath(cpu.event_path))
         trace_path = str(state_dir.relpath(cpu.trace_path))
 
-        cpus.append(
-            dict(
-                idx=cpu.idx, event_path=event_path, trace_path=trace_path))
+        c = dict(
+            idx=cpu.idx,
+            event_path=event_path,
+            trace_path=trace_path,
+            start_time=cpu.start_time,
+            start_pid=cpu.start_pid,
+            start_tid=cpu.start_tid)
+        cpus.append(c)
 
     return dict(
         cpus=cpus,

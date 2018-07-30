@@ -15,20 +15,33 @@ from . import pt
 
 
 def decode_trace(manifest, mappings, vdso_x64, executable_root):
-    # type: (Dict[str, Any], List[Mapping], str, str) -> List[pt.Instruction]
-    trace_per_cpu = []
-
+    # type: (Dict[str, Any], List[Mapping], str, str) -> List[pt.events.Instruction]
     coredump = manifest["coredump"]
     trace = manifest["trace"]
 
+    trace_paths = []
+    perf_event_paths = []
+    start_thread_ids = []
+    start_times = []
+
+    pid = coredump["global_pid"]
+    tid = coredump["global_tid"]
+
     for cpu in trace["cpus"]:
-        trace_per_cpu.append((cpu["event_path"], cpu["trace_path"]))
+        assert pid == cpu["start_pid"], "only one pid is allowed at the moment"
+        trace_paths.append(cpu["trace_path"])
+        perf_event_paths.append(cpu["event_path"])
+        start_thread_ids.append(cpu["start_tid"])
+        start_times.append(cpu["start_time"])
 
     return pt.decode(
-        trace_per_cpu=trace_per_cpu,
+        trace_paths=trace_paths,
+        perf_event_paths=perf_event_paths,
+        start_thread_ids=start_thread_ids,
+        start_times=start_times,
         mappings=mappings,
-        pid=coredump["global_pid"],
-        tid=coredump["global_tid"],
+        pid=pid,
+        tid=tid,
         cpu_family=trace["cpu_family"],
         cpu_model=trace["cpu_model"],
         cpu_stepping=trace["cpu_stepping"],

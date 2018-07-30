@@ -4,7 +4,7 @@ import ctypes as ct
 import mmap
 import fcntl
 import os
-from typing import List, Iterator, Any
+from typing import List, Generator, Any, Optional
 
 from .cpuid import CPUID
 from ..mmap import MMap
@@ -159,13 +159,19 @@ def open_dummy_event(cpu, pid):
     attr.flags = AttrFlags.EXCLUDE_KERNEL | \
         AttrFlags.EXCLUDE_HV | \
         AttrFlags.SAMPLE_ID_ALL | \
-        AttrFlags.MMAP | \
-        AttrFlags.COMM | \
-        AttrFlags.TASK | \
-        AttrFlags.MMAP2 | \
-        AttrFlags.COMM_EXEC | \
         AttrFlags.CONTEXT_SWITCH | \
         AttrFlags.WRITE_BACKWARD
+
+    #attr.flags = AttrFlags.EXCLUDE_KERNEL | \
+    #    AttrFlags.EXCLUDE_HV | \
+    #    AttrFlags.SAMPLE_ID_ALL | \
+    #    AttrFlags.MMAP | \
+    #    AttrFlags.COMM | \
+    #    AttrFlags.TASK | \
+    #    AttrFlags.MMAP2 | \
+    #    AttrFlags.COMM_EXEC | \
+    #    AttrFlags.CONTEXT_SWITCH | \
+    #    AttrFlags.WRITE_BACKWARD
 
     return PMU(attr, cpu, pid)
 
@@ -395,13 +401,23 @@ class Cpu(object):
         self.event_buffer = event_buffer
         self.pt_buffer = pt_buffer
 
+        self._itrace_start_event = None # type: Optional[ct.Structure]
+
     def events(self):
         # type: () -> List[ct.Structure]
         return self.event_buffer.events()
 
+    def itrace_start_event(self):
+        # type: () -> ct.Structure
+        assert self._itrace_start_event is not None
+        return self._itrace_start_event
+
     def traces(self):
-        # type: () -> Iterator[bytearray]
+        # type: () -> Generator[bytearray, None, None]
         for ev in self.pt_buffer.events():
+            if ev.type == PerfRecord.PERF_RECORD_ITRACE_START:
+                self._itrace_start_event = ev
+
             if ev.type != PerfRecord.PERF_RECORD_AUX:
                 continue
             aux_begin = self.pt_buffer.aux_buf.addr
