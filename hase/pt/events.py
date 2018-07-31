@@ -157,7 +157,6 @@ class ExstopEvent(TraceEvent):
         super(ExstopEvent, self).__init__(pos, time)
 
 
-
 class MwaitEvent(TraceEvent):
     def __init__(self, pos, time, ip, hints, ext):
         # type: (int, Optional[int], Optional[int], int, int) -> None

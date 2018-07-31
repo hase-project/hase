@@ -113,20 +113,22 @@ def dataframe(traces):
 
     data = defaultdict(list)
 
-    for (i, trace) in traces:
+    for (i, trace) in enumerate(traces):
+        time = None
         for ev in trace:
             data["core"].append(i)
+            data["type"].append(ev.__class__.__name__)
             if isinstance(ev, Instruction):
                 data["ip"].append(ev.ip)
                 data["size"].append(ev.size)
-                data["time"].append(None)
+                data["time"].append(time)
             else:
                 data["ip"].append(None)
                 data["size"].append(None)
-                data["time"].append(ev.time)
+                time = ev.time
+                data["time"].append(time)
 
-    import pdb; pdb.set_trace()
-    return pd.DataFrame(data)
+    return pd.DataFrame(data, dtype=int)
 
 def correlate_traces(_traces, schedule, pid, tid):
     # type: (List[List[Union[TraceEvent, Instruction]]], List[ScheduleEntry], int, int) -> List[Instruction]
@@ -217,5 +219,12 @@ def decode(
     schedule = get_thread_schedule(perf_event_paths, start_thread_ids,
                                    start_times)
 
-    import pdb; pdb.set_trace()
+    df = dataframe(traces)
+    instructions = []
+    for (i, entry) in enumerate(schedule):
+        window = df[(entry.start < df.time) & (df.time < entry.stop) & (df.type == "Instruction")]
+        if len(window) == 0:
+            import pdb; pdb.set_trace()
+        instructions.extend(window.ip)
+
     return correlate_traces(traces, schedule, pid, tid)

@@ -2,9 +2,9 @@
 #include <assert.h>
 
 namespace hase::pt {
-TscConverter::TscConverter(uint64_t timeZero, uint16_t timeShift,
-                           uint32_t timeMult)
-    : timeZero(timeZero), timeShift(timeShift), timeMult(timeMult) {
+TscConverter::TscConverter(uint64_t _timeZero, uint16_t _timeShift,
+                           uint32_t _timeMult)
+    : timeZero(_timeZero), timeShift(_timeShift), timeMult(_timeMult) {
   assert(timeMult != 0);
 }
 
