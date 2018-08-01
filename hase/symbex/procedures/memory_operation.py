@@ -264,3 +264,22 @@ class memchr(SimProcedure):
 
 
 # TODO: add strrchr and memrchr?
+
+class malloc_usable_size(SimProcedure):
+    def run(self, ptr):
+        # FIXME: should have a heap tracking system
+        # incur memset exception, then libc.max_buffer_size
+        return self.state.se.Unconstrained('malloc_useable_size', self.state.arch.bits)
+
+
+class strchrnul(SimProcedure):
+    def run(self, ptr, ch):
+        strchr = SIM_PROCEDURES['libc']['strchr']
+        strlen = SIM_PROCEDURES['libc']['strlen']
+        ret_expr = self.inline_call(strchr, ptr, ch).ret_expr
+        len_expr = self.inline_call(strlen, ptr).ret_expr
+        return self.state.se.If(
+            ret_expr == 0,
+            ptr + len_expr,
+            ret_expr
+        )

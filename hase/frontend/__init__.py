@@ -91,6 +91,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.time_slider.setEnabled(False)
 
         self.file_cache = {}
+        self.file_read_cache = {}
         self.callgraph = CallGraphManager()
 
         self.coredump_constraints = []
@@ -352,22 +353,42 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
     def cache_tokens(self, addr_map):
         for filename, line in addr_map.values():
+            l.warning('caching file: ' + str(filename) + ' at line: ' + str(line))
             if filename != '??':
-                if filename not in self.file_cache.keys():
+                if filename not in self.file_read_cache.keys():
                     self.file_cache[filename] = {}
-                try:
-                    lexer = pygments.lexers.get_lexer_for_filename(str(filename))
-                    formatter_opts = dict(
-                        linenos="inline", linespans="line", hl_lines=[line])
-                    html_formatter = pygments.formatters.get_formatter_by_name(
-                        "html", **formatter_opts)
-                    css = html_formatter.get_style_defs('.highlight')
-                    with open(str(filename)) as f:
-                        tokens = lexer.get_tokens(f.read())
-                    source = pygments.format(tokens, html_formatter)
-                    self.file_cache[filename][line] = (css, source)
-                except:
-                    self.file_cache[filename][line] = (None, None)
+                    self.file_read_cache[filename] = {}
+                    try:
+                        lexer = pygments.lexers.get_lexer_for_filename(str(filename))
+                        formatter_opts = dict(
+                            linenos="inline", linespans="line", hl_lines=[line])
+                        html_formatter = pygments.formatters.get_formatter_by_name(
+                            "html", **formatter_opts)
+                        css = html_formatter.get_style_defs('.highlight')
+                        with open(str(filename)) as f:
+                            content = f.read()
+                            tokens = lexer.get_tokens(content)
+                        source = pygments.format(tokens, html_formatter)
+                        self.file_cache[filename][line] = (css, source)
+                        self.file_read_cache[filename] = (lexer, content)
+                    except:
+                        self.file_cache[filename][line] = (None, None)
+                        self.file_read_cache[filename] = (None, None)
+                else:
+                    lexer, content = self.file_read_cache[filename]
+                    if content:
+                        try:
+                            formatter_opts = dict(
+                                linenos="inline", linespans="line", hl_lines=[line])
+                            html_formatter = pygments.formatters.get_formatter_by_name(
+                                "html", **formatter_opts)
+                            css = html_formatter.get_style_defs('.highlight')
+                            source = pygments.format(lexer.get_tokens(content), html_formatter)
+                            self.file_cache[filename][line] = (css, source)
+                        except:
+                            self.file_cache[filename][line] = (None, None)
+                    else:
+                        self.file_cache[filename][line] = (None, None)
 
     def add_states(self, states, tracer):
         # type: (Any, Any) -> None

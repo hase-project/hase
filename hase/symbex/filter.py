@@ -79,6 +79,8 @@ class FilterTrace():
         self.trace = trace
         self.hooked_symbol = hooked_symbol
         self.new_trace = [] # type: List[Branch]
+        self.trace_idx = [] # type: List[int]
+        self.hook_target = {} # type: Dict[int, int]
         self.gdb = gdb
         self.omitted_section = omitted_section # type: List[List[int]]
         self.analyze_unsupported()
@@ -172,21 +174,29 @@ class FilterTrace():
             return True, symname
         return False, ''
 
-    def analyze_start(self, least_reserve=2000):
+    def analyze_start(self, least_reserve=500, most_reserve=1500):
         # type: (int) -> Tuple[List[Branch], int]
         # FIXME: not working if atexit register a function which is the problem
         start_idx = 0
+        self.is_main = False
         self.start_idx = start_idx
         if len(self.trace) < least_reserve or self.from_initial:
             return self.trace, 0
-        for idx in range(-least_reserve, -len(self.trace) - 1, -1):
+        if len(self.trace) < most_reserve:
+            most_reserve = len(self.trace) - 1
+        for idx in range(-least_reserve, -most_reserve, -1):
             event = self.trace[idx]
             if not self.test_plt_vdso(event.addr):
                 func = self.find_function(event.addr)
                 if func and func.name == 'main':
                     start_idx = idx
+                    self.is_main = True
                     break
-        self.start_idx = start_idx
+        if start_idx == 0:
+            start_idx = -most_reserve
+        while self.project.loader.find_object_containing(self.trace[start_idx].addr) != self.main_object:
+            start_idx -= 1
+        self.start_idx = len(self.trace) + start_idx
         return self.trace[start_idx:], start_idx
 
     def analyze_trace(self):
@@ -197,10 +207,11 @@ class FilterTrace():
         cut_trace, _ = self.analyze_start()
         hooked_parent = None
         is_current_hooked = False
+        hook_idx = 0
         # FIXME: seems dso object not always this one
         dso_sym = self.project.loader.find_symbol('_dl_find_dso_for_object')
         plt_sym = None
-        for event in cut_trace:
+        for idx, event in enumerate(cut_trace):
             present = True
             if self.test_plt_vdso(event.addr) or \
                 self.test_ld(event.addr) or \
@@ -219,6 +230,7 @@ class FilterTrace():
                 if sym == hooked_parent:
                     is_current_hooked = False
                     hooked_parent = None
+                    self.hook_target[hook_idx] = event.ip
                 else:
                     cur_func = hooked_parent
                     for _ in range(recursive_level):
@@ -228,6 +240,7 @@ class FilterTrace():
                                 is_current_hooked = False
                                 hooked_parent = None
                                 self.call_parent[cur_func] = None
+                                self.hook_target[hook_idx] = event.ip
                                 break
                             else:
                                 cur_func = parent
@@ -241,6 +254,8 @@ class FilterTrace():
                         self.project.loader.find_object_containing(event.ip) == self.main_object:
                         is_current_hooked = False
                         hooked_parent = None
+                        self.hook_target[hook_idx] = event.ip
+
             else:
                 flg, fname = self.test_function_entry(event.ip)
                 if flg:                    
@@ -256,19 +271,22 @@ class FilterTrace():
                     if fname in self.hooked_symname:
                         is_current_hooked = True
                         hooked_parent = parent
+                        hook_idx = idx + self.start_idx
                 else:
                     if self.test_omit(event.ip):
                         is_current_hooked = True
                         hooked_parent = self.find_function(event.addr)
+                        hook_idx = idx + self.start_idx
             if present:
                 self.new_trace.append(event)
+                self.trace_idx.append(idx + self.start_idx)
         
     def filtered_trace(self, update=False):
-        # type: (bool) -> List[Branch]
+        # type: (bool) -> List[Branch], List[int], Dict[int, int]
         if self.new_trace and not update:
-            return self.new_trace
+            return self.new_trace, self.trace_idx, self.hook_target
         self.analyze_trace()
-        return self.new_trace
+        return self.new_trace, self.trace_idx, self.hook_target
 
 
 # Not test yet, must be slow

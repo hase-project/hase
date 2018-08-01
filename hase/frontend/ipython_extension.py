@@ -10,6 +10,7 @@ import os.path
 import imp
 import json
 import subprocess
+import logging
 from types import ModuleType
 from shlex import split as shsplit
 
@@ -18,6 +19,9 @@ from .. import gdb
 from ..replay import replay_trace
 from ..record import DEFAULT_LOG_DIR
 from ..path import Tempdir, Path
+
+
+l = logging.getLogger("hase")
 
 
 class HaseFrontEndException(Exception):
@@ -162,12 +166,14 @@ class HaseMagics(Magics):
                             addr_map[i][0] = new_f
                 addr_map[k][0] = new_f
 
+        l.warning('Caching tokens')
         self.window.cache_tokens(addr_map)
+        l.warning('Add states')
         self.window.add_states(user_ns["states"], user_ns["tracer"])
         self.window.enable_buttons()
         self.window.set_slider(user_ns["addr_map"], user_ns["states"])
         self.window.set_location(*addr_map[self.active_state.address()])
-        self.window.cache_coredump_constraints()
+        # self.window.cache_coredump_constraints()
         self.gdb_init('')
 
     @args(info="USAGE: info")

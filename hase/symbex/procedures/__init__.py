@@ -139,7 +139,7 @@ add_alias(alias_symbols, sse2_symbols, lambda s: '__' + s + '_sse2')
 
 add_alias_s(alias_symbols, 'strtol', '__strtol_internal')
 add_alias_s(alias_symbols, 'strncasecmp', '__strncasecmp_l_avx')
-add_alias_s(alias_symbols, 'abort', '__assert_fail', '__stack_chk_fail')
+# add_alias_s(alias_symbols, 'abort', '__assert_fail', '__stack_chk_fail')
 add_alias_s(alias_symbols, 'memcpy', 'memmove', 'bcopy', 'bmove')
 add_alias_s(alias_symbols, 'memcmp', 'bcmp')
 add_alias_s(alias_symbols, 'memset', 'bzero')
