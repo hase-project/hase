@@ -452,6 +452,8 @@ class Tracer(object):
 
     def setup_hook(self):
         self.hooked_symbols.pop('abort', None)
+        self.hooked_symbols.pop('__assert_fail', None)
+        self.hooked_symbols.pop('__stack_chk_fail', None)
         try:
             abort_addr = self.project.loader.find_symbol('abort').rebased_addr
             assert_addr = self.project.loader.find_symbol('__assert_fail').rebased_addr
@@ -500,7 +502,7 @@ class Tracer(object):
         ins_repr = first_ins.mnemonic
         return ins_repr.startswith('rep')
 
-    def repair_hook_return(self, state, step, index):
+    def repair_hook_return(self, state, index):
         # given a force_jump, from hook -> last
         # caller -> plt -> hook
         if self.project.is_hooked(state.addr):
@@ -515,13 +517,11 @@ class Tracer(object):
             plt_idx = bisect_right(self.hook_plt_idx, old_branch_idx) - 1
             ret_addr = self.hook_target[self.hook_plt_idx[plt_idx]]
             # like a ret
-            state.regs.rsp += 8
-            step = self.project.factory.successors(
-                state,
-                num_inst=1,
-                force_addr=ret_addr
-            )
-        return step
+            new_state = state.copy()
+            new_state.regs.rsp += 8
+            new_state.regs.ip = ret_addr
+            return True, new_state
+        return False, None
 
     def repair_exit_handler(self, state, step):
         artifacts = getattr(step, 'artifacts', None)
@@ -688,6 +688,7 @@ class Tracer(object):
         while cnt < CNT_LIMIT:
             cnt += 1
             self.debug_state.append(state)
+            force_ret, force_state = self.repair_hook_return(state, index)
             force_jump, force_type = self.repair_jump_ins(state, branch)
             self.repair_alloca_ins(state)
             addr = self.repair_ip(state)
@@ -715,7 +716,7 @@ class Tracer(object):
                     raise Exception("Manually stop")
             except:
                 # if force_jump, we have a chance (sp symbolic error)
-                if not force_jump:
+                if not force_jump and not force_ret:
                     raise Exception("Unable to continue")
             if is_interrupt:
                 state._ip = next_addr
@@ -724,7 +725,7 @@ class Tracer(object):
             if force_jump:
                 # always boring. the rest call stack done by outselves to avoid exception
                 # will cause history to be unusable
-                jumpkind = 'Ijk_Boring'
+                # jumpkind = 'Ijk_Boring'
                 new_state = state.copy()
                 if force_type == 'call':
                     new_state.regs.rsp -= 8
@@ -747,10 +748,16 @@ class Tracer(object):
                     jumpkind
                 )
                 '''
+            elif force_ret:
+                all_choices = {
+                    'sat': [force_state],
+                    'unsat': [],
+                    'unconstrained': []
+                }
+                choices = [force_state]
             else:
                 step = self.repair_func_resolver(state, step)
                 step = self.repair_exit_handler(state, step)
-                step = self.repair_hook_return(state, step, index)
 
                 all_choices = {
                     'sat': step.successors,

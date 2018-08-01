@@ -126,12 +126,7 @@ class HaseMagics(Magics):
             executable = rep.executable
             states = rep.run()
             addr2line = annotate.Addr2line()
-            '''
-            for s in states.major_states:
-                if s.object() in rep.tracer.project.loader.all_elf_objects:
-                    # TODO: show addr, ip at same time?
-                    addr2line.add_addr(s.object(), s.address())
-            '''
+
             # NOTE: we calculate all trace instead of state
             for s in rep.tracer.trace:
                 addrs = [s.addr, s.ip]
