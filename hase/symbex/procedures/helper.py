@@ -1,5 +1,4 @@
-# Need to resymbolize hooks
-
+import angr
 
 
 def test_concrete_value(proc, sym, value):
@@ -32,7 +31,7 @@ def minmax(proc, sym, upper=None):
         if upper:
             return max(min_v, min(max_v, upper))
         return max_v
-    except:
+    except angr.SimUnsatError:
         if upper:
             return upper
         else:

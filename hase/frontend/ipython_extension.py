@@ -126,7 +126,6 @@ class HaseMagics(Magics):
             executable = rep.executable
             states = rep.run()
             addr2line = annotate.Addr2line()
-
             # NOTE: we calculate all trace instead of state
             for s in rep.tracer.trace:
                 addrs = [s.addr, s.ip]

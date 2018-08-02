@@ -4,7 +4,7 @@ from angr import SimProcedure
 from angr.procedures import SIM_PROCEDURES
 from angr.procedures.libc import io_file_data_for_arch, fopen
 from angr.procedures.stubs.format_parser import FormatParser
-from angr.errors import SimProcedureError
+from angr.errors import SimProcedureError, SimUnsatError
 from angr.storage.file import Flags
 
 from .syscall import stat, fstat, lstat
@@ -210,7 +210,7 @@ class __snprintf_chk(FormatParser):
             self.state.memory.store(dst_ptr, out_str)
             self.state.memory.store(dst_ptr + (out_str.size() / 8), self.state.se.BVV(0, 8))
             return self.state.se.BVV(out_str.size() / 8, self.state.arch.bits)
-        except:
+        except SimUnsatError:
             if self.state.se.symbolic(maxlen):
                 l = minmax(self, maxlen, self.state.libc.max_buffer_size)
             else:

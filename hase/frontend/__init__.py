@@ -273,7 +273,10 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         if source_file != '??':
             css, source = self.file_cache[source_file][line]
             if css:
-                self.code_view.setHtml(code_template.format(css, source.encode('utf-8')))
+                if self.file_read_cache[source_file][2]:
+                    self.code_view.setPlainText(source.encode('utf-8'))
+                else:
+                    self.code_view.setHtml(code_template.format(css, source.encode('utf-8')))
                 cursor = self.code_view.textCursor()
                 cursor.movePosition(QTextCursor.Start)
                 cursor.movePosition(QTextCursor.Down, n=line - 1)
@@ -367,24 +370,32 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                         css = html_formatter.get_style_defs('.highlight')
                         with open(str(filename)) as f:
                             content = f.read()
+                        if len(content) < 50000:
                             tokens = lexer.get_tokens(content)
-                        source = pygments.format(tokens, html_formatter)
-                        self.file_cache[filename][line] = (css, source)
-                        self.file_read_cache[filename] = (lexer, content)
+                            source = pygments.format(tokens, html_formatter)
+                            self.file_cache[filename][line] = (css, source)
+                            self.file_read_cache[filename] = (lexer, content, False)
+                        else:
+                            content = content.replace('\\n', '\n')
+                            self.file_cache[filename][line] = (True, content)
+                            self.file_read_cache[filename] = (None, content, False)
                     except:
-                        self.file_cache[filename][line] = (None, None)
-                        self.file_read_cache[filename] = (None, None)
+                        self.file_cache[filename][line] = (None, None, False)
+                        self.file_read_cache[filename] = (None, None, False)
                 else:
-                    lexer, content = self.file_read_cache[filename]
+                    lexer, content, is_largefile = self.file_read_cache[filename]
                     if content:
                         try:
-                            formatter_opts = dict(
-                                linenos="inline", linespans="line", hl_lines=[line])
-                            html_formatter = pygments.formatters.get_formatter_by_name(
-                                "html", **formatter_opts)
-                            css = html_formatter.get_style_defs('.highlight')
-                            source = pygments.format(lexer.get_tokens(content), html_formatter)
-                            self.file_cache[filename][line] = (css, source)
+                            if is_largefile:
+                                formatter_opts = dict(
+                                    linenos="inline", linespans="line", hl_lines=[line])
+                                html_formatter = pygments.formatters.get_formatter_by_name(
+                                    "html", **formatter_opts)
+                                css = html_formatter.get_style_defs('.highlight')
+                                source = pygments.format(lexer.get_tokens(content), html_formatter)
+                                self.file_cache[filename][line] = (css, source)
+                            else:
+                                self.file_cache[filename][line] = (True, content)
                         except:
                             self.file_cache[filename][line] = (None, None)
                     else:
