@@ -25,6 +25,8 @@ class ScheduleEntry(object):
         self.start = start
         # Can be none at the end of a trace
         self.stop = stop
+        self.chunks = []  # type: List[Chunk]
+        self.count = 1
 
     def is_main_thread(self):
         # type: () -> bool
@@ -49,15 +51,14 @@ class ScheduleEntry(object):
             stop = ""
         else:
             stop = "%x" % self.stop
-        return '<%s core#%d time: %s..%s' % (self.__class__.__name__,
-                                             self.core, start, stop)
+        return '<%s core#%d time: %s..%s>' % (self.__class__.__name__,
+                                              self.core, start, stop)
+
 
 def copy_struct(struct):
     # type: (ct.Structure) -> ct.Structure
     copy = struct.__class__()
-    ct.memmove(
-        ct.addressof(copy), ct.addressof(struct),
-        ct.sizeof(struct))
+    ct.memmove(ct.addressof(copy), ct.addressof(struct), ct.sizeof(struct))
     return copy
 
 
@@ -85,6 +86,7 @@ def get_thread_schedule(perf_event_paths, start_thread_ids, start_times):
                     start_time = schedule_in_event.sample_id.time
 
                 end_time = ev.sample_id.time
+
                 entry = ScheduleEntry(core, ev.sample_id.pid, ev.sample_id.tid,
                                       start_time, end_time)
                 bisect.insort(schedule, entry)
@@ -106,7 +108,11 @@ def get_thread_schedule(perf_event_paths, start_thread_ids, start_times):
 
     return schedule
 
-def dataframe(traces):
+
+def trace_to_dataframe(traces):
+    """
+    For debugging
+    """
     # List[List[Union[TraceEvent, Instruction]]] -> Any
     import pandas as pd
     from collections import defaultdict
@@ -130,38 +136,140 @@ def dataframe(traces):
 
     return pd.DataFrame(data, dtype=int)
 
-def correlate_traces(_traces, schedule, pid, tid):
-    # type: (List[List[Union[TraceEvent, Instruction]]], List[ScheduleEntry], int, int) -> List[Instruction]
+
+MARGIN = 0x7d0
+
+
+def correlate_traces(traces, schedule, pid, tid):
+    # type: (List[List[Chunk]], List[ScheduleEntry], int, int) -> List[Instruction]
+
+    schedule_per_core = []  # type: List[List[ScheduleEntry]]
+    for _ in range(len(traces)):
+        schedule_per_core.append([])
+
+    for entry in schedule:
+        schedule_per_core[entry.core].append(entry)
+
+    instruction_count = 0
+    for trace in traces:
+        for chunk in trace:
+            instruction_count += len(chunk.instructions)
+
+    for (core, trace) in enumerate(traces):
+        for entry in schedule_per_core[core]:
+            i = 0
+            for chunk in trace:
+                # TODO: timer is not accurate between kernel and hardware?
+                if entry.stop is None or chunk.stop < (entry.stop + MARGIN):
+                    if not chunk.saw_tsc_update() and entry.stop is not None:
+                        assert (entry.stop - chunk.stop) > MARGIN
+                    entry.chunks.append(chunk)
+                    i += 1
+                else:
+                    break
+            trace = trace[i:]
+            assert len(entry.chunks) > 0
+        assert len(trace) == 0
     instructions = []
 
-    # make a copy so we do not assign new slides in the original
-    traces = _traces[:]
+    for entry in schedule:
+        for chunk in entry.chunks:
+            instructions.extend(chunk.instructions)
 
-    n_instructions = 0
-    for core in traces:
-        for instr in core:
-            if isinstance(instr, Instruction):
-                n_instructions += 1
-
-    for (i, entry) in enumerate(schedule):
-        assert pid == entry.pid
-        trace = traces[entry.core]
-        for (j, event) in enumerate(trace):
-            if isinstance(event, TraceEvent):
-                assert event.time is not None
-                if entry.stop is not None and event.time > entry.stop:
-                    traces[entry.core] = trace[j:]
-                    break
-            else:
-                instructions.append(event)
-        if j == len(trace) - 1:
-            traces[entry.core] = []
-
-    #if n_instructions != len(instructions):
-    #    import pdb; pdb.set_trace()
-    assert n_instructions == len(instructions)
-
+    assert len(instructions) == instruction_count
     return instructions
+
+
+def merge_same_core_switches(schedule):
+    # type: (List[ScheduleEntry]) -> List[ScheduleEntry]
+    if len(schedule) == 0:
+        return []
+
+    new_schedule = [schedule[0]]
+
+    for (i, entry) in enumerate(schedule[1:]):
+        if new_schedule[-1].core == entry.core \
+                and new_schedule[-1].tid == entry.tid:
+            new_schedule[-1].stop = entry.stop
+            new_schedule[-1].count += 1
+        else:
+            new_schedule.append(entry)
+
+    return new_schedule
+
+
+class Chunk(object):
+    def __init__(self, start, stop, instructions):
+        # type: (int, int, List[Instruction]) -> None
+        self.start = start
+        self.stop = stop
+        self.instructions = instructions
+
+    def saw_tsc_update(self):
+        # type: () -> bool
+        return self.start != self.stop
+
+    def __repr__(self):
+        # () -> str
+        return '<%s time: 0x%x..0x%x [%d instructions]>' % (
+            self.__class__.__name__, self.start, self.stop,
+            len(self.instructions))
+
+
+#def is_context_switch(event, instruction):
+#    # type: (TraceEvent, Instruction) -> bool
+#    if isinstance(event, DisableEvent) and \
+#            instruction.iclass == InstructionClass.ptic_far_call:
+#        # syscall
+#        return event.ip != (instruction.ip + instruction.size)
+#    elif instruction.iclass == InstructionClass.ptic_other:
+#        if not isinstance(event, AsyncDisableEvent):
+#            import pdb; pdb.set_trace()
+#        assert isinstance(event, AsyncDisableEvent)
+#        return instruction.ip != event.ip
+#    return False
+
+
+def chunk_trace(trace):
+    # type: (List[Union[TraceEvent, Instruction]]) -> List[Chunk]
+    chunks = []  # type: List[Chunk]
+
+    enable_event = None
+    #switch_detected = False
+    instructions = []  # type: List[Instruction]
+    for (idx, ev) in enumerate(trace):
+        if isinstance(ev, TraceEvent):
+            latest_time = ev.time
+            if isinstance(ev, EnableEvent):
+                assert enable_event is None
+
+                enable_event = ev
+                #switch_detected = False
+            elif isinstance(ev, DisableEvent) or isinstance(
+                    ev, AsyncDisableEvent):
+                assert enable_event is not None
+
+                if len(instructions) == 0:
+                    enable_event = None
+                    #switch_detected = False
+                    continue
+
+                #if len(chunks) != 0:
+                #    last_instruction = chunks[-1].instructions[-1]
+                #    switch_detected = is_context_switch(ev, last_instruction)
+
+                assert enable_event.time and ev.time
+                #chunk = Chunk(enable_event.time, ev.time, switch_detected,
+                #              instructions)
+                chunk = Chunk(enable_event.time, ev.time, instructions)
+                chunks.append(chunk)
+                instructions = []
+                enable_event = None
+        else:
+            assert enable_event is not None
+            instructions.append(ev)
+
+    return chunks
 
 
 # TODO multiple threads
@@ -189,7 +297,7 @@ def decode(
 
     assert len(trace_paths) > 0
 
-    traces = []  # type: List[List[Union[TraceEvent, Instruction]]]
+    traces = []  # type: List[List[Chunk]]
 
     shared_objects = []
 
@@ -203,28 +311,22 @@ def decode(
                                    m.stop - m.start, m.start))
 
     for trace_path in trace_paths:
-        traces.append(
-            _pt.decode(
-                trace_path=trace_path,
-                cpu_family=cpu_family,
-                cpu_model=cpu_model,
-                cpu_stepping=cpu_stepping,
-                cpuid_0x15_eax=cpuid_0x15_eax,
-                cpuid_0x15_ebx=cpuid_0x15_ebx,
-                time_zero=time_zero,
-                time_mult=time_mult,
-                time_shift=time_shift,
-                shared_objects=shared_objects))
+        trace = _pt.decode(
+            trace_path=trace_path,
+            cpu_family=cpu_family,
+            cpu_model=cpu_model,
+            cpu_stepping=cpu_stepping,
+            cpuid_0x15_eax=cpuid_0x15_eax,
+            cpuid_0x15_ebx=cpuid_0x15_ebx,
+            time_zero=time_zero,
+            time_mult=time_mult,
+            time_shift=time_shift,
+            shared_objects=shared_objects)
+        traces.append(chunk_trace(trace))
 
     schedule = get_thread_schedule(perf_event_paths, start_thread_ids,
                                    start_times)
 
-    df = dataframe(traces)
-    instructions = []
-    for (i, entry) in enumerate(schedule):
-        window = df[(entry.start < df.time) & (df.time < entry.stop) & (df.type == "Instruction")]
-        if len(window) == 0:
-            import pdb; pdb.set_trace()
-        instructions.extend(window.ip)
+    schedule = merge_same_core_switches(schedule)
 
     return correlate_traces(traces, schedule, pid, tid)
