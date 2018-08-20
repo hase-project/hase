@@ -109,7 +109,7 @@ class GdbMemSpace(object):
         return
 
 
-class GdbSharedLibrary():
+class GdbSharedLibrary(object):
     def __init__(self, active_state, pksize):
         self.active_state = active_state
         self.libs = []

@@ -12,7 +12,7 @@ from .state import Branch
 from .hook import unsupported_symbols
 
 
-class FakeSymbol():
+class FakeSymbol(object):
     def __init__(self, name, addr):
         self.name = name
         self.rebased_addr = addr
@@ -68,7 +68,7 @@ class FilterBase(object):
         return False
 
 
-class FilterTrace():
+class FilterTrace(object):
     def __init__(self, project, cfg, trace, \
         hooked_symbol, gdb, omitted_section, \
         from_initial, static_link):
@@ -272,7 +272,7 @@ class FilterTrace():
 
 
 # Not test yet, must be slow
-class FilterCFG():
+class FilterCFG(object):
     def __init__(self, project, cfg, trace, hooked_symbol, gdb):
         # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], Any) -> None
         self.project = project

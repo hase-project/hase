@@ -55,7 +55,7 @@ def timeout(seconds=10):
     return wrapper
 
 
-class CoredumpGDB():        
+class CoredumpGDB(object):
     def __init__(self, elf, coredump):
         self.coredump = coredump
         self.elf = elf
@@ -194,7 +194,7 @@ class CoredumpGDB():
         return [addr, size + 1]
 
 
-class CoredumpAnalyzer():
+class CoredumpAnalyzer(object):
     def __init__(self, elf, coredump):
         # type: (Coredump, int, int) -> None
         self.coredump = coredump
