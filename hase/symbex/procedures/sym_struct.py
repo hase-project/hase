@@ -34,7 +34,7 @@ class SymbolicMeta(type):
 # disable pylint error
 class SymStruct(object):
     def __init__(self, buf):
-        self.buf = buf        
+        self.buf = buf
 
     def read(self, proc, sym):
         sym_list = sym.partition('.')
@@ -82,7 +82,7 @@ class SymStruct(object):
     def store_all(self, proc):
         for sym, _ in self.c_cls._fields_:
             self.store(proc, sym)
-    
+
 
 
 # https://code.woboq.org/userspace/glibc/sysdeps/unix/sysv/linux/bits/types/__sigset_t.h.html
@@ -189,7 +189,7 @@ class stat_t(SymStruct):
         ('st_ctimensec', c_ulong),
         ('glibc_reserved[3]', c_ulong * 3)
     ]
- 
+
 
 class statfs_t(SymStruct):
     __metaclass__ = SymbolicMeta
@@ -205,7 +205,7 @@ class statfs_t(SymStruct):
         ('f_namelen' ,c_long),
         ('f_frsize', c_long),
         ('f_flags', c_long),
-        ('f_spare[4]', c_long * 4)        
+        ('f_spare[4]', c_long * 4)
     ]
 
 

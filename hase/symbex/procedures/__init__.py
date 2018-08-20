@@ -33,7 +33,7 @@ all_IO_hook = [
     'fgets', 'fopen', 'fprintf', 'fputc',
     'fputs', 'fread', 'fseek', 'ftell',
     'fwrite', 'getchar', 'printf', 'putc',
-    'putchar', 'puts', 'scanf', 'sscanf', 
+    'putchar', 'puts', 'scanf', 'sscanf',
     'snprintf', 'sprintf', 'ungetc', 'vsnprintf',
     'close', 'fstat', 'lseek', 'open',
     'read', 'stat', 'unlink', 'write',
@@ -92,7 +92,7 @@ posix64_IO_symbols = [
     'statfs', 'fstatfs',
     'readdir', 'opendir',
     'lseek', 'lstat',
-    'fgetpos', 'fsetpos', 
+    'fgetpos', 'fsetpos',
     'pread', 'pwrite', 'fxstatat',
     'telldir', 'seekdir', 'rewinddir', 'closedir'
 ]
@@ -123,7 +123,7 @@ add_alias(alias_symbols,
         'fwide', 'fwrite', 'fread', 'fclose', 'fdopen',
         'fflush', 'fgetpos', 'fgetpos64', 'fprintf'
         'fgets', 'fopen', 'fopen64', 'fputs', 'printf',
-        'fsetpos', 'fsetpos64', 'ftell', 'fwide', 
+        'fsetpos', 'fsetpos64', 'ftell', 'fwide',
         'seekoff', 'seekpos', 'setbuffer', 'setvbuf',
         'ungetc', 'vsprintf', 'vdprintf', 'vsscanf',
     ],
@@ -152,8 +152,8 @@ add_alias_s(alias_symbols, 'getgid', 'getegid')
 
 
 # TODO: add all sse2 symbols
-add_alias_s(alias_symbols, 
-    'memcpy', 
+add_alias_s(alias_symbols,
+    'memcpy',
     '__memcpy_sse2_unaligned'
 )
 

@@ -1,4 +1,5 @@
 from __future__ import absolute_import, division, print_function
+
 import bisect
 from angr import SimState
 from cle import ELF
@@ -122,7 +123,7 @@ class StateManager(object):
         # Better have something like skip-table
         self.ordered_index = [] # type: List[int]
         self.major_index = [] # type: List[int]
-    
+
     def add(self, state):
         # type: (State) -> None
         self.index_to_state[state.index] = state

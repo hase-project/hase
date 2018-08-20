@@ -77,7 +77,7 @@ class CPUID(object):
     def __init__(self):
         if platform.machine() not in ("AMD64", "x86_64", "x86", "i686"):
             raise SystemError("Only available for x86")
-        
+
         if is_windows:
             if is_64bit:
                 # VirtualAlloc seems to fail under some weird

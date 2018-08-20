@@ -18,6 +18,6 @@ class __recvfrom_chk(SimProcedure):
         recvfrom = SIM_PROCEDURES['libc']['recvfrom']
         return self.inline_call(
             recvfrom, fd, buf,
-            len, flag, 
+            len, flag,
             from_addr, from_len
         ).ret_expr

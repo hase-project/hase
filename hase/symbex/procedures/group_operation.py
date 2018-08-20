@@ -7,7 +7,7 @@ from angr.procedures import SIM_PROCEDURES
 
 from .helper import minmax, errno_success, null_success, test_concrete_value
 from .sym_struct import passwd, sizeof
-# TODO: getgrgid, getgrnam, getgrent, endgrent, setgrent, 
+# TODO: getgrgid, getgrnam, getgrent, endgrent, setgrent,
 # getgrgid_r, getgrnam_r
 
 
@@ -25,12 +25,12 @@ class getgrgid(SimProcedure):
         struct group {
             char* gr_name; // name of the group
             gid_t gr_gid; // group ID, gid_t = 4 bytes
-            char** gr_mem; // pointer to a null-terminated array of character 
+            char** gr_mem; // pointer to a null-terminated array of character
                 pointers to member names.
         }
         '''
         pass
-        
+
 
 class getlogin_r(SimProcedure):
     def run(self, name, namesize, size=None):

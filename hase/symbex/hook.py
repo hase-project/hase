@@ -87,7 +87,7 @@ def hook_fallback_procedures(dct):
 all_hookable_symbols = {} # type: Dict[str, Any]
 
 libs = [
-    'libc', 'glibc', 
+    'libc', 'glibc',
     'linux_kernel', 'posix',
     'linux_loader'
 ]

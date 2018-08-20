@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (
-    QGraphicsItem, QGraphicsRectItem, 
+    QGraphicsItem, QGraphicsRectItem,
     QGraphicsTextItem, QGraphicsPathItem,
     QGraphicsLineItem,
     QGraphicsScene, QGraphicsView,
@@ -20,7 +20,7 @@ class StateEdgeArrow(QGraphicsLineItem):
         super(StateEdgeArrow, self).__init__(line)
         pen = QPen(QBrush(Qt.blue), 2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
         self.setPen(pen)
-    
+
     def update_pos(self, line):
         # type: (QLineF) -> None
         self.setLine(line)
@@ -86,7 +86,7 @@ class StateEdge(QGraphicsLineItem):
         # type: () -> QPointF
         line = self.line()
         return QPointF(
-            (line.x1() + line.x2()) / 2, 
+            (line.x1() + line.x2()) / 2,
             (line.y1() + line.y2()) / 2)
 
     def update_pos(self):
@@ -193,7 +193,7 @@ class StateNode(QGraphicsRectItem):
         # type: (Any, QPointF) -> None
         if change == QGraphicsItem.ItemPositionChange:
             self.set_text_edge(value.x(), value.y())
-        return QGraphicsRectItem.itemChange(self, change, value) 
+        return QGraphicsRectItem.itemChange(self, change, value)
 
     def __del__(self):
         # weird segfault
@@ -307,7 +307,7 @@ class CallGraphManager(object):
         addr_sym = tracer.filter.find_function(state.branch.addr)
         ip_sym = tracer.filter.find_function(state.branch.ip)
         if not addr_sym or not ip_sym:
-            raise Exception("Unable to find symbols for %x and %x", 
+            raise Exception("Unable to find symbols for %x and %x",
                 state.branch.addr, state.branch.ip)
         addr_name = addr_sym.name
         ip_name = ip_sym.name

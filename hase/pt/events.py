@@ -27,7 +27,7 @@ class InstructionClass(IntEnum):
     ptic_error = 0
     # The instruction is something not listed below.
     ptic_other = 1
-    # The instruction is a near (function) call. 
+    # The instruction is a near (function) call.
     ptic_call = 2
     # The instruction is a near (function) return.
     ptic_return = 3

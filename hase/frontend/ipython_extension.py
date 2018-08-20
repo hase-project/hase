@@ -136,7 +136,7 @@ class HaseMagics(Magics):
                     if obj in rep.tracer.project.loader.all_elf_objects:
                         addr2line.add_addr(obj, addr)
             addr_map = addr2line.compute()
-            
+
 
         self.active_state = states.major_states[-1]
 
@@ -182,7 +182,7 @@ class HaseMagics(Magics):
             user_ns['gdbs'].write_request('bt')
             self.window.set_variable()
         else:
-            print("Cannot retrieve variables on unresolvable source code")        
+            print("Cannot retrieve variables on unresolvable source code")
 
     @args(info="USAGE: init")
     @line_magic("init")
@@ -195,7 +195,7 @@ class HaseMagics(Magics):
         addr_map = user_ns['addr_map']
         executable = user_ns['executable']
         user_ns["gdbs"] = gdb.GdbServer(
-            states, executable, 
+            states, executable,
             user_ns["tracer"].cdanalyzer, active_state)
         user_ns["gdbs"].write_request("dir {}".format(
             ':'.join([os.path.dirname(str(p)) for p, _ in addr_map.values()])

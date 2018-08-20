@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (
-    QTableWidget, QTableWidgetItem, 
+    QTableWidget, QTableWidgetItem,
     QAbstractScrollArea,
     QAction, QMenu,
 )
@@ -32,15 +32,15 @@ class VarTableWidget(QTableWidget):
         name_item = QTableWidgetItem()
         name_item.setText(attrs['name'])
         self.setItem(i, 0, name_item)
-        
+
         type_item = QTableWidgetItem()
         type_item.setText(attrs['type'].strip())
         self.setItem(i, 1, type_item)
-        
+
         addr_item = QTableWidgetItem()
         addr_item.setText(hex(attrs['addr']))
-        self.setItem(i, 2, addr_item)            
-        
+        self.setItem(i, 2, addr_item)
+
         value_item = QTableWidgetItem()
         value_item.setText(value)
         self.setItem(i, 3, value_item)
@@ -94,7 +94,7 @@ class VarTableWidget(QTableWidget):
         elif vtype == 'hex':
             dec_value = item.core_value
         item.setText(str(dec_value) + comment)
-    
+
     def repr_as_hex(self, row, col):
         item = self.item(row, col)
         vtype = item.value_type
@@ -109,12 +109,12 @@ class VarTableWidget(QTableWidget):
         elif vtype == 'hex':
             dec_value = item.core_value
         item.setText(hex(dec_value) + comment)
-        
+
     @staticmethod
     def nhex(n):
         h = hex(n)[2:]
         h = '0' + h if len(h) % 2 else h
-        return h        
+        return h
 
     def repr_as_str(self, row, col):
         item = self.item(row, col)
@@ -135,7 +135,7 @@ class VarTableWidget(QTableWidget):
             if '\x00' in string:
                 string = string.partition('\x00')[0]
         item.setText(string + comment)
-    
+
     def repr_as_bytes(self, row, col):
         item = self.item(row, col)
         vtype = item.value_type
@@ -147,7 +147,7 @@ class VarTableWidget(QTableWidget):
             h = self.nhex(item.core_value)
             arr = [t[0] + t[1] for t in zip(h[0::2], h[1::2])][::-1]
         item.setText(' '.join(arr) + comment)
-        
+
     def repr_as_floating(self, row, col):
         # TODO: seperate this into double / float
         item = self.item(row, col)
@@ -170,4 +170,3 @@ class VarTableWidget(QTableWidget):
             float_str = ''.join([t[0] + t[1] for t in zip(h[0::2], h[1::2])][::-1])
             float_value = unpack('d', unhexlify(float_str))
         item.setText(float_value + comment)
-        

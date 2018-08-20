@@ -27,7 +27,7 @@ class rt_sigprocmask(SimProcedure):
         if not test_concrete_value(self, oldset, 0):
             self.state.memory.store(oldset, self.state.se.Unconstrained('oldset', 128 * 8, uninitialized=False))
         return errno_success(self)
-            
+
 
 class connect(SimProcedure):
     IS_SYSCALL = True
@@ -39,7 +39,7 @@ class connect(SimProcedure):
         self.state.posix.autotmp_counter += 1
         self.state.posix.open(new_filename, Flags.O_RDWR, preferred_fd=sockfd)
         return errno_success(self)
-        
+
 
 class access(SimProcedure):
     IS_SYSCALL = True
@@ -82,7 +82,7 @@ class getdents64(SimProcedure):
 
 class getpriority(SimProcedure):
     IS_SYSCALL = True
-    
+
     def run(self, which, who):
         '''
         The value which is one of PRIO_PROCESS, PRIO_PGRP, or PRIO_USER, and
@@ -105,7 +105,7 @@ class setpriority(SimProcedure):
 
 class arch_prctl(SimProcedure):
     IS_SYSCALL = True
-    
+
     ARCH_SET_GS = 0x1001
     ARCH_SET_FS = 0x1002
     ARCH_GET_FS = 0x1003
@@ -133,7 +133,7 @@ class set_tid_address(SimProcedure):
         # so no set_child_tid or clear_child_tid
         return self.state.se.Unconstrained('set_tid_address', 32, uninitialized=False)
 
-    
+
 class kill(SimProcedure):
     IS_SYSCALL = True
 
@@ -214,7 +214,7 @@ class readlink(SimProcedure):
         self.state.memory.store(buf, self.state.se.Unconstrained('readlink', bufsize * 8, uninitialized=False))
         return errno_success(self)
 
-    
+
 class alarm(SimProcedure):
     IS_SYSCALL = True
 
@@ -341,11 +341,11 @@ class fadvise64(SimProcedure):
 
 class statfs(SimProcedure):
     IS_SYSCALL = True
-    
+
     def run(self, path, statfs_buf):
         statfs_t(statfs_buf).store_all(self)
         return errno_success(self)
-        
+
 
 class fstatfs(SimProcedure):
     IS_SYSCALL = True

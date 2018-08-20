@@ -70,7 +70,7 @@ class fseeko(SimProcedure):
         # FIXME: Actually offset: off_t
         ret_expr = self.inline_call(fseek, fp, offset, whence).ret_expr
         return ret_expr
-        
+
 
 # FIXME: complete this
 class freopen(SimProcedure):
@@ -104,12 +104,12 @@ class __lxstat(SimProcedure):
 class vprintf(SimProcedure):
     INCOMPLETE = True
     def run(self, fmt, va_list):
-        return None 
+        return None
 
 
 '''
 FIXME: pwd maybe different
-NOTE: 
+NOTE:
     In GNU, if BUF is NULL,
     an array is allocated with `malloc'; the array is SIZE
     bytes long, unless SIZE == 0, in which case it is as
@@ -126,7 +126,7 @@ class getcwd(SimProcedure):
                 new_size = self.state.solver.If(size-1 > len(cwd), len(cwd), size-1)
                 buf = self.inline_call(malloc, new_size).ret_expr
         return self.inline_call(_getcwd, buf, size).ret_expr
-                
+
 
 # NOTE: if allow-read
 class __freadable(SimProcedure):

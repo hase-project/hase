@@ -63,17 +63,17 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.up_button.setIconSize(QSize(15, 15))
         self.up_button.clicked.connect(self.push_up)
         self.up_button.setEnabled(False)
-        
+
         self.upto_button.setIcon(QIcon(str(APP_ROOT.join('frontend/icon/upto.png'))))
         self.upto_button.setIconSize(QSize(15, 15))
         self.upto_button.clicked.connect(self.push_upto)
         self.upto_button.setEnabled(False)
-        
+
         self.down_button.setIcon(QIcon(str(APP_ROOT.join('frontend/icon/down.png'))))
         self.down_button.setIconSize(QSize(15, 15))
         self.down_button.clicked.connect(self.push_down)
         self.down_button.setEnabled(False)
-        
+
         self.downto_button.setIcon(QIcon(str(APP_ROOT.join('frontend/icon/downto.png'))))
         self.downto_button.setIconSize(QSize(15, 15))
         self.downto_button.clicked.connect(self.push_downto)
@@ -102,12 +102,12 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         active_state = self.states.major_states[-1]
         coredump = user_ns['coredump']
         low = active_state.simstate.regs.rsp
-        
+
         if start_state.regs.rbp.uninitialized:
             high = start_state.regs.rsp
         else:
             high = start_state.regs.rbp + 1
-        
+
         try:
             low_v = active_state.simstate.se.eval(low)
         except:
@@ -117,7 +117,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             high_v = start_state.se.eval(high)
         except:
             high_v = coredump.stack.stop
-        
+
         for addr in range(low_v, high_v):
             value = active_state.simstate.memory.load(addr, 1, endness='Iend_LE')
             if value.uninitialized or value.variables == frozenset():
@@ -212,7 +212,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         active_state = user_ns['active_state']
         state_index = max(0, active_state.index - 1)
         self.update_active_index(state_index)
-        
+
     def push_down(self):
         # type: () -> None
         user_ns = self.kernel_client.kernel.shell.user_ns
@@ -235,7 +235,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             user_ns['gdbs'].write_request('bt')
             self.set_variable()
         else:
-            print("Cannot retrieve variables on unresolvable source code")        
+            print("Cannot retrieve variables on unresolvable source code")
 
     def push_switch(self):
         # type: () -> None
@@ -300,7 +300,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                 user_ns['active_state'],
                 v['addr'], v['size'])
             self.var_view.set_var(i, v, value, value_type)
-        self.var_view.resizeColumnsToContents()        
+        self.var_view.resizeColumnsToContents()
 
     def set_regs(self):
         # type: () -> None
