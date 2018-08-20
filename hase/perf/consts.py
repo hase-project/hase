@@ -271,7 +271,8 @@ class EventStructs(object):
     @compute_string_size
     def record_switch_event(self, size):
         # type: (int) -> Type[ct.Structure]
-        base = self._event_header([])
+        base = self._event_header([]) # type: Any
+
         class RecordSwitch(base):
             def is_switch_out(self):
                 # otherwise switch in
