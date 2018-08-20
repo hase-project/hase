@@ -2,11 +2,11 @@ from __future__ import absolute_import, division, print_function
 
 import sys
 import os
-import tempfile
+from tempfile import NamedTemporaryFile
 import resource
 # TODO python3
 from pipes import quote
-from typing import Optional, IO, Any
+from typing import Optional, IO, Any, Tuple
 import logging
 
 from .coredump_handler import RECV_MESSAGE, EXTRA_CORE_DUMP_PARAMETER
@@ -66,9 +66,9 @@ class Handler(object):
                  manifest_path,
                  log_path="/tmp/coredump.log"):
         # type: ( str, str, str, str) -> None
-        self.previous_pattern = None
-        self.old_core_rlimit = None
-        self.handler_script = None
+        self.previous_pattern = None  # type: Optional[str]
+        self.old_core_rlimit = None  # type: Optional[Tuple[int, int]]
+        self.handler_script = None  # type: Optional[Any]
         self.core_file = core_file
         self.fifo_path = fifo_path
         self.manifest_path = manifest_path
@@ -76,12 +76,12 @@ class Handler(object):
         os.mkfifo(fifo_path)
 
     def __enter__(self):
-        # () -> Coredump
+        # type: () -> Coredump
 
         kill_command = which("kill")
         assert kill_command is not None
 
-        self.handler_script = tempfile.NamedTemporaryFile(
+        self.handler_script = NamedTemporaryFile(
             prefix="core_handler", delete=False)
         os.chmod(self.handler_script.name, 0o755)
         assert len(self.handler_script.name) < 128

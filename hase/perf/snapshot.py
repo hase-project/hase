@@ -4,7 +4,7 @@ import ctypes as ct
 import mmap
 import fcntl
 import os
-from typing import List, Generator, Any, Optional
+from typing import List, Generator, Any, Optional, Iterator
 
 from .cpuid import CPUID
 from ..mmap import MMap
@@ -226,7 +226,7 @@ class MmapHeader(object):
     # From this record, tooling can iterate over the full ring buffer and fetch
     # records one by one.
     def events(self):
-        # () -> List[ct.Structure]
+        # type: () -> Iterator[ct.Structure]
         data_head = self._header.data_head
         events = []  # type: List[ct.Structure]
 
@@ -270,7 +270,7 @@ class MmapHeader(object):
         return reversed(events)
 
     def tsc_conversion(self):
-        # () -> TscConversion
+        # type: () -> TscConversion
         i = 0
         while True:
             seq = self._header.lock
@@ -334,11 +334,11 @@ class BackwardRingbuffer(object):
         self.pmu.close()
 
     def events(self):
-        # () -> List[ct.Structure]
+        # type: () -> Iterator[ct.Structure]
         return self.header.events()
 
     def tsc_conversion(self):
-        # () -> TscConversion
+        # type: () -> TscConversion
         return self.header.tsc_conversion()
 
 
@@ -385,7 +385,7 @@ class AuxRingbuffer(object):
         self.pmu.disable()
 
     def events(self):
-        # () -> List[ct.Structure]
+        # type: () -> Iterator[ct.Structure]
         return self.header.events()
 
 
@@ -404,7 +404,7 @@ class Cpu(object):
         self._itrace_start_event = None # type: Optional[ct.Structure]
 
     def events(self):
-        # type: () -> List[ct.Structure]
+        # type: () -> Iterator[ct.Structure]
         return self.event_buffer.events()
 
     def itrace_start_event(self):

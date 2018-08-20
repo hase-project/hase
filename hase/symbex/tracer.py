@@ -70,6 +70,7 @@ class CoredumpGDB():
         self.setup_gdb()
 
     def setup_gdb(self):
+        # type: () -> None
         self.write_request("file {}".format(self.execfile))
         self.write_request("core {}".format(self.corefile))
 

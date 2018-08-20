@@ -11,7 +11,7 @@ import termios
 import struct
 import xml.etree.ElementTree as ET
 from pygdbmi.gdbcontroller import GdbController
-from typing import Tuple, IO, Any, Optional
+from typing import Tuple, IO, Any, Optional, List
 
 from ..symbex.state import State, StateManager
 from ..path import APP_ROOT
@@ -142,7 +142,7 @@ class GdbSharedLibrary():
             h_lm = 0
             # h_addr = active_state.simstate.memory.load(h_lm + 8, 0x8)
             h_addr = 0
-            
+
             ET.SubElement(
                 root, 'library', {
                     'name': '/' + '/'.join(lib.binary.split('/')[4:]),
@@ -286,9 +286,9 @@ class GdbServer(object):
         return resp
 
     def run(self):
-        # () -> None
+        # type: () -> None
         l.info("start server gdb server")
-        buf = []
+        buf = ''
         while True:
             try:
                 data = os.read(self.master.fileno(), PAGESIZE)

@@ -210,7 +210,7 @@ class Chunk(object):
         return self.start != self.stop
 
     def __repr__(self):
-        # () -> str
+        # type: () -> str
         return '<%s time: 0x%x..0x%x [%d instructions]>' % (
             self.__class__.__name__, self.start, self.stop,
             len(self.instructions))

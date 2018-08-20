@@ -68,6 +68,7 @@ class State(object):
 
     @property
     def simstate(self):
+        # type: () -> SimState
         if self.is_to_simstate:
             return self.to_simstate
         return self.from_simstate
@@ -77,7 +78,7 @@ class State(object):
         return self.simstate.solver.eval(expression)
 
     def __repr__(self):
-        # () -> str
+        # type: () -> str
         if self.branch.addr == 0:
             return "State(Start -> 0x%x)" % (self.branch.ip)
         else:
