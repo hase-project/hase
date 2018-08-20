@@ -1,5 +1,6 @@
-# Need to resymbolize hooks
+from __future__ import absolute_import, division, print_function
 
+# Need to resymbolize hooks
 
 
 def test_concrete_value(proc, sym, value):

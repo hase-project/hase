@@ -1,6 +1,8 @@
+from __future__ import absolute_import, division, print_function
+
 from angr import SimProcedure
 from angr.procedures import SIM_PROCEDURES, SIM_LIBRARIES
-import procedures
+from . import procedures
 
 from typing import Dict, List, Any, Tuple
 

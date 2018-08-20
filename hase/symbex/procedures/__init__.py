@@ -1,12 +1,13 @@
-import os
-import file_operation
-import memory_operation
-import group_operation
-import miscs
-import socket_operation
-import string_operation
-import time_operation
-import syscall
+from __future__ import absolute_import, division, print_function
+
+from . import file_operation
+from . import memory_operation
+from . import group_operation
+from . import miscs
+from . import socket_operation
+from . import string_operation
+from . import time_operation
+from . import syscall
 
 from collections import OrderedDict
 from typing import Dict

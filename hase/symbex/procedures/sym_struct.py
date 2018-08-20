@@ -1,3 +1,5 @@
+from __future__ import absolute_import, division, print_function
+
 # pylint: disable=E1101
 from claripy import BVS
 from ctypes import * # noqa # pylint: disable=W0614
@@ -87,7 +89,7 @@ class SymStruct(object):
 class sigset_t(SymStruct):
     __metaclass__ = SymbolicMeta
     _fields_ = [
-        ('__bits', c_ulong * (128 / sizeof(c_long)))
+        ('__bits', c_ulong * (128 // sizeof(c_long)))
     ]
 
 
