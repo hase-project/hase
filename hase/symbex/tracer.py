@@ -15,7 +15,6 @@ from angr import SimState, SimProcedure, PointerWrapper, SIM_PROCEDURES
 from typing import List, Any, Dict, Tuple, Optional
 from pygdbmi.gdbcontroller import GdbController
 from collections import deque
-from memory_profiler import profile
 
 from ..pwn_wrapper import ELF, Coredump, Mapping
 
