@@ -421,5 +421,6 @@ def start_window():
 
 
 def main():
+    # type: () -> None
     while start_window() == EXIT_REBOOT:
         pass

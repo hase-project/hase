@@ -48,6 +48,7 @@ def parse_c_declaration(decl):
 
 
 def parse_addr(s):
+    # type: (str) -> str
     print(s)
     l = s.split(' ')
     # NOTE: ['$n', '=', '('qualifier', 'type', '*)', 'addr\n']

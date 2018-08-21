@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 from collections import OrderedDict
+from typing import Callable, List, Dict
 
 
 # TODO: make a general resymbolic wrapper for may-raise exception procedures
@@ -20,17 +21,19 @@ all_IO_hook = [
 
 
 def add_alias(dct, nlist, decr = lambda x: x):
+    # type: (OrderedDict[str,str], List[str], Callable[[str], str]) -> None
     for sym in nlist:
         decr_sym = decr(sym)
         dct[decr_sym] = sym
 
 
 def add_alias_s(dct, sym, *args):
+    # type: (OrderedDict[str,str], str, **str) -> None
     for decr_sym in args:
         dct[decr_sym] = sym
 
 
-alias_symbols = OrderedDict() # type: OrderedDict
+alias_symbols = OrderedDict()  # type: OrderedDict[str, str]
 
 
 unlocked_IO_symbols = [

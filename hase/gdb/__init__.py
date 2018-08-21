@@ -11,9 +11,11 @@ import termios
 import struct
 import xml.etree.ElementTree as ET
 from pygdbmi.gdbcontroller import GdbController
-from typing import Tuple, IO, Any, Optional, List
+from typing import Tuple, IO, Any, Optional, List, Dict
+from cle import ELF
 
 from ..symbex.state import State, StateManager
+from ..symbex.tracer import CoredumpAnalyzer
 from ..path import APP_ROOT
 
 logging.basicConfig()
@@ -22,6 +24,7 @@ l = logging.getLogger(__name__)
 
 class GdbRegSpace(object):
     def __init__(self, active_state):
+        # type: (State) -> None
         # https://github.com/radare/radare2/blob/fe6372339da335bd08a8b568d95bb0bd29f24406/shlr/gdb/src/arch.c#L5
         self.names = [
             "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp", "r8", "r9",
@@ -67,6 +70,7 @@ class GdbRegSpace(object):
 
 class GdbMemSpace(object):
     def __init__(self, active_state, cda):
+        # type: (State, CoredumpAnalyzer) -> None
         self.active_state = active_state
         self.cda = cda
 
@@ -111,15 +115,16 @@ class GdbMemSpace(object):
 
 class GdbSharedLibrary(object):
     def __init__(self, active_state, pksize):
+        # type: (State, int) -> None
         self.active_state = active_state
-        self.libs = []
+        self.libs = []  # type: List[ELF]
         self.pksize = pksize
         self.tls_object = self.active_state.simstate.project.loader.tls_object
         loader = self.active_state.simstate.project.loader
         for lib in loader.shared_objects.values():
             if lib != loader.main_object:
                 self.libs.append(lib)
-        self.xml = None
+        self.xml = None  # type: Optional[str]
 
     def make_xml(self, update=False):
         # type: (Optional[bool]) -> str
@@ -196,7 +201,7 @@ def compute_checksum(data):
 
 class GdbServer(object):
     def __init__(self, states, binary, cda, active_state=None):
-        # type: (StateManager, str, Any, Optional[State]) -> None
+        # type: (StateManager, str, CoredumpAnalyzer, Optional[State]) -> None
         # FIXME: this binary is original path
         master, ptsname = create_pty()
         self.master = master
@@ -231,12 +236,14 @@ class GdbServer(object):
         self.gdb.write('set stack-cache off', timeout_sec=100)
 
     def update_active(self):
+        # type: () -> None
         self.regs.active_state = self.active_state
         self.mem.active_state = self.active_state
         self.libs.active_state = self.active_state
         self.write_request('c')
 
     def read_variables(self):
+        # type: () -> List[Dict[str, Any]]
         py_file = APP_ROOT.join("gdb/gdb_get_locals.py")
         resp = self.write_request('python execfile (\"{}\")'.format(py_file))
         res = []
@@ -274,10 +281,11 @@ class GdbServer(object):
         print(res)
 
     def write_request(self, req, **kwargs):
+        # type: (str, **Any) -> List[Dict[str, Any]]
         timeout_sec = kwargs.pop('timeout_sec', 10)
         kwargs['read_response'] = False
         self.gdb.write(req, timeout_sec=timeout_sec, **kwargs)
-        resp = []
+        resp = []  # type: List[Dict[str, Any]]
         while True:
             try:
                 resp += self.gdb.get_gdb_response()

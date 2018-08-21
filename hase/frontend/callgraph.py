@@ -12,9 +12,10 @@ from PyQt5.QtGui import (
 from networkx import Graph, kamada_kawai_layout
 from math import hypot
 
-from typing import Tuple, Any, List, Union
+from typing import Tuple, Any, List, Union, Optional
 
 from ..errors import HaseError
+from . import MainWindow
 
 class StateEdgeArrow(QGraphicsLineItem):
     def __init__(self, line):
@@ -112,6 +113,7 @@ class StateEdge(QGraphicsLineItem):
 
 class StateNode(QGraphicsRectItem):
     def __init__(self, name, index, addr, rect, text, manager):
+        # type: (str, int, int, QRectF, str, CallGraphManager) -> None
         self.text = QGraphicsTextItem(text)
         self.text_width = self.text.boundingRect().width()
         if self.text_width > rect.width() - 6:
@@ -129,7 +131,7 @@ class StateNode(QGraphicsRectItem):
         self.setFlag(QGraphicsItem.ItemIsMovable)
         self.setFlag(QGraphicsItem.ItemIsSelectable)
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges)
-        self.edges = []
+        self.edges = []  # type: List[StateEdge]
         self.str_to_node = {
             'right': self.right_node,
             'top': self.top_node,
@@ -370,6 +372,7 @@ class CallGraphManager(object):
 
 class CallGraphView(QGraphicsView):
     def __init__(self, manager, window, parent=None):
+        # type: (CallGraphManager, MainWindow, Optional[Any]) -> None
         super(CallGraphView, self).__init__(parent)
         manager.view = self
         self.setScene(manager.create_scene(400 + len(manager.nodes) * 10))

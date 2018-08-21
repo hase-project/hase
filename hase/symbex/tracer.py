@@ -55,11 +55,12 @@ def timeout(seconds=10):
 
 class CoredumpGDB(object):
     def __init__(self, elf, coredump):
+        # type: (ELF, Coredump) -> None
         self.coredump = coredump
         self.elf = elf
         self.corefile = self.coredump.file.name
         self.execfile = self.elf.file.name
-        # XXX: use --nx will let manually set debug-file-directory 
+        # XXX: use --nx will let manually set debug-file-directory
         # and unknown cause for not showing libc_start_main and argv
         # FIXME: get all response and retry if failed
         self.gdb = GdbController(gdb_args=['--quiet', '--interpreter=mi2'])
@@ -73,24 +74,24 @@ class CoredumpGDB(object):
         self.write_request("core {}".format(self.corefile))
 
     def get_response(self):
-        resp = []
+        # type: () -> List[Dict[str, Any]]
+        resp = []  # type: List[Dict[str, Any]]
         while True:
             try:
                 resp += self.gdb.get_gdb_response()
             except Exception:
                 break
         return resp
-        
+
     def write_request(self, req, **kwargs):
-        timeout_sec = kwargs.pop('timeout_sec', 1)
-        kwargs['read_response'] = False
-        self.gdb.write(req, timeout_sec=timeout_sec, **kwargs)
+        # type: (str, **Any) -> List[Dict[str, Any]]
+        self.gdb.write(req, timeout_sec=1, read_response=False, **kwargs)
         resp = self.get_response()
         return resp
 
     def parse_frame(self, r):
         # type: (str) -> Dict[str, Any]
-        attrs = {} # Dict[str, Any]
+        attrs = {}  # type: Dict[str, Any]
         # NOTE: #n  addr in func (args=args[ <name>][@entry=v]) at source_code[:line]\n
         r = r.replace('\\n', '')
         attrs['index'] = r.partition(' ')[0][1:]
@@ -105,6 +106,7 @@ class CoredumpGDB(object):
 
         # NOTE: remove <xxx>
         def remove_comment(arg):
+            # type: (str) -> str
             if arg.find('<') != -1:
                 arg = arg.partition('<')[0]
                 arg = arg.replace(' ', '')
@@ -138,6 +140,7 @@ class CoredumpGDB(object):
         return attrs
 
     def parse_addr(self, r):
+        # type: (str) -> int
         # $n = (...) 0xaddr <name>
         l = r.split(' ')
         for blk in l:
@@ -146,6 +149,7 @@ class CoredumpGDB(object):
         return 0
 
     def parse_offset(self, r):
+        # type: (str) -> int
         # addr <+offset>:  inst
         l = r.split(' ')
         for blk in l:
@@ -155,6 +159,7 @@ class CoredumpGDB(object):
         return 0
 
     def backtrace(self):
+        # type: () -> List[Dict[str, Any]]
         resp = self.write_request("where")
         bt = []
         for r in resp:
@@ -170,6 +175,7 @@ class CoredumpGDB(object):
         return resp[1]['payload']
 
     def get_reg(self, reg_name):
+        # type: (str) -> int
         resp = self.write_request("info reg {}".format(reg_name))
         if len(resp) < 5 or not resp[2]['payload'].startswith('\\t'):
             return 0
@@ -194,7 +200,7 @@ class CoredumpGDB(object):
 
 class CoredumpAnalyzer(object):
     def __init__(self, elf, coredump):
-        # type: (Coredump, int, int) -> None
+        # type: (ELF, Coredump) -> None
         self.coredump = coredump
         self.elf = elf
         self.gdb = CoredumpGDB(elf, coredump)
@@ -202,21 +208,21 @@ class CoredumpAnalyzer(object):
         self.argc = self.coredump.argc
         self.argv = [self.read_argv(i) for i in range(self.argc)]
         self.argv_addr = [self.read_argv_addr(i) for i in range(self.argc)]
-    
+
     def read_stack(self, addr, length=0x1):
-        # type: ignore
+        # type: (int, int) -> str
         # NOTE: a op b op c will invoke weird typing
         assert self.coredump.stack.start <= addr < self.coredump.stack.stop
         offset = addr - self.coredump.stack.start
         return self.coredump.stack.data[offset:offset+length]
 
     def read_argv(self, n):
-        # type: ignore
+        # type: (int) -> str
         assert 0 <= n < self.coredump.argc
         return self.coredump.string(self.coredump.argv[n])
 
     def read_argv_addr(self, n):
-        # type: ignore
+        # type: (int) -> str
         assert 0 <= n < self.coredump.argc
         return self.coredump.argv[n]
 
@@ -231,15 +237,16 @@ class CoredumpAnalyzer(object):
     @property
     def stack_start(self):
         return self.coredump.stack.start
-    
+
     @property
     def stack_stop(self):
         return self.coredump.stack.stop
-    
+
     def call_argv(self, name):
+        # type: (str) -> List[Optional[int]]
         for bt in self.backtrace:
             if bt['func'] == name:
-                args = []
+                args = []  # type: List[Optional[int]]
                 for _, value, entry in bt['args']:
                     if entry:
                         args.append(int(entry, 16))
@@ -252,9 +259,11 @@ class CoredumpAnalyzer(object):
         raise Exception("Unknown function {} in backtrace".format(name))
 
     def stack_base(self, name):
+        # type: (str) -> Tuple[int, int]
         for bt in self.backtrace:
             if bt['func'] == name:
                 return self.gdb.get_stack_base(int(bt['index']))
+        raise Exception("Unknown stackbase for function {}".format(name))
 
 
 def build_load_options(mappings):
@@ -262,8 +271,8 @@ def build_load_options(mappings):
     """
     Extract shared object memory mapping from coredump
     """
-    # FIXME: actually this library path different will cause 
-    # simulation path different? need re-record if original 
+    # FIXME: actually this library path different will cause
+    # simulation path different? need re-record if original
     # executable is recompiled
     main = mappings[0]
     lib_opts = {}  # type: dict
@@ -416,12 +425,13 @@ class Tracer(object):
         # self.project.pt = self
 
     def setup_argv(self):
+        # type: () -> None
         # TODO: if argv is modified by users, this won't help
         args = self.cdanalyzer.call_argv('main')
         argv_addr = args[1]
         for i in range(len(self.coredump.argv)):
             self.start_state.memory.store(
-                argv_addr + i * 8, 
+                argv_addr + i * 8,
                 self.coredump.argv[i],
                 endness=archinfo.Endness.LE
             )
@@ -432,6 +442,7 @@ class Tracer(object):
             )
 
     def setup_hook(self):
+        # type: () -> None
         for symname, func in self.hooked_symbols.items():
             self.project.hook_symbol(
                 symname, func()
@@ -447,6 +458,7 @@ class Tracer(object):
                     self.omitted_section.append(r)
 
     def test_rep_ins(self, state):
+        # type: (SimState) -> bool
         # NOTE: rep -> sat or unsat
         capstone = state.block().capstone
         first_ins = capstone.insns[0].insn
@@ -455,6 +467,7 @@ class Tracer(object):
         return ins_repr.startswith('rep')
 
     def repair_exit_handler(self, state, step):
+        # type: (SimState, SimState) -> SimState
         artifacts = getattr(step, 'artifacts', None)
         if artifacts and 'procedure' in artifacts.keys() \
             and artifacts['name'] == 'exit':
@@ -468,6 +481,7 @@ class Tracer(object):
         return step
 
     def repair_alloca_ins(self, state):
+        # type: (SimState) -> None
         # NOTE: alloca problem, focus on sub rsp, rax
         # Typical usage: alloca(strlen(x))
         capstone = state.block().capstone
@@ -525,6 +539,7 @@ class Tracer(object):
         return False
 
     def repair_ip(self, state):
+        # type: (SimState) -> int
         try:
             addr = state.se.eval(state._ip)
             # NOTE: repair IFuncResolver
@@ -541,6 +556,7 @@ class Tracer(object):
         return addr
 
     def repair_func_resolver(self, state, step):
+        # type: (SimState, SimState) -> SimState
         artifacts = getattr(step, 'artifacts', None)
         if artifacts and 'procedure' in artifacts.keys() \
             and artifacts['name'] == 'IFuncResolver':
@@ -571,6 +587,7 @@ class Tracer(object):
         return False
 
     def jump_was_not_taken(self, old_state, new_state):
+        # type: (SimState, SimState) -> bool
         # was the last control flow change an exit vs call/jump?
         ev = new_state.events[-1]
         instructions = old_state.block().capstone.insns

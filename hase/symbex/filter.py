@@ -7,6 +7,7 @@ from angr import Project
 from angr.analyses.cfg import CFGFast
 from angr.knowledge_plugins.functions.function import Function
 from angr import SimProcedure
+from cle import ELF
 
 from typing import List, Optional, Dict, Any, Tuple
 
@@ -17,11 +18,13 @@ from ..errors import HaseError
 
 class FakeSymbol(object):
     def __init__(self, name, addr):
+        # type: (str, int) -> None
         self.name = name
         self.rebased_addr = addr
 
     def __eq__(self, other):
-        if other == None:
+        # (FakeSymbol) -> bool
+        if other is None:
             return False
         return self.name == other.name and self.rebased_addr == other.rebased_addr
 
@@ -29,6 +32,7 @@ class FakeSymbol(object):
         return hash((self.name, self.rebased_addr))
 
     def __repr__(self):
+        # () -> str
         return "FakeSymbol '{}' at {}".format(self.name, hex(self.rebased_addr))
 
 
@@ -47,6 +51,7 @@ class FilterBase(object):
         self.analyze_unsupported()
 
     def analyze_unsupported(self):
+        # type: () -> None
         for l in unsupported_symbols:
             self.omitted_section.append(
                 self.gdb.get_func_range(l[0])
@@ -332,12 +337,14 @@ class FilterCFG(object):
         return False
 
     def get_func_range(self, lib, cfg, func):
+        # type: (ELF, CFGFast, Function) -> List[int]
         return [
             lib.offset_to_addr(func.addr - cfg.project.loader.min_addr),
             func.size
         ]
 
     def find_function(self, symname):
+        # type: (str) -> Tuple[ELF, CFGFast, Function]
         if symname in self.libc_special_name.keys():
             self.collect_subfunc(
                 self.libc_object,
@@ -353,6 +360,7 @@ class FilterCFG(object):
         raise HaseError("Function {} not found".format(symname))
 
     def collect_subfunc(self, lib, cfg, func):
+        # type: (ELF, CFGFast, Function) -> None
         self.omitted_symbol[func.name] = self.get_func_range(lib, cfg, func)
         for nodel in func.nodes.items():
             node = nodel[0]
@@ -362,6 +370,7 @@ class FilterCFG(object):
                 self.collect_subfunc(lib, cfg, func)
 
     def analyze_hook(self):
+        # type: () -> None
         for symname in self.hooked_symbol.keys():
             lib, cfg, func = self.find_function(symname)
             self.collect_subfunc(lib, cfg, func)

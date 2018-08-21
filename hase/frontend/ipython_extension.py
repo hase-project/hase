@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 from IPython.core.magic import (magics_class, line_magic, Magics)
+from IPython.core.interactiveshell import InteractiveShell
 from IPython import get_ipython
 from PyQt5 import QtWidgets
 from . import MainWindow
@@ -64,6 +65,7 @@ def args(*param_names, **kwargs):
 @magics_class
 class HaseMagics(Magics):
     def __init__(self, shell):
+        # type (InteractiveShell) -> None
         if shell is not None:
             self.user_ns = shell.user_ns
         else:

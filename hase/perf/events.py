@@ -5,6 +5,7 @@ from .consts import (perf_event_header, PerfRecord, RecordMisc, Libc)
 from .snapshot import EVENTS
 
 def string_size(path):
+    # type: (str) -> int
     return ((len(path) + 1 + 7) & ~7)
 
 
