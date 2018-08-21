@@ -2,7 +2,11 @@ from __future__ import absolute_import, division, print_function
 
 from angr import SimProcedure
 from angr.procedures import SIM_PROCEDURES, SIM_LIBRARIES
-from . import procedures
+from .procedures import (
+        file_operation, memory_operation, group_operation, miscs,
+        socket_operation, string_operation, time_operation, syscall,
+        all_IO_hook, alias_symbols
+)
 
 from typing import Dict, List, Any, Tuple
 
@@ -34,21 +38,27 @@ skip_hook = [
 ] # type: List[str]
 
 
-def hook_angr_procedures(dct, libs, skip_hook, hook_IO = True):
+def hook_angr_procedures(dct, libs, skip_hook, hook_IO=True):
+    # type: (Dict[str, Any], List[str], List[str], bool) -> None
     for lib in libs:
         funcs = SIM_PROCEDURES[lib]
         for name, proc in funcs.items():
             if name in skip_hook:
                 continue
-            if hook_IO or name not in procedures.all_IO_hook:
+            if hook_IO or name not in all_IO_hook:
                 dct[name] = proc
 
 
-def hook_user_procedures(dct, hook_IO = True):
-    for name in procedures.__all__:
-        if not hook_IO and name == 'file_operation':
-            continue
-        module = getattr(procedures, name)
+def hook_user_procedures(dct, hook_IO=True):
+    # type: (Dict[str, Any], bool) -> None
+    procedures = [
+       memory_operation, group_operation, miscs, socket_operation,
+       string_operation, time_operation, syscall
+    ]
+    if hook_IO:
+        procedures.append(file_operation)
+
+    for module in procedures:
         for op in dir(module):
             obj = getattr(module, op)
             if isinstance(obj, type) and SimProcedure in obj.__mro__:
