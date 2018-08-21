@@ -74,7 +74,8 @@ def hook_user_procedures(dct, hook_IO=True):
 
 
 def hook_alias_procedures(dct):
-    alias_sym = procedures.alias_symbols
+    # type: (Dict[str, Any]) -> None
+    alias_sym = alias_symbols
     for decr_sym, sym in alias_sym.items():
         if sym in dct.keys():
             dct[decr_sym] = dct[sym]
@@ -91,6 +92,7 @@ def hook_alias_procedures(dct):
 # FIXME: it would be too hack to use inspect or something to generate
 # Simprocedure, but the argument may have weird case
 def hook_fallback_procedures(dct):
+    # type: (Dict[str, Any]) -> None
     pass
 
 
@@ -106,7 +108,3 @@ libs = [
 hook_angr_procedures(all_hookable_symbols, libs, skip_hook, True)
 hook_user_procedures(all_hookable_symbols, True)
 hook_alias_procedures(all_hookable_symbols)
-
-
-
-
