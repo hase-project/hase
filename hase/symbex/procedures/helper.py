@@ -1,5 +1,8 @@
 from __future__ import absolute_import, division, print_function
 
+
+from .. import errors
+
 # Need to resymbolize hooks
 
 
@@ -37,5 +40,4 @@ def minmax(proc, sym, upper=None):
         if upper:
             return upper
         else:
-            raise Exception("Cannot eval value")
-
+            raise errors.HaseError("Cannot eval value")

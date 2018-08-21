@@ -113,7 +113,7 @@ class arch_prctl(SimProcedure):
 
     def run(self, code, addr):
         if self.state.se.symbolic(code):
-            raise Exception("what to do here?")
+            raise HaseError("what to do here?")
         if test_concrete_value(self, code, self.ARCH_SET_GS):
             self.state.regs.gs = addr
         elif test_concrete_value(self, code, self.ARCH_SET_FS):

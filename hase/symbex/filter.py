@@ -12,6 +12,7 @@ from typing import List, Optional, Dict, Any, Tuple
 
 from .state import Branch
 from .hook import unsupported_symbols
+from ..errors import HaseError
 
 
 class FakeSymbol(object):
@@ -349,7 +350,7 @@ class FilterCFG(object):
             func = cfg.functions.function(name=symname)
             if func and not func.is_plt:
                 return lib, cfg, func
-        raise Exception("Function {} not found".format(symname))
+        raise HaseError("Function {} not found".format(symname))
 
     def collect_subfunc(self, lib, cfg, func):
         self.omitted_symbol[func.name] = self.get_func_range(lib, cfg, func)

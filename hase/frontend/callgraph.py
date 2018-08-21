@@ -14,6 +14,8 @@ from math import hypot
 
 from typing import Tuple, Any, List, Union
 
+from ..errors import HaseError
+
 class StateEdgeArrow(QGraphicsLineItem):
     def __init__(self, line):
         # type: (QLineF) -> None
@@ -307,7 +309,7 @@ class CallGraphManager(object):
         addr_sym = tracer.filter.find_function(state.branch.addr)
         ip_sym = tracer.filter.find_function(state.branch.ip)
         if not addr_sym or not ip_sym:
-            raise Exception("Unable to find symbols for %x and %x",
+            raise HaseError("Unable to find symbols for %x and %x",
                 state.branch.addr, state.branch.ip)
         addr_name = addr_sym.name
         ip_name = ip_sym.name

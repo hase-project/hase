@@ -24,6 +24,7 @@ from .filter import FilterTrace
 from .state import State, StateManager
 from .hook import all_hookable_symbols, addr_symbols
 from ..pt.events import Instruction
+from .errors import HaseError
 
 l = logging.getLogger("hase")
 
@@ -647,12 +648,7 @@ class Tracer(object):
                 repr(branch) + '\n'
             )
             if choices == []:
-                raise Exception("Unable to continue")
-            try:
-                if choices[0].addr == branch.addr:
-                    self.current_state = choices[0]
-            except:
-                pass
+                raise HaseError("Unable to continue")
             for choice in choices:
                 if self.last_match(choice, branch):
                     return choice, choice
@@ -679,7 +675,7 @@ class Tracer(object):
                 elif len(choices) == 1:
                     state = choices[0]
                 else:
-                    raise Exception("Unable to continue")
+                    raise HaseError("Unable to continue")
             if not state.solver.satisfiable(): # type: ignore
                 sat_constraints = old_state.solver._solver.constraints
                 unsat_constraints = list(state.solver._solver.constraints)
@@ -696,8 +692,7 @@ class Tracer(object):
                 if c != state:
                     c.downsize()
                     del c
-        print(choices, state, branch)
-        raise Exception("Unable to continue")
+        raise HaseError("Unable to continue")
 
     def valid_address(self, address):
         # type: (int) -> bool
