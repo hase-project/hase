@@ -13,7 +13,7 @@ def generate_run(lib, name, ret_size=32, ret_expr=None):
         try:
             fn = SIM_PROCEDURES[lib][name]
             return proc.inline_call(fn, *args, **kwargs).ret_expr
-        except:
+        except Exception:
             if ret_expr:
                 return ret_expr
             else:

@@ -36,7 +36,7 @@ def minmax(proc, sym, upper=None):
         if upper:
             return max(min_v, min(max_v, upper))
         return max_v
-    except:
+    except Exception:
         if upper:
             return upper
         else:

@@ -118,7 +118,7 @@ class FilterTrace(object):
         for l in unsupported_symbols:
             try:
                 r = self.gdb.get_func_range(l[0])
-            except:
+            except Exception:
                 print("Unable to fetch {} range by gdb".format(l[0]))
                 r = [0, 0]
             self.omitted_section.append(r)

@@ -43,7 +43,7 @@ class GdbRegSpace(object):
             else:
                 raise Exception("Unsupported bit width %d" % reg.size)
             return struct.pack(fmt, reg.value).encode("hex")
-        except:
+        except Exception:
             return "xx" * 8
 
     def __setitem__(self, name, value):
@@ -78,14 +78,14 @@ class GdbMemSpace(object):
             try:
                 value = ord(
                     self.active_state.simstate.project.loader.memory[addr])
-            except:
+            except Exception:
                 value = None
             if value is None:
                 # FIXME: weird, this works for rsp index accessing
                 sec = self.active_state.simstate.memory.load(addr, 0x1)
                 try:
                     value = self.active_state.eval(sec)
-                except:
+                except Exception:
                     value = None
         if value is None:
             return "ff"
@@ -281,7 +281,7 @@ class GdbServer(object):
         while True:
             try:
                 resp += self.gdb.get_gdb_response()
-            except:
+            except Exception:
                 break
         return resp
 

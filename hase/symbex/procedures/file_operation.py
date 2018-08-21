@@ -212,7 +212,7 @@ class __snprintf_chk(FormatParser):
             self.state.memory.store(dst_ptr, out_str)
             self.state.memory.store(dst_ptr + (out_str.size() / 8), self.state.se.BVV(0, 8))
             return self.state.se.BVV(out_str.size() / 8, self.state.arch.bits)
-        except:
+        except Exception:
             if self.state.se.symbolic(maxlen):
                 l = minmax(self, maxlen, self.state.libc.max_buffer_size)
             else:

@@ -110,12 +110,12 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
         try:
             low_v = active_state.simstate.se.eval(low)
-        except:
+        except Exception:
             # very large range
             low_v = coredump.stack.start
         try:
             high_v = start_state.se.eval(high)
-        except:
+        except Exception:
             high_v = coredump.stack.stop
 
         for addr in range(low_v, high_v):
@@ -151,7 +151,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                     v = hex(active_state.simstate.se.eval(value))[2:]
                     if len(v) == 1:
                         v = '0' + v
-                except:
+                except Exception:
                     v = 'Er'
                 result += v + ' '
             result = result[:-1]
@@ -168,7 +168,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             return 'uninitialized'
         try:
             v = hex(active_state.simstate.se.eval(value))
-        except:
+        except Exception:
             v = 'symbolic'
         return v
 
@@ -366,7 +366,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                         tokens = lexer.get_tokens(f.read())
                     source = pygments.format(tokens, html_formatter)
                     self.file_cache[filename][line] = (css, source)
-                except:
+                except Exception:
                     self.file_cache[filename][line] = (None, None)
 
     def add_states(self, states, tracer):

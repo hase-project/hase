@@ -46,8 +46,6 @@ def timeout(seconds=10):
             signal.alarm(seconds)
             try:
                 res = func(*args, **kwargs)
-            except:
-                raise
             finally:
                 signal.alarm(0)
             return res
@@ -79,7 +77,7 @@ class CoredumpGDB(object):
         while True:
             try:
                 resp += self.gdb.get_gdb_response()
-            except:
+            except Exception:
                 break
         return resp
         
@@ -537,7 +535,7 @@ class Tracer(object):
                     libf = self.project.loader.find_symbol(funcname)
                     if libf:
                         addr = libf.rebased_addr
-        except:
+        except Exception:
             # NOTE: currently just try to repair ip for syscall
             addr = self.debug_state[-2].addr
         return addr
