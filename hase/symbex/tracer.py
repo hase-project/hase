@@ -10,8 +10,7 @@ import signal
 from capstone import x86_const
 from angr import sim_options as so
 from angr.state_plugins.sim_action import SimActionExit
-from angr.knowledge_plugins.functions.function import Function
-from angr import SimState, SimProcedure, PointerWrapper, SIM_PROCEDURES
+from angr import SimState
 from typing import List, Any, Dict, Tuple, Optional
 from pygdbmi.gdbcontroller import GdbController
 from collections import deque
@@ -22,7 +21,6 @@ from .state import State, StateManager
 from .hook import all_hookable_symbols, addr_symbols
 from .filter import FilterTrace
 from .state import State, StateManager
-from .hook import all_hookable_symbols, addr_symbols
 from ..pt.events import Instruction
 from ..errors import HaseError
 
