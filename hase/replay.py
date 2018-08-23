@@ -6,10 +6,9 @@ import json
 import shutil
 import sys
 from typing import List, Any, Dict
-from .pwn_wrapper import Coredump
+from .pwn_wrapper import Coredump, Mapping
 
 from .symbex.tracer import Tracer, State, StateManager
-from .mapping import Mapping
 from .path import Tempdir
 from . import pt
 
