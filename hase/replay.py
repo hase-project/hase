@@ -72,9 +72,7 @@ class Replay(object):
         # type: () -> None
         manifest = self.unpack()
 
-
         coredump = Coredump(manifest["coredump"]["file"])
-
         vdso_x64 = self.tempdir.join("vdso")
 
         with open(str(vdso_x64), "w+") as f:
@@ -84,12 +82,14 @@ class Replay(object):
         trace = decode_trace(manifest, coredump.mappings, str(vdso_x64), str(binaries))
 
         for obj in coredump.mappings:
+            if obj.path == "":
+                continue
             binary = binaries.join(obj.path)
             if not binary.exists():
                 continue
             obj.name = str(binary)
 
-        self.tracer = Tracer(coredump["coredump"]["executable"], trace,
+        self.tracer = Tracer(manifest["coredump"]["executable"], trace,
                              coredump)
 
     def run(self):
