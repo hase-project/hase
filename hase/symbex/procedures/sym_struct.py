@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 # pylint: disable=E1101
 from claripy import BVS
 from ctypes import * # noqa # pylint: disable=W0614
+from ...errors import HaseError
 
 
 def SPOINTER(cls):
@@ -12,7 +13,7 @@ def SPOINTER(cls):
 class SymbolicMeta(type):
     def __new__(cls, name, base, attrs):
         if '_fields_' not in attrs.keys():
-            raise Exception("Need _fields_")
+            raise HaseError("Need _fields_")
         fields = []
         for f in fields:
             if getattr(f[1], 'is_symstruct', False):

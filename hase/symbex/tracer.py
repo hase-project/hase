@@ -254,14 +254,14 @@ class CoredumpAnalyzer(object):
                         else:
                             args.append(None)
                 return args
-        raise Exception("Unknown function {} in backtrace".format(name))
+        raise HaseError("Unknown function {} in backtrace".format(name))
 
     def stack_base(self, name):
         # type: (str) -> Tuple[int, int]
         for bt in self.backtrace:
             if bt['func'] == name:
                 return self.gdb.get_stack_base(int(bt['index']))
-        raise Exception("Unknown stackbase for function {}".format(name))
+        raise HaseError("Unknown stackbase for function {}".format(name))
 
 
 def build_load_options(mappings):

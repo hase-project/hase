@@ -17,6 +17,7 @@ from cle import ELF
 from ..symbex.state import State, StateManager
 from ..symbex.tracer import CoredumpAnalyzer
 from ..path import APP_ROOT
+from ..errors import HaseError
 
 logging.basicConfig()
 l = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ class GdbRegSpace(object):
             elif reg.size == 64:
                 fmt = "<Q"
             else:
-                raise Exception("Unsupported bit width %d" % reg.size)
+                raise HaseError("Unsupported bit width %d" % reg.size)
             return struct.pack(fmt, reg.value).encode("hex")
         except Exception:
             return "xx" * 8

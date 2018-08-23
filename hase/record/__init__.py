@@ -19,6 +19,7 @@ from . import coredumps
 from ..path import Path, Tempdir, APP_ROOT
 from .signal_handler import SignalHandler
 from .. import pwn_wrapper
+from ..errors import HaseError
 from ..perf import Perf, IncreasePerfBuffer, Trace
 from .ptrace import ptrace_detach, ptrace_me
 
@@ -65,7 +66,7 @@ def record(record_paths, command=None):
     # type: (RecordPaths, Optional[List[str]]) -> Optional[Tuple[coredumps.Coredump, Trace]]
 
     if command is None:
-        raise Exception(
+        raise HaseError(
             "recording without command is not supported at the moment")
 
     proc = subprocess.Popen(command, preexec_fn=ptrace_me)
