@@ -176,7 +176,7 @@ class FilterTrace():
         return False, ''
 
     def analyze_start(self, least_reserve=200, most_reserve=1500):
-        # type: (int) -> Tuple[List[Branch], int]
+        # type: (int, int) -> Tuple[List[Branch], int]
         # FIXME: not working if atexit register a function which is the problem
         # FIXME: this last occurence method will cause rare division from push ebp | mov ebp esp | sub esp XX
         # FIXME: what if A -> B -> A calling chain?
@@ -216,7 +216,7 @@ class FilterTrace():
         """
         self.start_idx = len(self.trace) + start_idx
         self.is_start_entry, _ = self.test_function_entry(self.trace[start_idx].ip)
-        self.start_funcname = self.find_function(self.trace[start_idx].ip).name
+        self.start_funcname = self.find_function(self.trace[start_idx].ip).name # type: ignore
         return self.trace[start_idx:], start_idx
 
     def analyze_trace(self):
@@ -302,7 +302,7 @@ class FilterTrace():
                 self.trace_idx.append(idx + self.start_idx)
         
     def filtered_trace(self, update=False):
-        # type: (bool) -> List[Branch], List[int], Dict[int, int]
+        # type: (bool) -> Tuple[List[Branch], List[int], Dict[int, int]]
         if self.new_trace and not update:
             return self.new_trace, self.trace_idx, self.hook_target
         self.analyze_trace()

@@ -129,7 +129,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             )
 
     def eval_variable(self, active_state, loc, addr, size):
-        # type: (Any, int, int, int) -> Tuple[str, str]
+        # type: (Any, int, Any, int) -> Tuple[str, str]
         # NOTE: * -> uninitialized / 'E' -> symbolic
         if not getattr(active_state, 'had_coredump_constraints', False):
             for c in self.coredump_constraints:

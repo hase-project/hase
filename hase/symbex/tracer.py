@@ -587,12 +587,12 @@ class Tracer(object):
                     setattr(state.regs, reg_name, state.libc.max_str_len)
 
     def repair_jump_ins(self, state, branch):
-        # type: (State, Branch) -> (bool, str)
+        # type: (SimState, Branch) -> Tuple[bool, str]
         # ret: force_jump
         # NOTE: typical case: switch(getchar())
         
         if state.addr != branch.addr:
-            return False, False
+            return False, ''
         jump_ins = ['jmp', 'call'] # currently not deal with jcc regs
         capstone = state.block().capstone
         first_ins = capstone.insns[0].insn
@@ -728,7 +728,7 @@ class Tracer(object):
                 self.debug_unsat = new_state
 
     def find_next_branch(self, state, branch, index):
-        # type: (SimState, Branch) -> SimState
+        # type: (SimState, Branch, int) -> SimState
         CNT_LIMIT = 200
         REP_LIMIT = 128
         cnt = 0
@@ -813,7 +813,7 @@ class Tracer(object):
                     'unconstrained': step.unconstrained_successors,
                 }
                 # lookup sequence: sat, unsat, unconstrained
-                choices = [] # type: List[Any]
+                choices = []
                 choices += all_choices['sat']
                 choices += all_choices['unsat']
                 # choices += all_choices['unconstrained']

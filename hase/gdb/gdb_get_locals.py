@@ -8,9 +8,8 @@ blk = frame.block()
 res = [] # type: List[Any]
 names = set()
 while not blk.is_global and not blk.is_static:
-    print(blk, blk.function)
-    print([s.name for s in blk])
-    [names.add(s.name) for s in blk]
+    for s in blk:
+        names.add(s.name)
     # NOTE: if the function is inlined, we shall stop here
     if blk.function:
         if blk.function.name in names:
