@@ -876,6 +876,7 @@ class Tracer(object):
         # If same address, then give registers
         if state.registers['rip'].value == self.coredump.registers['rip']:
             # don't give rbp, rsp
+            assert state.registers['rsp'].value == self.coredump.registers['rsp']
             registers = [
                 "gs", "rip", "rdx", "r15", "rax", "rsi", "rcx", "r14", "fs", "r12",
                 "r13", "r10", "r11", "rbx", "r8", "r9", "eflags", "rdi"
