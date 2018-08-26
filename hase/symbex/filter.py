@@ -71,8 +71,8 @@ class FilterBase(object):
 class FilterTrace():
     def __init__(self, project, cfg, trace, \
         hooked_symbol, gdb, omitted_section, \
-        from_initial, static_link):
-        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], Any, List[List[int]], bool, bool) -> None
+        from_initial, static_link, backtrace):
+        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], Any, List[List[int]], bool, bool, List[Dict[str, Any]]) -> None
         self.project = project
         self.main_cfg = cfg
         self.main_object = project.loader.main_object
@@ -86,6 +86,7 @@ class FilterTrace():
         self.analyze_unsupported()
         self.from_initial = from_initial
         self.static_link = static_link
+        self.gdb_backtrace = backtrace
 
         self.hooked_symname = self.hooked_symbol.keys()
         self.callgraph = self.main_cfg.kb.functions.callgraph
@@ -177,6 +178,16 @@ class FilterTrace():
     def analyze_start(self, least_reserve=200, most_reserve=1500):
         # type: (int) -> Tuple[List[Branch], int]
         # FIXME: not working if atexit register a function which is the problem
+        # FIXME: this last occurence method will cause rare division from push ebp | mov ebp esp | sub esp XX
+        # FIXME: what if A -> B -> A calling chain?
+        last_occurence_idx = {}
+        is_last_passed = {}
+        all_backtrace_name = []
+        for frame in self.gdb_backtrace:
+            all_backtrace_name.append(frame['func'])
+            last_occurence_idx[frame['func']] = -1
+            is_last_passed[frame['func']] = False
+
         start_idx = 0
         self.is_main = False
         self.start_idx = start_idx
@@ -184,19 +195,28 @@ class FilterTrace():
             return self.trace, 0
         if len(self.trace) < most_reserve:
             most_reserve = len(self.trace) - 1
+        # NOTE: only record index for function before packet.ip == entry_addr
         for idx in range(-least_reserve, -most_reserve, -1):
             event = self.trace[idx]
-            if not self.test_plt_vdso(event.addr):
-                func = self.find_function(event.addr)
-                if func and func.name == 'main':
-                    start_idx = idx
-                    self.is_main = True
-                    break
+            if not self.test_plt_vdso(event.ip):
+                func = self.find_function(event.ip)
+                if func:
+                    if func.name in all_backtrace_name and not is_last_passed[func.name]:
+                        last_occurence_idx[func.name] = idx + len(self.trace)
+                        start_idx = idx
+                flg, symname = self.test_function_entry(event.ip)
+                if flg and symname in all_backtrace_name:
+                    is_last_passed[symname] = True
+                    
         if start_idx == 0:
-            start_idx = -most_reserve
+            raise Exception("Unable to find suitable start event")
+        """
         while self.project.loader.find_object_containing(self.trace[start_idx].addr) != self.main_object:
             start_idx -= 1
+        """
         self.start_idx = len(self.trace) + start_idx
+        self.is_start_entry, _ = self.test_function_entry(self.trace[start_idx].ip)
+        self.start_funcname = self.find_function(self.trace[start_idx].ip).name
         return self.trace[start_idx:], start_idx
 
     def analyze_trace(self):

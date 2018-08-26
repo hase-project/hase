@@ -370,7 +370,7 @@ class CallGraphView(QGraphicsView):
     def __init__(self, manager, window, parent=None):
         super(CallGraphView, self).__init__(parent)
         manager.view = self
-        self.setScene(manager.create_scene(400 + len(manager.nodes) * 10))
+        self.setScene(manager.create_scene(400 + len(manager.nodes) * 20))
         self.setRenderHint(QPainter.Antialiasing)
         self.resize(1000, 1000)
         self.window = window

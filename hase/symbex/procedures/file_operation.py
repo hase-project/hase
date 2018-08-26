@@ -18,6 +18,13 @@ from .helper import minmax
 # TODO: maybe load concrete file?
 
 
+class vfprintf(SimProcedure):
+    ARGS_MISMATCH = True
+    # mov rsp, [rbp+xx]
+    def run(self, file_ptr, fmt, ap):
+        return self.state.se.Unconstrained('vfprintf_ret', 32, uninitialized=False)
+
+
 class ferror(SimProcedure):
     def run(self, file_ptr):
         fd_offset = io_file_data_for_arch(self.state.arch)['fd']

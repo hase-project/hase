@@ -6,12 +6,20 @@ from typing import List, Any
 frame = gdb.selected_frame()
 blk = frame.block()
 res = [] # type: List[Any]
+names = set()
 while not blk.is_global and not blk.is_static:
-    res += [(s.name, s.type, s.value) for s in blk]
+    print(blk, blk.function)
+    print([s.name for s in blk])
+    [names.add(s.name) for s in blk]
+    # NOTE: if the function is inlined, we shall stop here
+    if blk.function:
+        if blk.function.name in names:
+            names.remove(blk.function.name)
+        break
     blk = blk.superblock
     if not blk:
         break
-
+    
 
 def parse_c_declaration(decl):
     pos = 0
@@ -48,7 +56,6 @@ def parse_c_declaration(decl):
 
 
 def parse_addr(s):
-    print(s)
     l = s.split(' ')
     # NOTE: ['$n', '=', '('qualifier', 'type', '*)', 'addr\n']
     has_type = False
@@ -67,24 +74,20 @@ def parse_addr(s):
     return addr
 
 
-for name, ty, value in res:
+for name in names:
     # TODO: modified to info addr arg => no rbp dependency (no parse for rbp offset 0+-n)
-    tmp = 'ptype {}'.format(name)
-    result = gdb.execute(tmp, to_string=True)
+    try:
+        tmp = 'ptype {}'.format(name)
+        result = gdb.execute(tmp, to_string=True)
+    except:
+        print(' '.join(['ARGS:', name, 'unknown', '-2', '0', '0']))
+        continue
     ty = result.partition('=')[2].strip()
     # NOTE: struct Ty { ... } *
     if ty.find('{') != -1:
         left_b = ty.find('{')
         right_b = len(ty) - ty[::-1].find('}') - 1
         ty = ty[0:left_b].strip() + ' ' + ty[right_b+1:].strip()
-    try:
-        tmp = "print &{}".format(name)
-        result = gdb.execute(tmp, to_string=True)
-    except Exception as e:
-        # FIXME: non-lvalue case and register case
-        pass
-    result = result.replace('\n', '')
-    addr = parse_addr(result)
 
     result = gdb.execute(
         "print sizeof({})".format(ty),
@@ -94,6 +97,22 @@ for name, ty, value in res:
     size = result.split(' ')[-1]
     ty = ty.replace(' ', '%')
 
-    print(' '.join(['ARGS:', name, ty, '1', addr, size]))
+    try:
+        tmp = "print &{}".format(name)
+        result = gdb.execute(tmp, to_string=True)
+        result = result.replace('\n', '')
+        addr = parse_addr(result)
+        print(' '.join(['ARGS:', name, ty, '1', addr, size]))
+    except Exception as ex:
+        err = str(ex)
+        # NOTE: non-lvalue case and register case
+        # Can't take address of \"var\" which isn't an lvalue
+        if "lvalue" in err:
+            print(' '.join(['ARGS:', name, ty, '-1', '0', size]))
+        # Address requested for identifier \"id\" which is in register $rax
+        elif "Address requested" in err:
+            reg = err.split('$')[-1]
+            print(' '.join(['ARGS:', name, ty, '2', reg, size]))
+
 
 

@@ -370,6 +370,7 @@ class Tracer(object):
             self.omitted_section,
             self.from_initial,
             self.elf.statically_linked,
+            self.cdanalyzer.backtrace,
         )
 
         self.old_trace = self.trace
@@ -377,6 +378,7 @@ class Tracer(object):
         self.hook_plt_idx = self.hook_target.keys()
         self.hook_plt_idx.sort()
 
+        """
         if self.from_initial or self.filter.start_idx == 0 or self.filter.start_idx == -len(self.old_trace):
             # workaround for main, should not be required in future
             if self.trace[0].addr == 0 or self.trace[0].ip == main:
@@ -421,6 +423,41 @@ class Tracer(object):
             else:
                 self.start_state.regs.rsp = self.start_state.se.BVS('rsp', 64)
                 self.start_state.regs.rbp = self.start_state.se.BVS('rbp', 64)
+        """
+
+        start_address = self.trace[0].ip
+
+        if self.filter.start_funcname == 'main':
+            args = self.cdanalyzer.call_argv('main')
+            # NOTE: gdb sometimes take this wrong
+            args[0] = self.coredump.argc
+            rsp, rbp = self.cdanalyzer.stack_base('main')
+            # TODO: or just stop?
+            if not rbp:
+                rbp = 0x7ffffffcf00
+            if not rsp:
+                rsp = 0x7ffffffcf00
+            self.start_state = self.project.factory.call_state(
+                start_address,
+                *args,
+                add_options=add_options,
+                remove_options=remove_simplications)
+        else:
+            rsp, rbp = self.cdanalyzer.stack_base(self.filter.start_funcname)
+            if not rbp:
+                rbp = 0x7ffffffcf00
+            if not rsp:
+                rsp = 0x7ffffffcf00
+            self.start_state = self.project.factory.blank_state(
+                addr=start_address,
+                add_options=add_options,
+                remove_options=remove_simplications)
+
+        if self.filter.is_start_entry:
+            self.start_state.regs.rsp = rbp + 8
+        else:
+            self.start_state.regs.rsp = rsp
+            self.start_state.regs.rbp = rbp  
 
         self.setup_argv()
         self.simgr = self.project.factory.simgr(
@@ -574,9 +611,6 @@ class Tracer(object):
             else:
                 return True, 'ret'
 
-        if ins_repr.startswith('call'):
-            self.last_call_next = state.addr + state.block().capstone.insns[0].size
-
         for ins in jump_ins:
             if ins_repr.startswith(ins):
                 # call rax
@@ -678,6 +712,20 @@ class Tracer(object):
             return False
         size = instructions[0].insn.size
         return (new_state.addr - size) == old_state.addr
+
+    def repair_satness(self, old_state, new_state):
+        if not new_state.solver.satisfiable(): # type: ignore
+            sat_constraints = old_state.solver._solver.constraints
+            unsat_constraints = list(new_state.solver._solver.constraints)
+            sat_uuid = map(lambda c: c.uuid, sat_constraints)
+            for i, c in enumerate(unsat_constraints):
+                if c.uuid not in sat_uuid:
+                    unsat_constraints[i] = claripy.Not(c)
+            new_state.solver._solver._cached_satness = True
+            new_state.solver._solver.constraints = unsat_constraints
+            if not self.debug_unsat: # type: ignore
+                self.debug_sat = old_state
+                self.debug_unsat = new_state
 
     def find_next_branch(self, state, branch, index):
         # type: (SimState, Branch) -> SimState
@@ -786,6 +834,7 @@ class Tracer(object):
                     return choice, choice
                 if old_state.addr == branch.addr:
                     if self.jump_match(old_state, choice, branch):
+                        self.repair_satness(old_state, choice)
                         return old_state, choice
             # NOTE: need to consider repz here, if repz repeats for less than N times, 
             # then, it should still be on sat path
@@ -808,22 +857,12 @@ class Tracer(object):
                     state = choices[0]
                 else:
                     raise Exception("Unable to continue")
-            if not state.solver.satisfiable(): # type: ignore
-                sat_constraints = old_state.solver._solver.constraints
-                unsat_constraints = list(state.solver._solver.constraints)
-                sat_uuid = map(lambda c: c.uuid, sat_constraints)
-                for i, c in enumerate(unsat_constraints):
-                    if c.uuid not in sat_uuid:
-                        unsat_constraints[i] = claripy.Not(c)
-                state.solver._solver._cached_satness = True
-                state.solver._solver.constraints = unsat_constraints
-                if not self.debug_unsat: # type: ignore
-                    self.debug_sat = old_state
-                    self.debug_unsat = state
+            self.repair_satness(old_state, state)
             for c in choices:
-                if c != state:
+               if c != state:
                     c.downsize()
                     del c
+
         print(choices, state, branch)
         raise Exception("Unable to continue")
 

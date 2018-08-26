@@ -167,7 +167,7 @@ class HaseMagics(Magics):
         self.window.enable_buttons()
         self.window.set_slider(user_ns["addr_map"], user_ns["states"])
         self.window.set_location(*addr_map[self.active_state.address()])
-        # self.window.cache_coredump_constraints()
+        self.window.cache_coredump_constraints()
         self.gdb_init('')
 
     @args(info="USAGE: info")

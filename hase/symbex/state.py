@@ -161,7 +161,7 @@ class StateManager(object):
             diff = index - start_pos
             for i in range(diff):
                 event = self.tracer.trace[start_pos + i + 1]
-                from_simstate, simstate = self.tracer.find_next_branch(simstate, event)
+                from_simstate, simstate = self.tracer.find_next_branch(simstate, event, index)
                 if diff - i < 15:
                     self.add(State(start_pos + i + 1, event, from_simstate, simstate))
         return self.index_to_state[index], is_new # type: ignore
