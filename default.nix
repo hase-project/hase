@@ -2,13 +2,14 @@ with import <nixpkgs> {};
 (overrideCC stdenv gcc8).mkDerivation {
   name = "angr-deps";
   buildInputs = [
-    (stdenv.mkDerivation {
-      name = "processor-trace";
+    (stdenv.mkDerivation rec {
+      name = "processor-trace-${version}";
+      version = "2.0";
       src = fetchFromGitHub {
-        owner = "hase-project";
+        owner = "01org";
         repo = "processor-trace";
-        rev = "10e7dd2ada2509d470bcfe32b6b35497304d4025";
-        sha256 = "1gf4sxcrvh5jzpad6kxzy71b9m2wf1fikylx84q31kkhn4xlalms";
+        rev = "v${version}";
+        sha256 = "1qhrsycxqjm9xmhi3zgkq9shzch54dp4nc83d1gk5xs0287wsw5p";
       };
       nativeBuildInputs = [ cmake ];
       cmakeFlags = ["-DCMAKE_BUILD_TYPE=RelWithDebInfo"];

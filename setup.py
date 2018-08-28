@@ -32,7 +32,7 @@ setup(
             extra_compile_args=[
                 '-std=c++17', '-Wno-register', '-fvisibility=hidden'
             ],
-            extra_link_args=['-lipt', '-lipt-sb'],
+            extra_link_args=['-lipt'],
         ),
     ],
     entry_points={
