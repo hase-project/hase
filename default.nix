@@ -42,33 +42,6 @@ in (overrideCC stdenv gcc8).mkDerivation {
       cmakeFlags = ["-DSIDEBAND=ON" "-DPEVENT=ON" "-DFEATURE_ELF=ON" "-DCMAKE_BUILD_TYPE=Debug"];
       dontStrip=1;
     })
-    (stdenv.mkDerivation {
-      name = "xed";
-
-      src = fetchFromGitHub {
-        owner = "intelxed";
-        repo = "xed";
-        rev = "9c6867252545d5a696dda0ca2d622901dcee4aa8";
-        sha256 = "0pzq3xxq56sp207n8sv5slsns5cjip8xl34fyydvi3ivsj8h3kyr";
-      };
-
-      installPhase = ''
-        python ./mfile.py install --shared --install-dir=$out 
-        ln -s $out/include/xed/* $out/include
-        rm -r $out/{mbuild,misc,LICENSE,examples}
-			'';
-      buildInputs = [
-        (python.pkgs.buildPythonPackage {
-          name = "mbuild";
-          src = fetchFromGitHub {
-            owner = "intelxed";
-            repo = "mbuild";
-            rev = "1651029643b2adf139a8d283db51b42c3c884513";
-            sha256 = "1hdrzdyldszr4czfyw45niza4dyzbc2g14yskrz1c7fjhb6g4f6p";
-          };
-        })
-      ];
-    })
     cquery
     meson
     ninja
@@ -82,11 +55,18 @@ in (overrideCC stdenv gcc8).mkDerivation {
     radare2
     openssl
     python2Packages.pyqt5
+    python2Packages.virtualenv
     python2Packages.pandas
     qt5.qttools
     gdb
     pkgconfig
     valgrind
+
+    (runCommand "musl-gcc" {} ''
+      mkdir -p $out/bin
+      ln -s ${musl.dev}/bin/musl-gcc $out/bin
+    '')
+
     #(buildEnv {
     #  name = "tools";
     #  # here we only want binaries without polluting
