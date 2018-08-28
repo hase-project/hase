@@ -1,5 +1,5 @@
 with import <nixpkgs> {};
-(overrideCC stdenv gcc8).mkDerivation {
+(overrideCC stdenv gcc7).mkDerivation {
   name = "angr-deps";
   buildInputs = [
     (stdenv.mkDerivation rec {
