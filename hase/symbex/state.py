@@ -59,10 +59,11 @@ class Memory(object):
 
 
 class State(object):
-    def __init__(self, index, instruction, from_simstate, to_simstate):
-        # type: (int, Instruction, SimState, SimState) -> None
+    def __init__(self, index, from_instruction, to_instruction, from_simstate, to_simstate):
+        # type: (int, Optional[Instruction], Instruction, SimState, SimState) -> None
         self.index = index
-        self.instruction = instruction
+        self.from_instruction = from_instruction
+        self.to_instruction = to_instruction
         self.from_simstate = from_simstate
         self.to_simstate = to_simstate
         self.is_to_simstate = True
@@ -80,10 +81,10 @@ class State(object):
 
     def __repr__(self):
         # type: () -> str
-        if self.branch.addr == 0:
-            return "State(Start -> 0x%x)" % (self.branch.ip)
+        if self.from_instruction is None:
+            return "State(Start -> 0x%x)" % (self.to_instruction.ip)
         else:
-            return "State(0x%x -> 0x%x)" % (self.branch.addr, self.branch.ip)
+            return "State(0x%x -> 0x%x)" % (self.from_instruction.ip, self.to_instruction.ip)
 
     @property
     def registers(self):
@@ -162,8 +163,9 @@ class StateManager(object):
             simstate = self.index_to_state[start_pos].simstate # type: ignore
             diff = index - start_pos
             for i in range(diff):
-                event = self.tracer.trace[start_pos + i + 1]
-                from_simstate, simstate = self.tracer.find_next_branch(simstate, event)
+                from_instruction = self.tracer.trace[start_pos + i]
+                to_instruction = self.tracer.trace[start_pos + i + 1]
+                from_simstate, simstate = self.tracer.execute(simstate, from_instruction, to_instruction)
                 if diff - i < 15:
-                    self.add(State(start_pos + i + 1, event, from_simstate, simstate))
+                    self.add(State(start_pos + i + 1, from_instruction, to_instruction, from_simstate, simstate))
         return self.index_to_state[index], is_new # type: ignore

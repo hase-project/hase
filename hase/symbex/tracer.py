@@ -335,8 +335,7 @@ class Tracer(object):
             rsp = 0x7ffffffcf00
 
         for (idx, event) in enumerate(self.trace):
-            if event.addr == start or event.addr == main or \
-                    event.ip == start or event.ip == main:
+            if event.ip == start or event.ip == main:
                 self.trace = trace[idx:]
 
         add_options = {
@@ -385,17 +384,10 @@ class Tracer(object):
         self.old_trace = self.trace
         self.trace = self.filter.filtered_trace()
 
-        if self.from_initial or self.filter.start_idx == 0 or self.filter.start_idx == -len(self.old_trace):
-            # workaround for main, should not be required in future
-            if self.trace[0].addr == 0 or self.trace[0].ip == main:
-                start_address = self.trace[0].ip
-            else:
-                start_address = self.trace[0].addr
-        else:
-            start_address = self.trace[0].addr
+        start_address = self.trace[0].ip
 
         assert start_address != 0
-        
+
         if self.from_initial or self.filter.start_idx == 0 or self.filter.start_idx == -len(self.old_trace):
             self.start_state = self.project.factory.call_state(
                 start_address,
@@ -427,6 +419,7 @@ class Tracer(object):
         # TODO: if argv is modified by users, this won't help
         args = self.cdanalyzer.call_argv('main')
         argv_addr = args[1]
+        assert argv_addr is not None
         for i in range(len(self.coredump.argv)):
             self.start_state.memory.store(
                 argv_addr + i * 8,
@@ -492,9 +485,10 @@ class Tracer(object):
                 if state.se.symbolic(reg_v):
                     setattr(state.regs, reg_name, state.libc.max_str_len)
 
-    def repair_jump_ins(self, state, branch):
+    def repair_jump_ins(self, state, previous_instruction, instruction):
+        # type: (SimState, Instruction, Instruction) -> bool
         # NOTE: typical case: switch(getchar())
-        if state.addr != branch.addr:
+        if previous_instruction.ip != state.addr:
             return False
         jump_ins = ['jmp', 'call'] # currently not deal with jcc regs
         capstone = state.block().capstone
@@ -504,8 +498,8 @@ class Tracer(object):
             if ins_repr.startswith(ins) and first_ins.operands[0].type == 1:
                 reg_name = first_ins.op_str
                 reg_v = getattr(state.regs, reg_name)
-                if state.se.symbolic(reg_v) or state.se.eval(reg_v) != branch.ip:
-                    setattr(state.regs, reg_name, branch.ip)
+                if state.se.symbolic(reg_v) or state.se.eval(reg_v) != instruction.ip:
+                    setattr(state.regs, reg_name, instruction.ip)
                     return False
             # TODO: read jump table and repair register?
             # NOTE: for jmp [base + index*scale + disp], directly use force_addr
@@ -530,7 +524,7 @@ class Tracer(object):
                 ip_mem = state.memory.load(target, 8, endness='Iend_LE')
                 if not state.se.symbolic(ip_mem):
                     jump_target = state.se.eval(ip_mem)
-                    if jump_target != branch.ip:
+                    if jump_target != instruction.ip:
                         return True
                 else:
                     return True
@@ -567,19 +561,23 @@ class Tracer(object):
                     force_addr=addr
                 )
             else:
-                raise Exception("Cannot resolve function")
+                raise HaseError("Cannot resolve function")
         return step
 
-    def last_match(self, choice, branch):
+    def last_match(self, choice, instruction):
+        # type: (SimState, Instruction) -> bool
         # if last trace is A -> A
-        if branch == self.trace[-1] and branch.addr == branch.ip:
-            if choice.addr == branch.addr and branch.addr == branch.ip:
+        if instruction == self.trace[-1] \
+                and len(self.trace) > 2 \
+                and self.trace[-1].ip == self.trace[-2].ip:
+            if choice.addr == instruction.ip:
                 l.debug("jump 0%x -> 0%x", choice.addr, choice.addr)
                 return True
         return False
 
-    def jump_match(self, old_state, choice, branch):
-        if old_state.addr == branch.addr and choice.addr == branch.ip:
+    def jump_match(self, old_state, choice, previous_instruction, instruction):
+        # type: (SimState, SimState, Instruction, Instruction) -> bool
+        if old_state.addr == previous_instruction.ip and choice.addr == instruction.ip:
             l.debug("jump 0%x -> 0%x", old_state.addr, choice.addr)
             return True
         return False
@@ -594,8 +592,8 @@ class Tracer(object):
         size = instructions[0].insn.size
         return (new_state.addr - size) == old_state.addr
 
-    def find_next_branch(self, state, branch):
-        # type: (SimState, Branch) -> SimState
+    def execute(self, state, previous_instruction, instruction):
+        # type: (SimState, Instruction, Instruction) -> SimState
         CNT_LIMIT = 200
         REP_LIMIT = 128
         cnt = 0
@@ -603,7 +601,7 @@ class Tracer(object):
         while cnt < CNT_LIMIT:
             cnt += 1
             self.debug_state.append(state)
-            force_jump = self.repair_jump_ins(state, branch)
+            force_jump = self.repair_jump_ins(state, previous_instruction, instruction)
             self.repair_alloca_ins(state)
             addr = self.repair_ip(state)
             is_interrupt = False
@@ -620,14 +618,14 @@ class Tracer(object):
             except KeyboardInterrupt:
                 # NOTE: should have a timeout fallback
                 insns = state.block().capstone.insns
-                if state.addr != branch.addr and len(insns) > 1:
+                if state.addr != previous_instruction.ip and len(insns) > 1:
                     is_interrupt = True
                     next_addr = insns[1].address
                     self.skip_addr[state.addr] = next_addr
                 else:
                     import traceback
                     traceback.print_exc()
-                    raise Exception("Manually stop")
+                    raise HaseError("Manually stop")
             if is_interrupt:
                 state._ip = next_addr
                 continue
@@ -637,7 +635,7 @@ class Tracer(object):
                 new_state = state.copy()
                 step.add_successor(
                     new_state,
-                    branch.ip,
+                    instruction.ip,
                     state.se.true,
                     'Ijk_Boring'
                 )
@@ -648,7 +646,7 @@ class Tracer(object):
                 'unconstrained': step.unconstrained_successors,
             }
             # lookup sequence: sat, unsat, unconstrained
-            choices = [] # type: List[Any]
+            choices = []  # type: List[Any]
             choices += all_choices['sat']
             choices += all_choices['unsat']
             # choices += all_choices['unconstrained']
@@ -658,17 +656,17 @@ class Tracer(object):
                 repr(cnt) + ' ' +
                 repr(state) + ' ' +
                 # repr(all_choices) + ' ' +
-                repr(branch) + '\n'
+                repr(instruction) + '\n'
             )
             if choices == []:
                 raise HaseError("Unable to continue")
             for choice in choices:
-                if self.last_match(choice, branch):
+                if self.last_match(choice, instruction):
                     return choice, choice
-                if old_state.addr == branch.addr:
-                    if self.jump_match(old_state, choice, branch):
+                if old_state.addr == previous_instruction.ip:
+                    if self.jump_match(old_state, choice, previous_instruction, instruction):
                         return old_state, choice
-            # NOTE: need to consider repz here, if repz repeats for less than N times, 
+            # NOTE: need to consider repz here, if repz repeats for less than N times,
             # then, it should still be on sat path
             if self.test_rep_ins(state):
                 rep_cnt += 1
@@ -689,7 +687,7 @@ class Tracer(object):
                     state = choices[0]
                 else:
                     raise HaseError("Unable to continue")
-            if not state.solver.satisfiable(): # type: ignore
+            if not state.solver.satisfiable():  # type: ignore
                 sat_constraints = old_state.solver._solver.constraints
                 unsat_constraints = list(state.solver._solver.constraints)
                 sat_uuid = map(lambda c: c.uuid, sat_constraints)
@@ -698,7 +696,7 @@ class Tracer(object):
                         unsat_constraints[i] = claripy.Not(c)
                 state.solver._solver._cached_satness = True
                 state.solver._solver.constraints = unsat_constraints
-                if not self.debug_unsat: # type: ignore
+                if not self.debug_unsat:  # type: ignore
                     self.debug_sat = old_state
                     self.debug_unsat = state
             for c in choices:
@@ -728,27 +726,28 @@ class Tracer(object):
         # type: () -> StateManager
         simstate = self.simgr.active[0]
         states = StateManager(self, len(self.trace))
-        states.add_major(State(0, self.trace[0], None, simstate))
-        self.debug_unsat = None # type: Optional[SimState]
-        self.debug_state = deque(maxlen=5) # type: deque
-        self.skip_addr = {} # type: Dict[int, int]
+        states.add_major(State(0, None, self.trace[0], None, simstate))
+        self.debug_unsat = None  # type: Optional[SimState]
+        self.debug_state = deque(maxlen=5)  # type: deque
+        self.skip_addr = {}  # type: Dict[int, int]
         cnt = 0
         interval = max(1, len(self.trace) // 1500)
         length = len(self.trace) - 1
-        
-        for event in self.trace[1:]:
+
+        for previous_idx, instruction in enumerate(self.trace[1:]):
+            previous_instruction = self.trace[previous_idx]
+
             cnt += 1
             if not cnt % 500:
                 l.warning('Do a garbage collection')
                 gc.collect()
-            l.debug("look for jump: 0x%x -> 0x%x" % (event.addr, event.ip))
-            assert self.valid_address(event.addr) and self.valid_address(
-                event.ip)
-            self.current_branch = event
-            old_simstate, new_simstate = self.find_next_branch(simstate, event)
+            l.debug("look for instruction: 0x%x -> 0x%x" % (previous_instruction.ip, instruction.ip))
+            assert self.valid_address(instruction.ip)
+
+            old_simstate, new_simstate = self.execute(simstate, previous_instruction, instruction)
             simstate = new_simstate
             if cnt % interval == 0 or length - cnt < 50:
-                states.add_major(State(cnt, event, old_simstate, new_simstate))
+                states.add_major(State(cnt, previous_instruction, instruction, old_simstate, new_simstate))
         self.constrain_registers(states.major_states[-1])
 
         return states

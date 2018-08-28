@@ -4,7 +4,7 @@ import ctypes as ct
 import mmap
 import fcntl
 import os
-from typing import List, Generator, Any, Optional, Iterator
+from typing import List, Generator, Any, Optional, Iterator, Dict
 
 from .cpuid import CPUID
 from ..mmap import MMap
@@ -414,6 +414,7 @@ class Cpu(object):
 
     def traces(self):
         # type: () -> Generator[bytearray, None, None]
+        seen = {}  # type: Dict[int, int]
         for ev in self.pt_buffer.events():
             if ev.type == PerfRecord.PERF_RECORD_ITRACE_START:
                 self._itrace_start_event = ev
@@ -422,6 +423,11 @@ class Cpu(object):
                 continue
             aux_begin = self.pt_buffer.aux_buf.addr
             aux_end = self.pt_buffer.aux_buf.addr + self.pt_buffer.aux_buf.size
+            if aux_begin in seen:
+                assert seen[aux_begin] == aux_end
+                continue
+            else:
+                seen[aux_begin] = aux_end
 
             begin = aux_begin + ev.aux_offset
             end = begin + ev.aux_size

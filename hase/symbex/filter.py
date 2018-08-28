@@ -11,7 +11,7 @@ from cle import ELF
 
 from typing import List, Optional, Dict, Any, Tuple
 
-from .state import Branch
+from ..pt.events import Instruction
 from .hook import unsupported_symbols
 from ..errors import HaseError
 
@@ -38,14 +38,14 @@ class FakeSymbol(object):
 
 class FilterBase(object):
     def __init__(self, project, cfg, trace, hooked_symbol, gdb):
-        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], Any) -> None
+        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], Any) -> None
         self.project = project
         self.main_cfg = cfg
         self.main_object = project.loader.main_object
         self.trace = trace
         self.hooked_symbol = hooked_symbol
         self.gdb = gdb
-        self.new_trace = [] # type: List[Branch]
+        self.new_trace = [] # type: List[Instruction]
         self.gdb = gdb
         self.omitted_section = [] # type: List[List[int]]
         self.analyze_unsupported()
@@ -80,13 +80,13 @@ class FilterTrace(object):
     def __init__(self, project, cfg, trace, \
         hooked_symbol, gdb, omitted_section, \
         from_initial, static_link):
-        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], Any, List[List[int]], bool, bool) -> None
+        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], Any, List[List[int]], bool, bool) -> None
         self.project = project
         self.main_cfg = cfg
         self.main_object = project.loader.main_object
         self.trace = trace
         self.hooked_symbol = hooked_symbol
-        self.new_trace = [] # type: List[Branch]
+        self.new_trace = [] # type: List[Instruction]
         self.gdb = gdb
         self.omitted_section = omitted_section # type: List[List[int]]
         self.analyze_unsupported()
@@ -117,7 +117,7 @@ class FilterTrace(object):
             self.syms[lib] = self.syms_dict[lib].keys()
             self.syms[lib].sort()
         self.analyze_trace()
-    
+
     def analyze_unsupported(self):
         # type: () -> None
         for l in unsupported_symbols:
@@ -181,16 +181,16 @@ class FilterTrace(object):
         return False, ''
 
     def analyze_start(self, least_reserve=2000):
-        # type: (int) -> Tuple[List[Branch], int]
+        # type: (int) -> Tuple[List[Instruction], int]
         # FIXME: not working if atexit register a function which is the problem
         start_idx = 0
         self.start_idx = start_idx
         if len(self.trace) < least_reserve or self.from_initial:
             return self.trace, 0
         for idx in range(-least_reserve, -len(self.trace) - 1, -1):
-            event = self.trace[idx]
-            if not self.test_plt_vdso(event.addr):
-                func = self.find_function(event.addr)
+            instruction = self.trace[idx]
+            if not self.test_plt_vdso(instruction.ip):
+                func = self.find_function(instruction.ip)
                 if func and func.name == 'main':
                     start_idx = idx
                     break
@@ -201,33 +201,38 @@ class FilterTrace(object):
         # type: () -> None
         # NOTE: assume the hooked function should have return
         self.new_trace = []
-        self.call_parent = defaultdict(lambda: None) # type: defaultdict
+        self.call_parent = defaultdict(lambda: None)  # type: defaultdict
         cut_trace, _ = self.analyze_start()
         hooked_parent = None
         is_current_hooked = False
         # FIXME: seems dso object not always this one
         dso_sym = self.project.loader.find_symbol('_dl_find_dso_for_object')
         plt_sym = None
-        for event in cut_trace:
+        previous_instr = None
+        for (idx, instruction) in enumerate(cut_trace):
+            if idx > 0:
+                previous_instr = cut_trace[idx - 1]
+
             present = True
-            if self.test_plt_vdso(event.addr) or \
-                self.test_ld(event.addr) or \
-                self.test_omit(event.addr):
+            if self.test_plt_vdso(instruction.ip) or \
+                self.test_ld(instruction.ip) or \
+                self.test_omit(instruction.ip):
                 present = False
             # NOTE: if already in hooked function, leaving to parent
             # FIXME: gcc optimization will lead to main->func1->(set rbp)func2->main
-            # A better solution is to record callstack, 
+            # A better solution is to record callstack,
             # which means we need to get jumpkind of every address,
             # but I cannot find it now. large recursive_level could slow down filter a lot
             # Or find scope outside hooked_libs
             if is_current_hooked:
-                present = False
-                sym = self.find_function(event.ip)
+                sym = self.find_function(instruction.ip)
                 recursive_level = 4
                 if sym == hooked_parent:
                     is_current_hooked = False
                     hooked_parent = None
+                    present = True
                 else:
+                    present = False
                     cur_func = hooked_parent
                     for _ in range(recursive_level):
                         parent = self.call_parent[cur_func]
@@ -245,16 +250,16 @@ class FilterTrace(object):
                 # NOTE: that doesn't work for static compiled object
                 if not self.static_link:
                     if is_current_hooked and \
-                        not self.test_plt_vdso(event.ip) and \
-                        self.project.loader.find_object_containing(event.ip) == self.main_object:
+                        not self.test_plt_vdso(instruction.ip) and \
+                        self.project.loader.find_object_containing(instruction.ip) == self.main_object:
                         is_current_hooked = False
                         hooked_parent = None
             else:
-                flg, fname = self.test_function_entry(event.ip)
-                if flg:                    
+                flg, fname = self.test_function_entry(instruction.ip)
+                if flg and previous_instr is not None:
                     # NOTE: function entry, testing is hooked
-                    sym = self.find_function(event.ip)
-                    parent = self.find_function(event.addr)
+                    sym = self.find_function(instruction.ip)
+                    parent = self.find_function(previous_instr.ip)
                     # NOTE: plt -> dso -> libc
                     if isinstance(sym, FakeSymbol):
                         plt_sym = sym
@@ -265,14 +270,14 @@ class FilterTrace(object):
                         is_current_hooked = True
                         hooked_parent = parent
                 else:
-                    if self.test_omit(event.ip):
+                    if self.test_omit(instruction.ip):
                         is_current_hooked = True
-                        hooked_parent = self.find_function(event.addr)
+                        hooked_parent = self.find_function(instruction.ip)
             if present:
-                self.new_trace.append(event)
-        
+                self.new_trace.append(instruction)
+
     def filtered_trace(self, update=False):
-        # type: (bool) -> List[Branch]
+        # type: (bool) -> List[Instruction]
         if self.new_trace and not update:
             return self.new_trace
         self.analyze_trace()
@@ -282,20 +287,20 @@ class FilterTrace(object):
 # Not test yet, must be slow
 class FilterCFG(object):
     def __init__(self, project, cfg, trace, hooked_symbol, gdb):
-        # type: (Project, CFGFast, List[Branch], Dict[str, SimProcedure], Any) -> None
+        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], Any) -> None
         self.project = project
         self.main_cfg = cfg.copy()
         self.main_object = project.loader.main_object
         self.trace = trace
         self.hooked_symbol = hooked_symbol
-        self.new_trace = [] # type: List[Branch]
+        self.new_trace = [] # type: List[Instruction]
         self.gdb = gdb
         self.omitted_symbol = hooked_symbol
         self.omitted_section = [] # type: List[Tuple[int, int]]
         # self.analyze_unsupported()
 
         self.cfgs = {} # type: Dict[Any, CFGFast]
-        self.libc_object = None
+        self.libc_object = None # type: Optional[ELF]
         for lib in self.project.loader.all_elf_objects:
             # FIXME: not a good way
             if lib.get_symbol('__libc_memalign'):
@@ -310,7 +315,7 @@ class FilterCFG(object):
                 self.cfgs[lib] = self.main_cfg
         # HACK: weirdly, these functions in glibc are plt stubs resolved to self
         self.libc_special_name = {
-            'malloc': ('__libc_malloc', 0x484130), 
+            'malloc': ('__libc_malloc', 0x484130),
             'calloc': ('__libc_calloc', 0x484d10),
             'realloc': ('__libc_realloc', 0x4846c0),
             'free': ('__libc_free', 0x4844f0),
@@ -376,14 +381,14 @@ class FilterCFG(object):
             self.collect_subfunc(lib, cfg, func)
 
     def filtered_trace(self, update=False):
-        # type: (bool) -> List[Branch]
+        # type: (bool) -> List[Instruction]
         if self.new_trace and not update:
             return self.new_trace
         self.new_trace = []
-        for event in self.trace:
-            if self.test_plt(event.addr) or \
-                self.test_ld(event.addr) or \
-                self.test_omit(event.addr):
+        for instruction in self.trace:
+            if self.test_plt(instruction.ip) or \
+                self.test_ld(instruction.ip) or \
+                self.test_omit(instruction.ip):
                 continue
-            self.new_trace.append(event)
+            self.new_trace.append(instruction)
         return self.new_trace

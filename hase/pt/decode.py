@@ -4,14 +4,14 @@ import ctypes as ct
 import os
 from io import BytesIO
 from tempfile import NamedTemporaryFile
-from typing import List, Union, Any
+from typing import List, Union, Any, Optional, DefaultDict
 import shutil
 import bisect
 
-from ..pwn_wrapper import Mapping, ELF
+from ..pwn_wrapper import Mapping
 from .. import _pt  # type: ignore
 from ..path import Path
-from .events import *
+from .events import Instruction, InstructionClass, TraceEvent, EnableEvent, DisableEvent, AsyncDisableEvent
 from ..perf.reader import perf_events
 from ..perf.consts import PerfRecord
 
@@ -109,35 +109,27 @@ def get_thread_schedule(perf_event_paths, start_thread_ids, start_times):
     return schedule
 
 
-def trace_to_dataframe(traces):
+# In future this should become a warning, since bugs can smash the stack! For
+# now we rely on this to figure out if we re-assemble the trace incorrectly
+def sanity_check_order(instructions):
+    # type: (List[Instruction]) -> None
     """
-    For debugging
+    Check that calls matches returns and that syscalls and non-jumps do not change the control flow.
     """
-    # List[List[Union[TraceEvent, Instruction]]] -> Any
-    import pandas as pd
-    from collections import defaultdict
+    stack = []  # type: List[int]
+    for (i, instruction) in enumerate(instructions):
+        if i > 0:
+            previous = instructions[i - 1]
+            if previous.iclass == InstructionClass.ptic_return:
+                if len(stack) != 0:
+                    return_ip = stack.pop()
+                    assert return_ip == instruction.ip
+            elif previous.iclass in (InstructionClass.ptic_far_call, InstructionClass.ptic_other):
+                assert instruction.ip == previous.ip + previous.size
 
-    data = defaultdict(list)
-
-    for (i, trace) in enumerate(traces):
-        time = None
-        for ev in trace:
-            data["core"].append(i)
-            data["type"].append(ev.__class__.__name__)
-            if isinstance(ev, Instruction):
-                data["ip"].append(ev.ip)
-                data["size"].append(ev.size)
-                data["time"].append(time)
-            else:
-                data["ip"].append(None)
-                data["size"].append(None)
-                time = ev.time
-                data["time"].append(time)
-
-    return pd.DataFrame(data, dtype=int)
-
-
-MARGIN = 0x7d0
+        if instruction.iclass == InstructionClass.ptic_call:
+            return_ip = instruction.ip + instruction.size
+            stack.append(return_ip)
 
 
 def correlate_traces(traces, schedule, pid, tid):
@@ -151,18 +143,26 @@ def correlate_traces(traces, schedule, pid, tid):
         schedule_per_core[entry.core].append(entry)
 
     instruction_count = 0
-    for trace in traces:
+    for (core, trace) in enumerate(traces):
         for chunk in trace:
             instruction_count += len(chunk.instructions)
 
     for (core, trace) in enumerate(traces):
-        for entry in schedule_per_core[core]:
+        if len(trace) == 0:
+            continue
+        per_core = schedule_per_core[core]
+        for (idx, entry) in enumerate(per_core):
+            if (idx + 1) < len(per_core):
+                next_entry = per_core[idx + 1]  # type: Optional[ScheduleEntry]
+            else:
+                next_entry = None
+
             i = 0
             for chunk in trace:
                 # TODO: timer is not accurate between kernel and hardware?
-                if entry.stop is None or chunk.stop < (entry.stop + MARGIN):
-                    if not chunk.saw_tsc_update() and entry.stop is not None:
-                        assert (entry.stop - chunk.stop) > MARGIN
+                if next_entry is None or \
+                        abs(chunk.stop - entry.stop) < abs(chunk.stop - next_entry.start):
+
                     entry.chunks.append(chunk)
                     i += 1
                 else:
@@ -173,7 +173,7 @@ def correlate_traces(traces, schedule, pid, tid):
     instructions = []
 
     for entry in schedule:
-        for chunk in entry.chunks:
+        for i, chunk in enumerate(entry.chunks):
             instructions.extend(chunk.instructions)
 
     assert len(instructions) == instruction_count
@@ -298,6 +298,7 @@ def decode(
     assert len(trace_paths) > 0
 
     traces = []  # type: List[List[Chunk]]
+    raw_trace = []
 
     shared_objects = []
 
@@ -322,6 +323,7 @@ def decode(
             time_mult=time_mult,
             time_shift=time_shift,
             shared_objects=shared_objects)
+        raw_trace.append(trace)
         traces.append(chunk_trace(trace))
 
     schedule = get_thread_schedule(perf_event_paths, start_thread_ids,
@@ -329,4 +331,6 @@ def decode(
 
     schedule = merge_same_core_switches(schedule)
 
-    return correlate_traces(traces, schedule, pid, tid)
+    instructions = correlate_traces(traces, schedule, pid, tid)
+    sanity_check_order(instructions)
+    return instructions
