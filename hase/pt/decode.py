@@ -160,7 +160,7 @@ def correlate_traces(traces, schedule, pid, tid):
             i = 0
             for chunk in trace:
                 # TODO: timer is not accurate between kernel and hardware?
-                if next_entry is None or \
+                if entry.stop is None or next_entry is None or \
                         abs(chunk.stop - entry.stop) < abs(chunk.stop - next_entry.start):
 
                     entry.chunks.append(chunk)
