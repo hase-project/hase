@@ -1,7 +1,13 @@
 language: python
 cache: pip
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - g++-7
 install:
-  - pip install -e '.[test]' 
+  - CC=gcc-7 CXX=g++-7 pip install -e '.[test]' 
   - bin/build-mypy-path 
   - source ~/virtualenv/python3.6/bin/activate
   - pip install mypy
