@@ -18,41 +18,6 @@ while not blk.is_global and not blk.is_static:
     blk = blk.superblock
     if not blk:
         break
-    
-
-def parse_c_declaration(decl):
-    pos = 0
-
-    def get_token(pos):
-        while decl[pos].isspace():
-            pos += 1
-        c = decl[pos]
-        pos += 1
-        if c == '(':
-            if decl[pos] == ')':
-                pos += 1
-                return pos, '()', 'PARENS'
-            return pos, '', '('
-        elif c == '[':
-            token = ''
-            while decl[pos] != ']':
-                token += decl[pos]
-                pos += 1
-            return pos, token, 'BRACKETS'
-        elif c.isalpha():
-            token = ''
-            while decl[pos].isalnum():
-                token += decl[pos]
-                pos += 1
-            return pos, token, 'IDENTIFIER'
-        elif c == '*':
-            return pos, '*', 'POINTER'
-        else:
-            return pos, c, 'UNKNOWN'
-
-    pos, token, ty = get_token(pos)
-
-
 
 def parse_addr(s):
     l = s.split(' ')

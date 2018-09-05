@@ -103,11 +103,8 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         active_state = self.states.major_states[-1]
         coredump = user_ns['coredump']
         low = active_state.simstate.regs.rsp
-        
-        if start_state.regs.rbp.uninitialized:
-            high = start_state.regs.rsp
-        else:
-            high = start_state.regs.rbp + 1
+        MAX_FUNC_FRAME = 0x200        
+        high = start_state.regs.rsp + MAX_FUNC_FRAME
         
         try:
             low_v = active_state.simstate.se.eval(low)
@@ -133,12 +130,11 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         # NOTE: * -> uninitialized / 'E' -> symbolic
         if not getattr(active_state, 'had_coredump_constraints', False):
             for c in self.coredump_constraints:
-                old_con = active_state.simstate.se.constraints
+                old_solver = active_state.simstate.solver._solver.branch()
                 active_state.simstate.se.add(c)
                 if not active_state.simstate.se.satisfiable():
                     print('Unsatisfiable coredump constraints: ' + str(c))
-                    active_state.simstate.solver._solver._cached_satness = True
-                    active_state.simstate.solver._solver.constraints = old_con
+                    active_state.simstate.solver._stored_solver = old_solver
             active_state.had_coredump_constraints = True
 
         if loc == 1:
@@ -313,16 +309,26 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         user_ns = shell.user_ns
         var = user_ns['gdbs'].read_variables()
         self.var_view.setRowCount(0)
-        self.var_view.setRowCount(len(var))
-        for i, v in enumerate(var):
-            value, value_type = self.eval_variable(
-                user_ns['active_state'],
-                v['loc'], v['addr'], v['size'])
-            self.var_view.set_var(i, v, value, value_type)
+        i = 0
+        for v in var:
+            if v['loc'] != -2:
+                self.var_view.insertRow(i)
+                value, value_type = self.eval_variable(
+                    user_ns['active_state'],
+                    v['loc'], v['addr'], v['size'])
+                self.var_view.set_var(i, v, value, value_type)
+                i += 1
         self.var_view.resizeColumnsToContents()        
 
     def set_regs(self):
         # type: () -> None
+        def fix_new_regname(rname):
+            # HACK: angr has no access to register like r9w, r8d, r15b
+            for i in range(8, 16):
+                if 'r' + str(i) in rname:
+                    return 'r' + str(i)
+            return rname
+
         shell = self.kernel_client.kernel.shell
         user_ns = shell.user_ns
         active_state = user_ns['active_state']
@@ -333,6 +339,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             # OP_REG
             if op.type == 1:
                 rname = insn.reg_name(op.value.reg)
+                rname = fix_new_regname(rname)
                 value = self.eval_value(
                     active_state,
                     getattr(active_state.simstate.regs, rname))
@@ -341,12 +348,14 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             elif op.type == 3:
                 if op.value.mem.base:
                     rname = insn.reg_name(op.value.mem.base)
+                    rname = fix_new_regname(rname)
                     value = self.eval_value(
                         active_state,
                         getattr(active_state.simstate.regs, rname))
                     self.reg_view.append_reg(rname, value)
                 if op.value.mem.index:
                     rname = insn.reg_name(op.value.mem.index)
+                    rname = fix_new_regname(rname)
                     value = self.eval_value(
                         active_state,
                         getattr(active_state.simstate.regs, rname))

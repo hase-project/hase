@@ -378,53 +378,6 @@ class Tracer(object):
         self.hook_plt_idx = self.hook_target.keys()
         self.hook_plt_idx.sort()
 
-        """
-        if self.from_initial or self.filter.start_idx == 0 or self.filter.start_idx == -len(self.old_trace):
-            # workaround for main, should not be required in future
-            if self.trace[0].addr == 0 or self.trace[0].ip == main:
-                start_address = self.trace[0].ip
-            else:
-                start_address = self.trace[0].addr
-        else:
-            start_address = self.trace[0].ip
-
-        assert start_address != 0
-        
-        if self.from_initial or self.filter.start_idx == 0:
-            args = self.cdanalyzer.call_argv('main')
-            # NOTE: gdb sometimes take this wrong
-            args[0] = self.coredump.argc
-            rsp, rbp = self.cdanalyzer.stack_base('main')
-            if not rbp:
-                rbp = 0x7ffffffcf00
-            if not rsp:
-                rsp = 0x7ffffffcf00
-            self.start_state = self.project.factory.call_state(
-                start_address,
-                *args,
-                add_options=add_options,
-                remove_options=remove_simplications)
-                # from main entry, then push rbp, mov rbp, rsp, sub rsp, n
-            self.start_state.regs.rsp = rbp + 8
-        else:
-            self.start_state = self.project.factory.blank_state(
-                addr=start_address,
-                add_options=add_options,
-                remove_options=remove_simplications)
-            # only if we are in the last functions
-            if self.filter.is_main:
-                rsp, rbp = self.cdanalyzer.stack_base('main')
-                if not rbp:
-                    rbp = 0x7ffffffcf00
-                if not rsp:
-                    rsp = 0x7ffffffcf00
-                self.start_state.regs.rsp = rsp
-                self.start_state.regs.rbp = rbp
-            else:
-                self.start_state.regs.rsp = self.start_state.se.BVS('rsp', 64)
-                self.start_state.regs.rbp = self.start_state.se.BVS('rbp', 64)
-        """
-
         start_address = self.trace[0].ip
 
         if self.filter.start_funcname == 'main':
@@ -716,13 +669,15 @@ class Tracer(object):
     def repair_satness(self, old_state, new_state):
         if not new_state.solver.satisfiable(): # type: ignore
             sat_constraints = old_state.solver._solver.constraints
+            '''
             unsat_constraints = list(new_state.solver._solver.constraints)
             sat_uuid = map(lambda c: c.uuid, sat_constraints)
             for i, c in enumerate(unsat_constraints):
                 if c.uuid not in sat_uuid:
                     unsat_constraints[i] = claripy.Not(c)
-            new_state.solver._solver._cached_satness = True
-            new_state.solver._solver.constraints = unsat_constraints
+            '''
+            new_state.solver._stored_solver = old_state.solver._solver.branch()
+            
             if not self.debug_unsat: # type: ignore
                 self.debug_sat = old_state
                 self.debug_unsat = new_state
@@ -893,7 +848,7 @@ class Tracer(object):
         self.debug_state = deque(maxlen=5) # type: deque
         self.skip_addr = {} # type: Dict[int, int]
         cnt = 0
-        interval = max(1, len(self.trace) // 100)
+        interval = max(1, len(self.trace) // 200)
         length = len(self.trace) - 1
         
         for event in self.trace[1:]:
@@ -907,7 +862,7 @@ class Tracer(object):
             self.current_branch = event
             old_simstate, new_simstate = self.find_next_branch(simstate, event, cnt)
             simstate = new_simstate
-            if cnt % interval == 0 or length - cnt < 25:
+            if cnt % interval == 0 or length - cnt < 15:
                 states.add_major(State(cnt, event, old_simstate, new_simstate))
         self.constrain_registers(states.major_states[-1])
 
