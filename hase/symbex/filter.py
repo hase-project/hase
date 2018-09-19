@@ -188,32 +188,28 @@ class FilterTrace():
             last_occurence_idx[frame['func']] = -1
             is_last_passed[frame['func']] = False
 
-        start_idx = 0
+        start_idx = -1
         self.is_main = False
         self.start_idx = start_idx
         if len(self.trace) < least_reserve or self.from_initial:
-            return self.trace, 0
-        if len(self.trace) < most_reserve:
-            most_reserve = len(self.trace) - 1
-        # NOTE: only record index for function before packet.ip == entry_addr
-        for idx in range(-least_reserve, -most_reserve, -1):
-            event = self.trace[idx]
-            if not self.test_plt_vdso(event.ip):
-                func = self.find_function(event.ip)
-                if func:
-                    if func.name in all_backtrace_name and not is_last_passed[func.name]:
-                        last_occurence_idx[func.name] = idx + len(self.trace)
-                        start_idx = idx
-                flg, symname = self.test_function_entry(event.ip)
-                if flg and symname in all_backtrace_name:
-                    is_last_passed[symname] = True
-                    
-        if start_idx == 0:
+            start_idx = 0
+        else:
+            if len(self.trace) < most_reserve:
+                most_reserve = len(self.trace) - 1
+            # NOTE: only record index for function before packet.ip == entry_addr
+            for idx in range(-least_reserve, -most_reserve, -1):
+                event = self.trace[idx]
+                if not self.test_plt_vdso(event.ip):
+                    func = self.find_function(event.ip)
+                    if func:
+                        if func.name in all_backtrace_name and not is_last_passed[func.name]:
+                            last_occurence_idx[func.name] = idx + len(self.trace)
+                            start_idx = idx
+                    flg, symname = self.test_function_entry(event.ip)
+                    if flg and symname in all_backtrace_name:
+                        is_last_passed[symname] = True                    
+        if start_idx == -1:
             raise Exception("Unable to find suitable start event")
-        """
-        while self.project.loader.find_object_containing(self.trace[start_idx].addr) != self.main_object:
-            start_idx -= 1
-        """
         self.start_idx = len(self.trace) + start_idx
         self.is_start_entry, _ = self.test_function_entry(self.trace[start_idx].ip)
         self.start_funcname = self.find_function(self.trace[start_idx].ip).name # type: ignore

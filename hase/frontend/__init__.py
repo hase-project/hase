@@ -103,7 +103,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         active_state = self.states.major_states[-1]
         coredump = user_ns['coredump']
         low = active_state.simstate.regs.rsp
-        MAX_FUNC_FRAME = 0x200        
+        MAX_FUNC_FRAME = 0x200
         high = start_state.regs.rsp + MAX_FUNC_FRAME
         
         try:

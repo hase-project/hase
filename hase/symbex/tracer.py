@@ -251,12 +251,14 @@ class CoredumpAnalyzer():
                         else:
                             args.append(None)
                 return args
-        raise Exception("Unknown function {} in backtrace".format(name))
+        return None
+        # raise Exception("Unknown function {} in backtrace".format(name))
 
     def stack_base(self, name):
         for bt in self.backtrace:
             if bt['func'] == name:
                 return self.gdb.get_stack_base(int(bt['index']))
+        return (None, None)
 
 
 def build_load_options(mappings):
@@ -303,6 +305,7 @@ class Tracer(object):
         self.project = angr.Project(executable, **options)
 
         self.coredump = Coredump(coredump)
+        self.executable_root = executable_root
         self.debug_unsat = None  # type: Optional[SimState]
 
         command = os.path.basename(self.coredump.string(self.coredump.argv[0]))
@@ -382,19 +385,25 @@ class Tracer(object):
 
         if self.filter.start_funcname == 'main':
             args = self.cdanalyzer.call_argv('main')
-            # NOTE: gdb sometimes take this wrong
-            args[0] = self.coredump.argc
+            if not args:
+                self.start_state = self.project.factory.blank_state(
+                    addr=start_address,
+                    add_options=add_options,
+                    remove_options=remove_simplications)
+            else:
+                # NOTE: gdb sometimes take this wrong
+                args[0] = self.coredump.argc
+                self.start_state = self.project.factory.call_state(
+                    start_address,
+                    *args,
+                    add_options=add_options,
+                    remove_options=remove_simplications)
             rsp, rbp = self.cdanalyzer.stack_base('main')
             # TODO: or just stop?
             if not rbp:
                 rbp = 0x7ffffffcf00
             if not rsp:
-                rsp = 0x7ffffffcf00
-            self.start_state = self.project.factory.call_state(
-                start_address,
-                *args,
-                add_options=add_options,
-                remove_options=remove_simplications)
+                rsp = 0x7ffffffcf00         
         else:
             rsp, rbp = self.cdanalyzer.stack_base(self.filter.start_funcname)
             if not rbp:
@@ -423,22 +432,24 @@ class Tracer(object):
 
         # For debugging
         # self.project.pt = self
+        self.constraints_index = {} # type: Dict[int, int]
 
     def setup_argv(self):
         # TODO: if argv is modified by users, this won't help
         args = self.cdanalyzer.call_argv('main')
-        argv_addr = args[1]
-        for i in range(len(self.coredump.argv)):
-            self.start_state.memory.store(
-                argv_addr + i * 8, 
-                self.coredump.argv[i],
-                endness=archinfo.Endness.LE
-            )
-            self.start_state.memory.store(
-                self.coredump.argv[i],
-                self.coredump.string(self.coredump.argv[i])[::-1],
-                endness=archinfo.Endness.LE
-            )
+        if args:
+            argv_addr = args[1]
+            for i in range(len(self.coredump.argv)):
+                self.start_state.memory.store(
+                    argv_addr + i * 8, 
+                    self.coredump.argv[i],
+                    endness=archinfo.Endness.LE
+                )
+                self.start_state.memory.store(
+                    self.coredump.argv[i],
+                    self.coredump.string(self.coredump.argv[i])[::-1],
+                    endness=archinfo.Endness.LE
+                )
 
     def setup_hook(self):
         self.hooked_symbols.pop('abort', None)
@@ -682,6 +693,13 @@ class Tracer(object):
                 self.debug_sat = old_state
                 self.debug_unsat = new_state
 
+    def record_constraints_index(self, old_state, new_state, index):
+        sat_uuid = map(lambda c: c.uuid, old_state.se.constraints)
+        unsat_constraints = list(new_state.se.constraints)
+        for c in unsat_constraints:
+            if c.uuid not in sat_uuid:
+                self.constraints_index[c] = index
+
     def find_next_branch(self, state, branch, index):
         # type: (SimState, Branch, int) -> SimState
         CNT_LIMIT = 200
@@ -790,6 +808,7 @@ class Tracer(object):
                 if old_state.addr == branch.addr:
                     if self.jump_match(old_state, choice, branch):
                         self.repair_satness(old_state, choice)
+                        self.record_constraints_index(old_state, choice, index)
                         return old_state, choice
             # NOTE: need to consider repz here, if repz repeats for less than N times, 
             # then, it should still be on sat path
@@ -797,6 +816,7 @@ class Tracer(object):
                 rep_cnt += 1
                 if rep_cnt < REP_LIMIT and len(all_choices['sat']) == 1:
                     state = all_choices['sat'][0]
+                    self.record_constraints_index(old_state, choice, index)
                     continue
             else:
                 rep_cnt = 0
@@ -813,6 +833,7 @@ class Tracer(object):
                 else:
                     raise Exception("Unable to continue")
             self.repair_satness(old_state, state)
+            self.record_constraints_index(old_state, state, index)
             for c in choices:
                if c != state:
                     c.downsize()

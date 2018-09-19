@@ -24,7 +24,8 @@ class Replay(object):
         return self
 
     def __exit__(self, type, value, traceback):
-        self.cleanup()
+        # self.cleanup()
+        pass
 
     def prepare_tracer(self):
         # type: () -> None
