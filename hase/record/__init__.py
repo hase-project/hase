@@ -172,8 +172,8 @@ def store_report(job):
         paths = set()
         for obj in pwn_wrapper.Coredump(str(core_file)).mappings:
             path = obj.path
-            if (obj.flags & PROT_EXEC
-                ) and path.startswith("/") and os.path.exists(path):
+            # XXX: sometimes pwnlibs.Corefile failed to have correct obj.flags?
+            if path.startswith("/") and os.path.exists(path):
                 paths.add(path)
                 path = os.path.join("binaries", path[1:])
 
@@ -184,7 +184,7 @@ def store_report(job):
                         stop=obj.stop,
                         path=path,
                         flags=obj.flags)))
-
+        
         for path in paths:
             # FIXME check if elf, only create parent directory once
             archive_path = state_dir.join("binaries", path[1:])
