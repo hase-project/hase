@@ -226,6 +226,6 @@ std::optional<Config> getConfig(PyObject *args, PyObject *kwdict) {
       *std::move(trace),                           // trace
   };
 
-  return c;
+  return std::move(c);
 }
 } // namespace hase::pt

@@ -46,5 +46,5 @@ std::optional<Mmap> Mmap::create(void *addr, size_t length, int prot, int flags,
   m.data = static_cast<uint8_t *>(data);
   m.length = length;
 
-  return m;
+  return std::move(m);
 }
