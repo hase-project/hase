@@ -4,7 +4,6 @@
 
 #include <fcntl.h>
 #include <intel-pt.h>
-#include <libipt-sb.h>
 #include <unistd.h>
 
 namespace hase::pt {

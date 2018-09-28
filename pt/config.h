@@ -10,7 +10,6 @@
 #include <vector>
 
 #include <intel-pt.h>
-#include <libipt-sb.h>
 
 namespace hase::pt {
 typedef struct {

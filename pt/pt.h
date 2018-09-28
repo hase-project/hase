@@ -1,7 +1,6 @@
 #pragma once
 
 #include <intel-pt.h>
-#include <libipt-sb.h>
 #include <memory>
 
 namespace hase::pt {
