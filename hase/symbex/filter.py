@@ -79,19 +79,22 @@ class FilterBase(object):
 class FilterTrace(object):
     def __init__(self, project, cfg, trace, \
         hooked_symbol, gdb, omitted_section, \
-        from_initial, static_link):
-        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], Any, List[List[int]], bool, bool) -> None
+        from_initial, static_link, backtrace):
+        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], Any, List[List[int]], bool, bool, List[Dict[str, Any]]) -> None
         self.project = project
         self.main_cfg = cfg
         self.main_object = project.loader.main_object
         self.trace = trace
         self.hooked_symbol = hooked_symbol
         self.new_trace = [] # type: List[Instruction]
+        self.trace_idx = [] # type: List[int]
+        self.hook_target = {} # type: Dict[int, int]
         self.gdb = gdb
         self.omitted_section = omitted_section # type: List[List[int]]
         self.analyze_unsupported()
         self.from_initial = from_initial
         self.static_link = static_link
+        self.gdb_backtrace = backtrace
 
         self.hooked_symname = self.hooked_symbol.keys()
         self.callgraph = self.main_cfg.kb.functions.callgraph
@@ -180,21 +183,44 @@ class FilterTrace(object):
             return True, symname
         return False, ''
 
-    def analyze_start(self, least_reserve=2000):
-        # type: (int) -> Tuple[List[Instruction], int]
+    def analyze_start(self, least_reserve=2000, most_reserve=1500):
+        # type: (int, int) -> Tuple[List[Instruction], int]
         # FIXME: not working if atexit register a function which is the problem
-        start_idx = 0
+        # FIXME: this last occurence method will cause rare division from push ebp | mov ebp esp | sub esp XX
+        # FIXME: what if A -> B -> A calling chain?
+        last_occurence_idx = {}
+        is_last_passed = {}
+        all_backtrace_name = []
+        for frame in self.gdb_backtrace:
+            all_backtrace_name.append(frame['func'])
+            last_occurence_idx[frame['func']] = -1
+            is_last_passed[frame['func']] = False
+
+        start_idx = -1
+        self.is_main = False
         self.start_idx = start_idx
         if len(self.trace) < least_reserve or self.from_initial:
-            return self.trace, 0
-        for idx in range(-least_reserve, -len(self.trace) - 1, -1):
-            instruction = self.trace[idx]
-            if not self.test_plt_vdso(instruction.ip):
-                func = self.find_function(instruction.ip)
-                if func and func.name == 'main':
-                    start_idx = idx
-                    break
-        self.start_idx = start_idx
+            start_idx = 0
+        else:
+            if len(self.trace) < most_reserve:
+                most_reserve = len(self.trace) - 1
+            # NOTE: only record index for function before packet.ip == entry_addr
+            for idx in range(-least_reserve, -most_reserve, -1):
+                instruction = self.trace[idx]
+                if not self.test_plt_vdso(instruction.ip):
+                    func = self.find_function(instruction.ip)
+                    if func:
+                        if func.name in all_backtrace_name and not is_last_passed[func.name]:
+                            last_occurence_idx[func.name] = idx + len(self.trace)
+                            start_idx = idx
+                    flg, symname = self.test_function_entry(instruction.ip)
+                    if flg and symname in all_backtrace_name:
+                        is_last_passed[symname] = True                    
+        if start_idx == -1:
+            raise Exception("Unable to find suitable start instruction")
+        self.start_idx = len(self.trace) + start_idx
+        self.is_start_entry, _ = self.test_function_entry(self.trace[start_idx].ip)
+        self.start_funcname = self.find_function(self.trace[start_idx].ip).name # type: ignore
         return self.trace[start_idx:], start_idx
 
     def analyze_trace(self):
@@ -205,6 +231,7 @@ class FilterTrace(object):
         cut_trace, _ = self.analyze_start()
         hooked_parent = None
         is_current_hooked = False
+        hook_idx = 0
         # FIXME: seems dso object not always this one
         dso_sym = self.project.loader.find_symbol('_dl_find_dso_for_object')
         plt_sym = None
@@ -231,6 +258,7 @@ class FilterTrace(object):
                     is_current_hooked = False
                     hooked_parent = None
                     present = True
+                    self.hook_target[hook_idx] = instruction.ip
                 else:
                     present = False
                     cur_func = hooked_parent
@@ -241,6 +269,7 @@ class FilterTrace(object):
                                 is_current_hooked = False
                                 hooked_parent = None
                                 self.call_parent[cur_func] = None
+                                self.hook_target[hook_idx] = instruction.ip
                                 break
                             else:
                                 cur_func = parent
@@ -254,6 +283,8 @@ class FilterTrace(object):
                         self.project.loader.find_object_containing(instruction.ip) == self.main_object:
                         is_current_hooked = False
                         hooked_parent = None
+                        self.hook_target[hook_idx] = instruction.ip
+
             else:
                 flg, fname = self.test_function_entry(instruction.ip)
                 if flg and previous_instr is not None:
@@ -269,19 +300,22 @@ class FilterTrace(object):
                     if fname in self.hooked_symname:
                         is_current_hooked = True
                         hooked_parent = parent
+                        hook_idx = idx + self.start_idx
                 else:
                     if self.test_omit(instruction.ip):
                         is_current_hooked = True
                         hooked_parent = self.find_function(instruction.ip)
+                        hook_idx = idx + self.start_idx
             if present:
                 self.new_trace.append(instruction)
+                self.trace_idx.append(idx + self.start_idx)
 
     def filtered_trace(self, update=False):
-        # type: (bool) -> List[Instruction]
+        # type: (bool) -> Tuple[List[Instruction], List[int], Dict[int, int]]
         if self.new_trace and not update:
-            return self.new_trace
+            return self.new_trace, self.trace_idx, self.hook_target
         self.analyze_trace()
-        return self.new_trace
+        return self.new_trace, self.trace_idx, self.hook_target
 
 
 # Not test yet, must be slow

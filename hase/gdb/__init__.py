@@ -11,7 +11,7 @@ import termios
 import struct
 import xml.etree.ElementTree as ET
 from pygdbmi.gdbcontroller import GdbController
-from typing import Tuple, IO, Any, Optional, List, Dict
+from typing import Tuple, IO, Any, Optional, List, Dict, Union
 from cle import ELF
 
 from ..symbex.state import State, StateManager
@@ -52,7 +52,6 @@ class GdbRegSpace(object):
 
     def __setitem__(self, name, value):
         # type: (str, int) -> None
-        # TODO: affect simstate registers
         return
 
     def read_all(self):
@@ -64,8 +63,6 @@ class GdbRegSpace(object):
 
     def write_all(self, values):
         # type: (str) -> None
-        # TODO: affect simstate registers
-        # TODO: exception handling
         return
 
 
@@ -93,7 +90,7 @@ class GdbMemSpace(object):
                 except Exception:
                     value = None
         if value is None:
-            return "ff"
+            return "xx"
         return "%.2x" % value
 
     def __setitem__(self, addr, value):
@@ -255,20 +252,25 @@ class GdbServer(object):
                 l = r['payload'].split(' ')
                 name = l[1]
                 tystr = l[2].replace('%', ' ')
-                idr = int(l[3]) - 1
+                idr = int(l[3])
                 addr_comment = l[4].strip().replace('\\n', '')
                 if '&' in addr_comment:
-                    ll = addr_comment.partition('&')
-                    addr = int(ll[0], 16)
-                    comment = ll[2]
+                    if idr == 1:
+                        ll = addr_comment.partition('&')
+                        addr = int(ll[0], 16)  # type: Union[unicode, int]
+                        comment = ll[2]
                 else:
-                    addr = int(addr_comment, 16)
-                    comment = ''
+                    if idr == 1:
+                        addr = int(addr_comment, 16)
+                        comment = ''
+                    else:
+                        addr = addr_comment
+                        comment = ''
                 size = int(l[5].strip().replace('\\n', ''))
                 res.append({
                     'name': name,
                     'type': tystr,
-                    'indirect': idr,
+                    'loc': idr,
                     'addr': addr,
                     'size': size,
                     'comment': comment,

@@ -11,6 +11,7 @@ import os.path
 import imp
 import json
 import subprocess
+import logging
 from types import ModuleType
 from shlex import split as shsplit
 
@@ -19,6 +20,9 @@ from .. import gdb
 from ..replay import replay_trace
 from ..record import DEFAULT_LOG_DIR
 from ..path import Tempdir, Path
+
+
+l = logging.getLogger("hase")
 
 
 class HaseFrontEndException(Exception):
@@ -124,12 +128,6 @@ class HaseMagics(Magics):
             executable = rep.executable
             states = rep.run()
             addr2line = annotate.Addr2line()
-            '''
-            for s in states.major_states:
-                if s.object() in rep.tracer.project.loader.all_elf_objects:
-                    # TODO: show addr, ip at same time?
-                    addr2line.add_addr(s.object(), s.address())
-            '''
             # NOTE: we calculate all trace instead of state
             for s in rep.tracer.trace:
                 addrs = [s.addr, s.ip]
@@ -164,7 +162,9 @@ class HaseMagics(Magics):
                             addr_map[i][0] = new_f
                 addr_map[k][0] = new_f
 
+        l.warning('Caching tokens')
         self.window.cache_tokens(addr_map)
+        l.warning('Add states')
         self.window.add_states(user_ns["states"], user_ns["tracer"])
         self.window.enable_buttons()
         self.window.set_slider(user_ns["addr_map"], user_ns["states"])

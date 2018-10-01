@@ -5,7 +5,7 @@ import logging
 from PyQt5 import QtWidgets
 from PyQt5.uic import loadUiType
 from PyQt5.QtCore import QSize
-from PyQt5.QtGui import QTextCursor, QIcon, QPixmap, QPainter
+from PyQt5.QtGui import QTextCursor, QIcon, QPixmap, QPainter, QTextCharFormat
 import pygments
 import pygments.lexers
 import pygments.formatters
@@ -91,6 +91,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.time_slider.setEnabled(False)
 
         self.file_cache = {}
+        self.file_read_cache = {}
         self.callgraph = CallGraphManager()
 
         self.coredump_constraints = []
@@ -102,11 +103,8 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         active_state = self.states.major_states[-1]
         coredump = user_ns['coredump']
         low = active_state.simstate.regs.rsp
-
-        if start_state.regs.rbp.uninitialized:
-            high = start_state.regs.rsp
-        else:
-            high = start_state.regs.rbp + 1
+        MAX_FUNC_FRAME = 0x200
+        high = start_state.regs.rsp + MAX_FUNC_FRAME
 
         try:
             low_v = active_state.simstate.se.eval(low)
@@ -120,27 +118,34 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
         for addr in range(low_v, high_v):
             value = active_state.simstate.memory.load(addr, 1, endness='Iend_LE')
-            if value.uninitialized or value.variables == frozenset():
+            if value.variables == frozenset():
                 continue
             cmem = coredump.stack[addr]
             self.coredump_constraints.append(
                 value == cmem
             )
 
-    def eval_variable(self, active_state, addr, size):
-        # type: (Any, int, int) -> Tuple[str, str]
+    def eval_variable(self, active_state, loc, addr, size):
+        # type: (Any, int, Any, int) -> Tuple[str, str]
         # NOTE: * -> uninitialized / 'E' -> symbolic
         if not getattr(active_state, 'had_coredump_constraints', False):
             for c in self.coredump_constraints:
-                old_con = active_state.simstate.se.constraints
+                old_solver = active_state.simstate.solver._solver.branch()
                 active_state.simstate.se.add(c)
                 if not active_state.simstate.se.satisfiable():
                     print('Unsatisfiable coredump constraints: ' + str(c))
-                    active_state.simstate.solver._solver._cached_satness = True
-                    active_state.simstate.solver._solver.constraints = old_con
+                    active_state.simstate.solver._stored_solver = old_solver
             active_state.had_coredump_constraints = True
-        mem = active_state.simstate.memory.load(addr, size, endness='Iend_LE')
-        if mem.uninitialized and mem.variables != frozenset():
+
+        if loc == 1:
+            mem = active_state.simstate.memory.load(addr, size, endness='Iend_LE')
+        elif loc == 2:
+            mem = getattr(active_state.simstate.regs, addr)
+        elif loc == -1:
+            return 'optimized', 'unknown'
+        else:
+            return 'gdb error', 'unknown'
+        if mem.uninitialized and mem.variables != frozenset() and loc == 1:
             result = ''
             for i in range(size):
                 value = active_state.simstate.memory.load(addr + i, 1, endness='Iend_LE')
@@ -161,6 +166,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             if v == 'uninitialized' or v == 'symbolic':
                 return v, 'unknown'
             return v, 'hex'
+    
 
     def eval_value(self, active_state, value):
         # type: (Any, Any) -> str
@@ -269,16 +275,25 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         user_ns = shell.user_ns
         active_state = user_ns['active_state']
         insns = active_state.simstate.block().capstone.insns
+        # fmt = QTextCharFormat()
+        # fmt.setUnderlineStyle(QTextCharFormat.SingleUnderline)
         if source_file != '??':
             css, source = self.file_cache[source_file][line]
             if css:
                 self.code_view.setHtml(code_template.format(css, source.encode('utf-8')))
                 cursor = self.code_view.textCursor()
                 cursor.movePosition(QTextCursor.Start)
-                cursor.movePosition(QTextCursor.Down, n=line - 1)
+                minl = max(0, line - 30)
+                if self.file_read_cache[source_file][2]:
+                    cursor.movePosition(QTextCursor.Down, n=line - minl - 1)
+                else:
+                    cursor.movePosition(QTextCursor.Down, n=line - 1)
                 cursor.movePosition(QTextCursor.EndOfLine)
                 cursor.insertText('\t' + str(insns[0]))
-                self.code_view.scrollToAnchor("line-%d" % max(0, line - 10))
+                if not self.file_read_cache[source_file][2]:
+                    self.code_view.scrollToAnchor("line-%d" % max(0, line - 10))
+                else:
+                    self.code_view.scrollToAnchor("line-%d" % max(0, line - minl - 10))
             else:
                 self.code_view.clear()
                 self.code_view.append("{}:{}".format(source_file, line))
@@ -294,16 +309,26 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         user_ns = shell.user_ns
         var = user_ns['gdbs'].read_variables()
         self.var_view.setRowCount(0)
-        self.var_view.setRowCount(len(var))
-        for i, v in enumerate(var):
-            value, value_type = self.eval_variable(
-                user_ns['active_state'],
-                v['addr'], v['size'])
-            self.var_view.set_var(i, v, value, value_type)
+        i = 0
+        for v in var:
+            if v['loc'] != -2:
+                self.var_view.insertRow(i)
+                value, value_type = self.eval_variable(
+                    user_ns['active_state'],
+                    v['loc'], v['addr'], v['size'])
+                self.var_view.set_var(i, v, value, value_type)
+                i += 1
         self.var_view.resizeColumnsToContents()
 
     def set_regs(self):
         # type: () -> None
+        def fix_new_regname(rname):
+            # HACK: angr has no access to register like r9w, r8d, r15b
+            for i in range(8, 16):
+                if 'r' + str(i) in rname:
+                    return 'r' + str(i)
+            return rname
+
         shell = self.kernel_client.kernel.shell
         user_ns = shell.user_ns
         active_state = user_ns['active_state']
@@ -314,6 +339,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             # OP_REG
             if op.type == 1:
                 rname = insn.reg_name(op.value.reg)
+                rname = fix_new_regname(rname)
                 value = self.eval_value(
                     active_state,
                     getattr(active_state.simstate.regs, rname))
@@ -322,12 +348,14 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             elif op.type == 3:
                 if op.value.mem.base:
                     rname = insn.reg_name(op.value.mem.base)
+                    rname = fix_new_regname(rname)
                     value = self.eval_value(
                         active_state,
                         getattr(active_state.simstate.regs, rname))
                     self.reg_view.append_reg(rname, value)
                 if op.value.mem.index:
                     rname = insn.reg_name(op.value.mem.index)
+                    rname = fix_new_regname(rname)
                     value = self.eval_value(
                         active_state,
                         getattr(active_state.simstate.regs, rname))
@@ -352,22 +380,68 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
     def cache_tokens(self, addr_map):
         for filename, line in addr_map.values():
+            l.warning('caching file: ' + str(filename) + ' at line: ' + str(line))
             if filename != '??':
-                if filename not in self.file_cache.keys():
+                if filename not in self.file_read_cache.keys():
                     self.file_cache[filename] = {}
-                try:
-                    lexer = pygments.lexers.get_lexer_for_filename(str(filename))
-                    formatter_opts = dict(
-                        linenos="inline", linespans="line", hl_lines=[line])
-                    html_formatter = pygments.formatters.get_formatter_by_name(
-                        "html", **formatter_opts)
-                    css = html_formatter.get_style_defs('.highlight')
-                    with open(str(filename)) as f:
-                        tokens = lexer.get_tokens(f.read())
-                    source = pygments.format(tokens, html_formatter)
-                    self.file_cache[filename][line] = (css, source)
-                except Exception:
-                    self.file_cache[filename][line] = (None, None)
+                    self.file_read_cache[filename] = {}
+                    try:
+                        lexer = pygments.lexers.get_lexer_for_filename(str(filename))
+                        formatter_opts = dict(
+                            linenos="inline", linespans="line", hl_lines=[line])
+                        html_formatter = pygments.formatters.get_formatter_by_name(
+                            "html", **formatter_opts)
+                        css = html_formatter.get_style_defs('.highlight')
+                        with open(str(filename)) as f:
+                            content = f.readlines()
+                        if len(content) < 1000:
+                            content = ''.join(content)
+                            tokens = lexer.get_tokens(content)
+                            source = pygments.format(tokens, html_formatter)
+                            self.file_cache[filename][line] = (css, source)
+                            self.file_read_cache[filename] = (lexer, content, False)
+                        else:
+                            minl = max(0, line - 30)
+                            maxl = min(len(content), line + 30)
+                            formatter_opts = dict(
+                                linenos="inline", linespans="line", hl_lines=[line])
+                            html_formatter = pygments.formatters.get_formatter_by_name(
+                                "html", **formatter_opts)
+                            css = html_formatter.get_style_defs('.highlight')
+                            source = pygments.format(lexer.get_tokens(''.join(content[minl:maxl])), html_formatter)
+                            self.file_cache[filename][line] = (css, source)
+                            self.file_read_cache[filename] = (lexer, content, True)
+                    except Exception as e:
+                        print(e)
+                        self.file_cache[filename][line] = (None, None)
+                        self.file_read_cache[filename] = (None, None, False)
+                else:
+                    lexer, content, is_largefile = self.file_read_cache[filename]
+                    if content:
+                        try:
+                            if not is_largefile:
+                                formatter_opts = dict(
+                                    linenos="inline", linespans="line", hl_lines=[line])
+                                html_formatter = pygments.formatters.get_formatter_by_name(
+                                    "html", **formatter_opts)
+                                css = html_formatter.get_style_defs('.highlight')
+                                source = pygments.format(lexer.get_tokens(content), html_formatter)
+                                self.file_cache[filename][line] = (css, source)
+                            else:
+                                minl = max(0, line - 30)
+                                maxl = min(len(content), line + 30)
+                                formatter_opts = dict(
+                                    linenos="inline", linespans="line", hl_lines=[line - minl])
+                                html_formatter = pygments.formatters.get_formatter_by_name(
+                                    "html", **formatter_opts)
+                                css = html_formatter.get_style_defs('.highlight')
+                                source = pygments.format(lexer.get_tokens(''.join(content[minl:maxl])), html_formatter)
+                                self.file_cache[filename][line] = (css, source)
+                        except Exception as e:
+                            print(e)
+                            self.file_cache[filename][line] = (None, None)
+                    else:
+                        self.file_cache[filename][line] = (None, None)
 
     def add_states(self, states, tracer):
         # type: (Any, Any) -> None

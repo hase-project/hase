@@ -36,11 +36,16 @@ class VarTableWidget(QTableWidget):
         type_item = QTableWidgetItem()
         type_item.setText(attrs['type'].strip())
         self.setItem(i, 1, type_item)
-
-        addr_item = QTableWidgetItem()
-        addr_item.setText(hex(attrs['addr']))
-        self.setItem(i, 2, addr_item)
-
+        
+        if attrs['loc'] == 1:
+            addr_item = QTableWidgetItem()
+            addr_item.setText(hex(attrs['addr']))
+            self.setItem(i, 2, addr_item)            
+        elif attrs['loc'] == 2:
+            addr_item = QTableWidgetItem()
+            addr_item.setText(attrs['addr'])
+            self.setItem(i, 2, addr_item)
+        
         value_item = QTableWidgetItem()
         value_item.setText(value)
         self.setItem(i, 3, value_item)

@@ -165,7 +165,7 @@ class StateManager(object):
             for i in range(diff):
                 from_instruction = self.tracer.trace[start_pos + i]
                 to_instruction = self.tracer.trace[start_pos + i + 1]
-                from_simstate, simstate = self.tracer.execute(simstate, from_instruction, to_instruction)
+                from_simstate, simstate = self.tracer.execute(simstate, from_instruction, to_instruction, index)
                 if diff - i < 15:
                     self.add(State(start_pos + i + 1, from_instruction, to_instruction, from_simstate, simstate))
         return self.index_to_state[index], is_new # type: ignore

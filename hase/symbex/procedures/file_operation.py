@@ -6,7 +6,7 @@ from angr import SimProcedure
 from angr.procedures import SIM_PROCEDURES
 from angr.procedures.libc import io_file_data_for_arch, fopen
 from angr.procedures.stubs.format_parser import FormatParser
-from angr.errors import SimProcedureError
+from angr.errors import SimProcedureError, SimUnsatError
 from angr.storage.file import Flags
 
 from .syscall import stat, fstat, lstat
@@ -18,6 +18,13 @@ from .helper import minmax
 # freopen, openat, __fbufsize, __fpending, flushlbf, fpurge
 # vprintf, vfprintf, vsprintf, vsnprintf
 # TODO: maybe load concrete file?
+
+
+class vfprintf(SimProcedure):
+    ARGS_MISMATCH = True
+    # mov rsp, [rbp+xx]
+    def run(self, file_ptr, fmt, ap):
+        return self.state.se.Unconstrained('vfprintf_ret', 32, uninitialized=False)
 
 
 class ferror(SimProcedure):
@@ -212,7 +219,7 @@ class __snprintf_chk(FormatParser):
             self.state.memory.store(dst_ptr, out_str)
             self.state.memory.store(dst_ptr + (out_str.size() / 8), self.state.se.BVV(0, 8))
             return self.state.se.BVV(out_str.size() / 8, self.state.arch.bits)
-        except Exception:
+        except SimUnsatError:
             if self.state.se.symbolic(maxlen):
                 l = minmax(self, maxlen, self.state.libc.max_buffer_size)
             else:
