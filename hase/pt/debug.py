@@ -12,17 +12,36 @@ def to_file(data, filename):
     return df
 
 
+def traces_to_file(traces, filename):
+    # type: (List[List[Union[TraceEvent, Instruction]]], str) -> pd.DataFrame
+    df = trace_to_dataframe(traces)
+    df.to_csv(filename, sep="\t")
+    return df
+
+
+def instructions_to_file(instructions, filename):
+    # type: (List[Instruction], str) -> pd.DataFrame
+    data = defaultdict(list)  # type: DefaultDict[str, List[Any]]
+
+    for instruction in instructions:
+        data["core"].append(instruction.core)
+        data["chunk"].append(instruction.chunk)
+        data["ip"].append(instruction.ip)
+    return to_file(data, filename)
+
+
 def chunks_to_file(traces, filename):
     # type: (List[List[Chunk]], str) -> pd.DataFrame
     data = defaultdict(list)  # type: DefaultDict[str, List[Any]]
 
     for (i, chunks) in enumerate(traces):
         for chunk in chunks:
-            data["core"].append(i)
-            data["start"].append(chunk.start)
-            data["stop"].append(chunk.stop)
-            data["first_ip"].append(chunk.instructions[0].ip)
-            data["last_ip"].append(chunk.instructions[-1].ip)
+            for instruction in chunk.instructions:
+                data["core"].append(i)
+                data["start"].append(chunk.start)
+                data["stop"].append(chunk.stop)
+                data["ip"].append(chunk.instructions[0].ip)
+                data["last_ip"].append(chunk.instructions[-1].ip)
     return to_file(data, filename)
 
 
