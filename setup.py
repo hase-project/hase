@@ -13,7 +13,7 @@ setup(
     packages=find_packages(),
     install_requires=[
       'angr',
-      'pwntools',
+      'pwntools>3.13.0',
       'monkeyhex',
       'qtconsole',
       'pry.py',
@@ -21,6 +21,9 @@ setup(
       'typing'
       # how to add PyQt5 here?
       # 'pyqt5'
+    ],
+    dependency_links=[
+        "https://github.com/Gallopsled/pwntools/archive/c89bed2555990d35f9cc4804bdedb4a007af5802.tar.gz#egg=pwntools-3.14.0"
     ],
     tests_require=['nose'],
     test_suite='nose.collector',
