@@ -1,22 +1,22 @@
 from __future__ import absolute_import, division, print_function
 
 import os
-import sys
-import subprocess
-import nose
 import shutil
-from glob import glob
-from nose.plugins.skip import SkipTest
-from time import sleep
-from multiprocessing import Process
-from typing import List
+import subprocess
+import sys
 import time
+from glob import glob
+from multiprocessing import Process
+from time import sleep
+from typing import List
+
+import nose
+from nose.plugins.skip import SkipTest
 
 from hase import main
 from hase.path import Tempdir
 
 from .helper import TEST_BIN
-
 
 process = None
 
@@ -37,14 +37,22 @@ def test_record_command():
     with Tempdir() as tempdir:
         pid_file = str(tempdir.join("record.pid"))
         # generate coredump
-        #loopy = str(TEST_BIN.join("long_trace"))
         loopy = str(TEST_BIN.join("loopy"))
-        #loopy = str(TEST_BIN.join("cpu_switch"))
-        #loopy = str(TEST_BIN.join("indirect-jump"))
         argv = [
-            "hase", "record", "--log-dir",
-            #str(tempdir), "--limit", "1", "--pid-file", pid_file, loopy, "1000", "0"
-            str(tempdir), "--limit", "1", "--pid-file", pid_file, loopy, "a", "b", "c", "d", "e"
+            "hase",
+            "record",
+            "--log-dir",
+            str(tempdir),
+            "--limit",
+            "1",
+            "--pid-file",
+            pid_file,
+            loopy,
+            "a",
+            "b",
+            "c",
+            "d",
+            "e",
         ]
         global process
 
@@ -57,8 +65,7 @@ def test_record_command():
             sys.stdin = stdin_copy
             main(args)
 
-        #del os.environ["LD_PRELOAD"]
-        process = Process(target=mymain, args=(argv, ))
+        process = Process(target=mymain, args=(argv,))
         process.start()
 
         while not os.path.exists(pid_file):
@@ -70,10 +77,5 @@ def test_record_command():
         archives = glob(str(tempdir.join("*.tar.gz")))
         nose.tools.assert_equal(len(archives), 1)
 
-        #states = main(["hase", "replay", archives[0]])
-        ##nose.tools.assert_equal(len(states), 3)
-
-        ##del os.environ['LD_PRELOAD']
-
-        shutil.copyfile(archives[0], "/tmp/loopy-20180619T100257.tar.gz")
-        states = main(["hase", "replay", "/tmp/loopy-20180619T100257.tar.gz"])
+        states = main(["hase", "replay", archives[0]])
+        nose.tools.assert_equal(len(states), 52)
