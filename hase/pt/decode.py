@@ -151,6 +151,7 @@ def correlate_traces(traces, schedule, pid, tid):
         if len(trace) == 0:
             continue
         per_core = schedule_per_core[core]
+
         for (idx, entry) in enumerate(per_core):
             if (idx + 1) < len(per_core):
                 next_entry = per_core[idx + 1]  # type: Optional[ScheduleEntry]
@@ -168,6 +169,9 @@ def correlate_traces(traces, schedule, pid, tid):
                 else:
                     break
             trace = trace[i:]
+
+            if len(entry.chunks) == 0:
+                raise Exception("no instructions could be correlated with this hardware bug ?")
             assert len(entry.chunks) > 0
         assert len(trace) == 0
     instructions = []
@@ -230,8 +234,8 @@ class Chunk(object):
 #    return False
 
 
-def chunk_trace(trace):
-    # type: (List[Union[TraceEvent, Instruction]]) -> List[Chunk]
+def chunk_trace(core, trace):
+    # type: (int, List[Union[TraceEvent, Instruction]]) -> List[Chunk]
     chunks = []  # type: List[Chunk]
 
     enable_event = None
@@ -241,8 +245,6 @@ def chunk_trace(trace):
         if isinstance(ev, TraceEvent):
             latest_time = ev.time
             if isinstance(ev, EnableEvent):
-                assert enable_event is None
-
                 enable_event = ev
                 #switch_detected = False
             elif isinstance(ev, DisableEvent) or isinstance(
@@ -259,6 +261,10 @@ def chunk_trace(trace):
                 #    switch_detected = is_context_switch(ev, last_instruction)
 
                 assert enable_event.time and ev.time
+                for instruction in instructions:
+                    instruction.core = core
+                    instruction.chunk = idx
+
                 #chunk = Chunk(enable_event.time, ev.time, switch_detected,
                 #              instructions)
                 chunk = Chunk(enable_event.time, ev.time, instructions)
@@ -268,6 +274,8 @@ def chunk_trace(trace):
         else:
             assert enable_event is not None
             instructions.append(ev)
+
+    assert len(instructions) == 0
 
     return chunks
 
@@ -311,7 +319,7 @@ def decode(
             shared_objects.append((path, m.page_offset * page_size,
                                    m.stop - m.start, m.start))
 
-    for trace_path in trace_paths:
+    for (core, trace_path) in enumerate(trace_paths):
         trace = _pt.decode(
             trace_path=trace_path,
             cpu_family=cpu_family,
@@ -324,7 +332,7 @@ def decode(
             time_shift=time_shift,
             shared_objects=shared_objects)
         raw_trace.append(trace)
-        traces.append(chunk_trace(trace))
+        traces.append(chunk_trace(core, trace))
 
     schedule = get_thread_schedule(perf_event_paths, start_thread_ids,
                                    start_times)
