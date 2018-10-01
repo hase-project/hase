@@ -23,7 +23,7 @@ setup(
       # 'pyqt5'
     ],
     dependency_links=[
-        "https://github.com/Gallopsled/pwntools/archive/c89bed2555990d35f9cc4804bdedb4a007af5802.tar.gz#egg=pwntools-3.14.0"
+        "https://github.com/Mic92/pwntools/archive/0f479d27e18c37288c241112adf09d100ee2c001.tar.gz#egg=pwntools-3.14.0"
     ],
     tests_require=['nose'],
     test_suite='nose.collector',

@@ -1,12 +1,6 @@
-pwntools
 monkeyhex
 qtconsole
 pry.py
 pygdbmi
 typing
-# run update-vendor first
-./vendor/archinfo
-./vendor/pyvex
-./vendor/claripy
-./vendor/cle
-./vendor/angr
+https://github.com/Mic92/pwntools/archive/0f479d27e18c37288c241112adf09d100ee2c001.tar.gz#egg=pwntools-3.14.1
