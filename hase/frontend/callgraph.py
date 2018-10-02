@@ -17,7 +17,6 @@ from math import hypot
 from typing import Tuple, Any, List, Union, Optional
 
 from ..errors import HaseError
-from . import MainWindow
 
 class StateEdgeArrow(QGraphicsLineItem):
     def __init__(self, line):
@@ -374,7 +373,7 @@ class CallGraphManager(object):
 
 class CallGraphView(QGraphicsView):
     def __init__(self, manager, window, parent=None):
-        # type: (CallGraphManager, MainWindow, Optional[Any]) -> None
+        # type: (CallGraphManager, 'MainWindow', Optional[Any]) -> None
         super(CallGraphView, self).__init__(parent)
         manager.view = self
         self.setScene(manager.create_scene(400 + len(manager.nodes) * 20))
