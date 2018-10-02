@@ -89,8 +89,8 @@ class Replay(object):
                 continue
             obj.name = str(binary)
 
-        self.tracer = Tracer(manifest["coredump"]["executable"], trace,
-                             coredump)
+        self.executable = manifest["coredump"]["executable"]
+        self.tracer = Tracer(self.executable, trace, coredump)
 
     def run(self):
         # type: () -> StateManager

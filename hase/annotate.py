@@ -13,7 +13,7 @@ from .path import Path
 class Addr2line(object):
     def __init__(self):
         # type: () -> None
-        self.dsos = DefaultDict() # type: DefaultDict[ELF, Set[int]]
+        self.dsos = DefaultDict(set)  # type: DefaultDict[ELF, Set[int]]
 
     def _relative_addr(self, dso, addr):
         # type: (ELF, int) -> int
