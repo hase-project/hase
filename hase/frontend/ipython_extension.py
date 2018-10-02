@@ -106,13 +106,13 @@ class HaseMagics(Magics):
         # type: (str) -> None
         module_path = os.path.dirname(os.path.dirname(__file__))
         for name, m in sys.modules.items():
-            if isinstance(m, ModuleType) and hasattr(
-                    m, "__file__") and m.__file__.startswith(module_path):
-                print("reload %s" % name)
-                try:
-                    imp.reload(m)
-                except Exception as e:
-                    print("error while loading %s" % e)
+            if isinstance(m, ModuleType) and hasattr(m, "__file__"):
+                if m.__file__ is not None and m.__file__.startswith(module_path):
+                    print("reload %s" % name)
+                    try:
+                        imp.reload(m) # type: ignore
+                    except Exception as e:
+                        print("error while loading %s" % e)
         self.shell.extension_manager.reload_extension(__name__)
 
     @args("<report_archive>")
@@ -131,12 +131,10 @@ class HaseMagics(Magics):
             states = rep.run()
             addr2line = annotate.Addr2line()
             # NOTE: we calculate all trace instead of state
-            for s in rep.tracer.trace:
-                addrs = [s.addr, s.ip]
-                for addr in addrs:
-                    obj = rep.tracer.project.loader.find_object_containing(addr)
-                    if obj in rep.tracer.project.loader.all_elf_objects:
-                        addr2line.add_addr(obj, addr)
+            for instr in rep.tracer.trace:
+                obj = rep.tracer.project.loader.find_object_containing(instr.ip)
+                if obj in rep.tracer.project.loader.all_elf_objects:
+                    addr2line.add_addr(obj, instr.ip)
             addr_map = addr2line.compute()
 
 
