@@ -3,7 +3,7 @@ from __future__ import absolute_import, division, print_function
 import bisect
 from angr import SimState
 from cle import ELF
-from typing import Dict, Tuple, Optional, List, Union, Any
+from typing import Dict, Tuple, Optional, List, Tuple, Any
 from claripy.ast.bv import BV
 
 from ..pt.events import Instruction
@@ -106,7 +106,7 @@ class State(object):
         return self.simstate.addr
 
     def location(self):
-        # type: () -> List[Union[str, int]]
+        # type: () -> Tuple[str, int]
         """
         Binary of current state
         """

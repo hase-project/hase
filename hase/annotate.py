@@ -3,7 +3,7 @@ from __future__ import absolute_import, division, print_function
 import subprocess
 import os.path
 import sys
-from typing import Dict, Tuple, List, Optional, Union, DefaultDict, Set
+from typing import Dict, Tuple, List, Optional, DefaultDict, Set
 from cle import ELF
 
 from .errors import HaseError
@@ -27,8 +27,8 @@ class Addr2line(object):
         self.dsos[dso].add(absolute_addr)
 
     def compute(self):
-        # type: () -> Dict[int, List[Union[str, int]]]
-        addr_map = {}  # type: Dict[int, List[Union[str, int]]]
+        # type: () -> Dict[int, Tuple[str, int]]
+        addr_map = {}  # type: Dict[int, Tuple[str, int]]
         for dso, addresses in self.dsos.items():
             relative_addrs = []
 
@@ -64,5 +64,5 @@ class Addr2line(object):
                         file = new_file
                     if line == '?':
                         line = 0
-                    addr_map[addr] = [file, int(line)]
+                    addr_map[addr] = (file, int(line))
         return addr_map

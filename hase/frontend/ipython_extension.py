@@ -9,8 +9,6 @@ import sys
 import os
 import os.path
 import imp
-import json
-import subprocess
 import logging
 from types import ModuleType
 from shlex import split as shsplit
@@ -19,7 +17,7 @@ from .. import annotate
 from .. import gdb
 from ..replay import replay_trace
 from ..record import DEFAULT_LOG_DIR
-from ..path import Tempdir, Path
+from ..path import Path
 
 
 l = logging.getLogger("hase")
@@ -91,11 +89,13 @@ class HaseMagics(Magics):
     @args("<source_code>", name="show")
     @line_magic("show")
     def show_source(self, query):
+        # type: (str) -> None
         self.window.set_location(query, 0)
 
     @args()
     @line_magic("refresh")
     def refresh(self, query):
+        # type: (str) -> None
         self.window.time_slider.setValue(0)
         self.window.clear_viewer()
         self.window.append_archive()
@@ -103,6 +103,7 @@ class HaseMagics(Magics):
     @args()
     @line_magic("reload_hase")
     def reload_hase(self, query):
+        # type: (str) -> None
         module_path = os.path.dirname(os.path.dirname(__file__))
         for name, m in sys.modules.items():
             if isinstance(m, ModuleType) and hasattr(
@@ -117,6 +118,7 @@ class HaseMagics(Magics):
     @args("<report_archive>")
     @line_magic("load")
     def load(self, query):
+        # type: (str) -> None
         self.window.clear_cache()
         user_ns = self.shell.user_ns
         if not Path(query).exists():
@@ -159,8 +161,8 @@ class HaseMagics(Magics):
                 for i, p in addr_map.items():
                     if not Path(p[0]).exists():
                         if p[0] == origin_f and i != k:
-                            addr_map[i][0] = new_f
-                addr_map[k][0] = new_f
+                            addr_map[i] = (new_f, p[1])
+                addr_map[k] = (new_f, v[1])
 
         l.warning('Caching tokens')
         self.window.cache_tokens(addr_map)
@@ -175,6 +177,7 @@ class HaseMagics(Magics):
     @args(info="USAGE: info")
     @line_magic("info")
     def gdb_information(self, query):
+        # type: (str) -> None
         self.gdb_update('')
         user_ns = self.shell.user_ns
         addr_map = user_ns['addr_map']
@@ -189,6 +192,7 @@ class HaseMagics(Magics):
     @args(info="USAGE: init")
     @line_magic("init")
     def gdb_init(self, query):
+        # type: (str) -> None
         user_ns = self.shell.user_ns
         if 'gdbs' in user_ns.keys():
             user_ns['gdbs'].gdb.exit()
@@ -212,12 +216,14 @@ class HaseMagics(Magics):
     @args(info="USAGE: update")
     @line_magic("update")
     def gdb_update(self, query):
+        # type: (str) -> None
         user_ns = self.shell.user_ns
         user_ns['gdbs'].active_state = user_ns['active_state']
         user_ns['gdbs'].update_active()
 
     @line_magic("p")
     def print_value(self, query):
+        # type: (str) -> int
         """
         open current breakpoint in editor.
         """
@@ -225,6 +231,7 @@ class HaseMagics(Magics):
 
     @line_magic("backtrace")
     def backtrace(self, query):
+        # type: (str) -> None
         """
         open current breakpoint in editor.
         """
@@ -233,6 +240,7 @@ class HaseMagics(Magics):
     @args(comp=op_restrict(1), info="USAGE: gdb ...")
     @line_magic("gdb")
     def gdb_angr(self, query):
+        # type: (str) -> None
         try:
             resp = self.shell.user_ns['gdbs'].write_request(query)
             for r in resp:
@@ -245,6 +253,7 @@ class HaseMagics(Magics):
     @args(comp=op_restrict(1), info="USAGE: gdb-core ...")
     @line_magic("gdb-core")
     def gdb_core(self, query):
+        # type: (str) -> None
         try:
             resp = self.shell.user_ns['tracer'].cdanalyzer.gdb.write_request(query)
             for r in resp:
