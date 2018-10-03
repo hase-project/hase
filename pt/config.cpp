@@ -81,7 +81,7 @@ getSharedObjects(PyObject *pyList) {
     }
 
     auto offset =
-        static_cast<int>(PyLong_AsUnsignedLong(PyTuple_GET_ITEM(item, 1)));
+        PyLong_AsUnsignedLong(PyTuple_GET_ITEM(item, 1));
     if (PyErr_Occurred()) {
       PyErr_Format(PyExc_TypeError,
                    "second field in tuple of %ld. element in shared_objects "
@@ -91,7 +91,7 @@ getSharedObjects(PyObject *pyList) {
     }
 
     auto size =
-        static_cast<int>(PyLong_AsUnsignedLong(PyTuple_GET_ITEM(item, 2)));
+        PyLong_AsUnsignedLong(PyTuple_GET_ITEM(item, 2));
     if (PyErr_Occurred()) {
       PyErr_Format(PyExc_TypeError,
                    "third field in tuple of %ld. element in shared_objects "
@@ -101,7 +101,7 @@ getSharedObjects(PyObject *pyList) {
     }
 
     auto vaddr =
-        static_cast<int>(PyLong_AsUnsignedLong(PyTuple_GET_ITEM(item, 3)));
+        PyLong_AsUnsignedLong(PyTuple_GET_ITEM(item, 3));
     if (PyErr_Occurred()) {
       PyErr_Format(PyExc_TypeError,
                    "forth field in tuple of %ld. element in shared_objects "

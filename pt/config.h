@@ -14,9 +14,9 @@
 namespace hase::pt {
 typedef struct {
   const char *filename;
-  int offset;
-  int size;
-  int vaddr;
+  uint64_t offset;
+  uint64_t size;
+  uint64_t vaddr;
 } SharedObject;
 
 typedef struct {
