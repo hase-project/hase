@@ -1,10 +1,10 @@
 from __future__ import absolute_import, division, print_function
 
+import ctypes
 import gc
 import logging
 import os
 import signal
-import ctypes
 from bisect import bisect_right
 from collections import deque
 from typing import Any, Dict, List, Optional, Tuple
@@ -704,7 +704,7 @@ class Tracer(object):
                 self.constraints_index[c] = index
 
     def execute(self, state, previous_instruction, instruction, index):
-        # type: (SimState, Instruction, Instruction, int) -> SimState
+        # type: (SimState, Instruction, Instruction, int) -> Tuple[SimState, SimState]
         CNT_LIMIT = 200
         REP_LIMIT = 128
         cnt = 0

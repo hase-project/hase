@@ -60,7 +60,7 @@ class Memory(object):
 
 class State(object):
     def __init__(self, index, from_instruction, to_instruction, from_simstate, to_simstate):
-        # type: (int, Optional[Instruction], Instruction, SimState, SimState) -> None
+        # type: (int, Optional[Instruction], Instruction, Optional[SimState], SimState) -> None
         self.index = index
         self.from_instruction = from_instruction
         self.to_instruction = to_instruction
@@ -73,6 +73,7 @@ class State(object):
         # type: () -> SimState
         if self.is_to_simstate:
             return self.to_simstate
+        assert self.from_simstate is not None
         return self.from_simstate
 
     def eval(self, expression):

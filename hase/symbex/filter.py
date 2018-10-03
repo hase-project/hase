@@ -2,19 +2,17 @@ from __future__ import absolute_import, division, print_function
 
 from bisect import bisect
 from collections import defaultdict
+from typing import Any, Dict, List, Optional, Tuple
 
-from angr import Project
+from angr import Project, SimProcedure
 from angr.analyses.cfg import CFGFast
 from angr.knowledge_plugins.functions.function import Function
-from angr import SimProcedure
 from cle import ELF
 
-from typing import List, Optional, Dict, Any, Tuple
-
+from ..errors import HaseError
 from ..pt.events import Instruction
 from .hook import unsupported_symbols
 from .symbex.tracer import CoredumpGDB
-from ..errors import HaseError
 
 
 class FakeSymbol(object):
@@ -47,7 +45,6 @@ class FilterBase(object):
         self.hooked_symbol = hooked_symbol
         self.gdb = gdb
         self.new_trace = [] # type: List[Instruction]
-        self.gdb = gdb
         self.omitted_section = [] # type: List[List[int]]
         self.analyze_unsupported()
 
@@ -81,7 +78,7 @@ class FilterTrace(object):
     def __init__(self, project, cfg, trace, \
         hooked_symbol, gdb, omitted_section, \
         from_initial, static_link, backtrace):
-        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], Any, List[List[int]], bool, bool, List[Dict[str, Any]]) -> None
+        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], CoredumpGDB, List[List[int]], bool, bool, List[Dict[str, Any]]) -> None
         self.project = project
         self.main_cfg = cfg
         self.main_object = project.loader.main_object
@@ -98,6 +95,7 @@ class FilterTrace(object):
         self.gdb_backtrace = backtrace
 
         self.hooked_symname = self.hooked_symbol.keys()
+        assert self.main_cfg.kb is not None
         self.callgraph = self.main_cfg.kb.functions.callgraph
         # HACK: angr currently solve symbols by legacy name
         # Actually only solve strchr/strrchr to index/rindex
@@ -322,7 +320,7 @@ class FilterTrace(object):
 # Not test yet, must be slow
 class FilterCFG(object):
     def __init__(self, project, cfg, trace, hooked_symbol, gdb):
-        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], Any) -> None
+        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], CoredumpGDB) -> None
         self.project = project
         self.main_cfg = cfg.copy()
         self.main_object = project.loader.main_object
@@ -330,12 +328,12 @@ class FilterCFG(object):
         self.hooked_symbol = hooked_symbol
         self.new_trace = [] # type: List[Instruction]
         self.gdb = gdb
-        self.omitted_symbol = hooked_symbol
-        self.omitted_section = [] # type: List[Tuple[int, int]]
+        self.omitted_symbol = {}  # type: Dict[str, List[int]]
+        self.omitted_section = []  # type: List[Tuple[int, int]]
         # self.analyze_unsupported()
 
-        self.cfgs = {} # type: Dict[Any, CFGFast]
-        self.libc_object = None # type: Optional[ELF]
+        self.cfgs = {}  # type: Dict[Any, CFGFast]
+        self.libc_object = None  # type: Optional[ELF]
         for lib in self.project.loader.all_elf_objects:
             # FIXME: not a good way
             if lib.get_symbol('__libc_memalign'):
@@ -378,6 +376,7 @@ class FilterCFG(object):
 
     def get_func_range(self, lib, cfg, func):
         # type: (ELF, CFGFast, Function) -> List[int]
+        assert cfg.project is not None
         return [
             lib.offset_to_addr(func.addr - cfg.project.loader.min_addr),
             func.size
@@ -385,7 +384,7 @@ class FilterCFG(object):
 
     def find_function(self, symname):
         # type: (str) -> Tuple[ELF, CFGFast, Function]
-        if symname in self.libc_special_name.keys():
+        if symname in self.libc_special_name.keys() and self.libc_object is not None:
             self.collect_subfunc(
                 self.libc_object,
                 self.cfgs[self.libc_object],
