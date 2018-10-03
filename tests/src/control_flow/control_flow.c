@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <signal.h>
+#include <unistd.h>
 
 #define XXX __asm__("nop");
 
@@ -34,7 +35,7 @@ int main(int argc, char** argv) {
     XXX;
     XXX;
     XXX;
-    raise(SIGABRT);
+    kill(getpid(), SIGABRT);
     return 0;
 }
 

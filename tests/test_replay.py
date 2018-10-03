@@ -27,6 +27,5 @@ def test_loopy():
 def test_control_flow():
     state = main([
         "hase", "replay",
-        str(TEST_BIN.join("control_flow", "control_flow-20180515T180451.tar.gz"))
+        str(TEST_TRACES.join("control_flow-20181003T145029.tar.gz"))
     ])
-    # TODO test something
