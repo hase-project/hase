@@ -12,8 +12,8 @@ _start:
     movq r8, [rsp]
 again:
     cmp r8, 1
-    jz exit
-    ## if (argc) goto exit;
+    jle exit
+    ## if (argc <= 1) goto exit;
     
     movq rax, 1
     movq rdi, 1
@@ -24,8 +24,8 @@ again:
     
     dec r8
     cmp r8, 1
-    	jnz again
-    ## if (!argc) goto again;
+  	jg again
+    ## if (argc > 1) goto again;
 
 exit:
     movq rax, 39
