@@ -20,7 +20,9 @@ $ virtualenv venv
 $ . venv/bin/activate
 ```
 
-2. Install project into virtualenv
+2. Get the [Intel processor-trace decoder library](https://github.com/01org/processor-trace)
+
+3. Install project into virtualenv
 
 ```console
 $ pip install -e . --process-dependency-links
@@ -30,37 +32,32 @@ Note: you may need to upgrade your pip >= 9.0.1
 
 Additionally pyqt5 is required and cannot be installed via pip. 
 
-3. Install test dependencies
+4. Install test dependencies
 
 ```console
-$ pip install -e '.[test]'
+$ pip install -e '.[test]' --process-dependency-links
 ```
-
-4. Patch the perf-script-sample-addr
-
-```console
-git clone https://github.com/torvalds/linux
-cd ./linux/tools/perf
-cp path-to-your-hase-folder/perf-script-sample-addr.patch .
-patch -p3 < perf-script-sample-addr.patch
-make
-sudo cp perf /usr/bin
-```
-
-Note: some new parse rules are applied recent days, so if you have intel_pt//u parse error, check this patch https://lkml.org/lkml/2018/5/7/94 and solve by git checkout an-eariler-commit-id
-
 
 5. Testing examples
 
+The integration test needs root.
 
 ```console
+make -C tests
 sudo nosetests -w tests/test_record.py
+```
+
+The other tests work without root:
+Note that the test traces are stored via [git-lfs](https://git-lfs.github.com/)
+
+```console
+nosetests -w tests/test_replay.py
 ```
 
 # Record crashes
 
 ```console
-$ sudo ./bin/hase record
+$ sudo ./bin/hase record <some crash program> <args>
 ```
 
 Example crash
