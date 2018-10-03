@@ -12,7 +12,7 @@ from cle import ELF
 from ..errors import HaseError
 from ..pt.events import Instruction
 from .hook import unsupported_symbols
-from .symbex.tracer import CoredumpGDB
+from . import tracer
 
 
 class FakeSymbol(object):
@@ -37,7 +37,7 @@ class FakeSymbol(object):
 
 class FilterBase(object):
     def __init__(self, project, cfg, trace, hooked_symbol, gdb):
-        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], CoredumpGDB) -> None
+        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], tracer.CoredumpGDB) -> None
         self.project = project
         self.main_cfg = cfg
         self.main_object = project.loader.main_object
@@ -78,7 +78,7 @@ class FilterTrace(object):
     def __init__(self, project, cfg, trace, \
         hooked_symbol, gdb, omitted_section, \
         from_initial, static_link, backtrace):
-        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], CoredumpGDB, List[List[int]], bool, bool, List[Dict[str, Any]]) -> None
+        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], tracer.CoredumpGDB, List[List[int]], bool, bool, List[Dict[str, Any]]) -> None
         self.project = project
         self.main_cfg = cfg
         self.main_object = project.loader.main_object
@@ -320,7 +320,7 @@ class FilterTrace(object):
 # Not test yet, must be slow
 class FilterCFG(object):
     def __init__(self, project, cfg, trace, hooked_symbol, gdb):
-        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], CoredumpGDB) -> None
+        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], tracer.CoredumpGDB) -> None
         self.project = project
         self.main_cfg = cfg.copy()
         self.main_object = project.loader.main_object
