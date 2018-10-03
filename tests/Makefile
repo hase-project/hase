@@ -3,7 +3,7 @@ CFLAGS = -g # -fno-plt
 SRCS	= ./src
 BINS	= ./bin
 HASEBIN	= ../bin/hase
-C_TARGETS = control_flow long_trace null_deref core_constraint heap_location cpu_switch
+C_TARGETS = control_flow long_trace core_constraint heap_location cpu_switch
 
 all: $(C_TARGETS) loopy
 
