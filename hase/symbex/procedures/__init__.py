@@ -1,38 +1,17 @@
-import os
-import file_operation
-import memory_operation
-import group_operation
-import miscs
-import socket_operation
-import string_operation
-import time_operation
-import syscall
+from __future__ import absolute_import, division, print_function
 
 from collections import OrderedDict
-from typing import Dict
+from typing import Callable, List, Dict
 
 
 # TODO: make a general resymbolic wrapper for may-raise exception procedures
-
-
-__all__ = [
-    'file_operation',
-    'memory_operation',
-    'group_operation',
-    'miscs',
-    'socket_operation',
-    'string_operation',
-    'time_operation',
-    'syscall',
-]
-
 
 all_IO_hook = [
     'fclose', 'feof', 'fflush', 'fgetc',
     'fgets', 'fopen', 'fprintf', 'fputc',
     'fputs', 'fread', 'fseek', 'ftell',
     'fwrite', 'getchar', 'printf', 'putc',
-    'putchar', 'puts', 'scanf', 'sscanf', 
+    'putchar', 'puts', 'scanf', 'sscanf',
     'snprintf', 'sprintf', 'ungetc', 'vsnprintf',
     'close', 'fstat', 'lseek', 'open',
     'read', 'stat', 'unlink', 'write',
@@ -42,17 +21,19 @@ all_IO_hook = [
 
 
 def add_alias(dct, nlist, decr = lambda x: x):
+    # type: (OrderedDict[str,str], List[str], Callable[[str], str]) -> None
     for sym in nlist:
         decr_sym = decr(sym)
         dct[decr_sym] = sym
 
 
 def add_alias_s(dct, sym, *args):
+    # type: (OrderedDict[str,str], str, **str) -> None
     for decr_sym in args:
         dct[decr_sym] = sym
 
 
-alias_symbols = OrderedDict() # type: OrderedDict
+alias_symbols = OrderedDict()  # type: OrderedDict[str, str]
 
 
 unlocked_IO_symbols = [
@@ -91,7 +72,7 @@ posix64_IO_symbols = [
     'statfs', 'fstatfs',
     'readdir', 'opendir',
     'lseek', 'lstat',
-    'fgetpos', 'fsetpos', 
+    'fgetpos', 'fsetpos',
     'pread', 'pwrite', 'fxstatat',
     'telldir', 'seekdir', 'rewinddir', 'closedir'
 ]
@@ -122,7 +103,7 @@ add_alias(alias_symbols,
         'fwide', 'fwrite', 'fread', 'fclose', 'fdopen',
         'fflush', 'fgetpos', 'fgetpos64', 'fprintf'
         'fgets', 'fopen', 'fopen64', 'fputs', 'printf',
-        'fsetpos', 'fsetpos64', 'ftell', 'fwide', 
+        'fsetpos', 'fsetpos64', 'ftell', 'fwide',
         'seekoff', 'seekpos', 'setbuffer', 'setvbuf',
         'ungetc', 'vsprintf', 'vdprintf', 'vsscanf',
     ],
@@ -139,7 +120,7 @@ add_alias(alias_symbols, sse2_symbols, lambda s: '__' + s + '_sse2')
 
 add_alias_s(alias_symbols, 'strtol', '__strtol_internal')
 add_alias_s(alias_symbols, 'strncasecmp', '__strncasecmp_l_avx')
-add_alias_s(alias_symbols, 'abort', '__assert_fail', '__stack_chk_fail')
+# add_alias_s(alias_symbols, 'abort', '__assert_fail', '__stack_chk_fail')
 add_alias_s(alias_symbols, 'memcpy', 'memmove', 'bcopy', 'bmove')
 add_alias_s(alias_symbols, 'memcmp', 'bcmp')
 add_alias_s(alias_symbols, 'memset', 'bzero')
@@ -148,11 +129,12 @@ add_alias_s(alias_symbols, 'strrchr', 'rindex')
 add_alias_s(alias_symbols, 'exit', 'exit_group')
 add_alias_s(alias_symbols, 'getuid', 'geteuid')
 add_alias_s(alias_symbols, 'getgid', 'getegid')
+add_alias_s(alias_symbols, 'vfprintf', 'buffered_vfprintf')
 
 
 # TODO: add all sse2 symbols
-add_alias_s(alias_symbols, 
-    'memcpy', 
+add_alias_s(alias_symbols,
+    'memcpy',
     '__memcpy_sse2_unaligned'
 )
 

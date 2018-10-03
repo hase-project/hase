@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 from IPython.core.magic import (magics_class, line_magic, Magics)
+from IPython.core.interactiveshell import InteractiveShell
 from IPython import get_ipython
 from PyQt5 import QtWidgets
 from . import MainWindow
@@ -8,8 +9,7 @@ import sys
 import os
 import os.path
 import imp
-import json
-import subprocess
+import logging
 from types import ModuleType
 from shlex import split as shsplit
 
@@ -17,7 +17,10 @@ from .. import annotate
 from .. import gdb
 from ..replay import replay_trace
 from ..record import DEFAULT_LOG_DIR
-from ..path import Tempdir, Path
+from ..path import Path
+
+
+l = logging.getLogger("hase")
 
 
 class HaseFrontEndException(Exception):
@@ -64,6 +67,7 @@ def args(*param_names, **kwargs):
 @magics_class
 class HaseMagics(Magics):
     def __init__(self, shell):
+        # type (InteractiveShell) -> None
         if shell is not None:
             self.user_ns = shell.user_ns
         else:
@@ -85,11 +89,13 @@ class HaseMagics(Magics):
     @args("<source_code>", name="show")
     @line_magic("show")
     def show_source(self, query):
+        # type: (str) -> None
         self.window.set_location(query, 0)
 
     @args()
     @line_magic("refresh")
     def refresh(self, query):
+        # type: (str) -> None
         self.window.time_slider.setValue(0)
         self.window.clear_viewer()
         self.window.append_archive()
@@ -97,20 +103,22 @@ class HaseMagics(Magics):
     @args()
     @line_magic("reload_hase")
     def reload_hase(self, query):
+        # type: (str) -> None
         module_path = os.path.dirname(os.path.dirname(__file__))
         for name, m in sys.modules.items():
-            if isinstance(m, ModuleType) and hasattr(
-                    m, "__file__") and m.__file__.startswith(module_path):
-                print("reload %s" % name)
-                try:
-                    imp.reload(m)
-                except Exception as e:
-                    print("error while loading %s" % e)
+            if isinstance(m, ModuleType) and hasattr(m, "__file__"):
+                if m.__file__ is not None and m.__file__.startswith(module_path):
+                    print("reload %s" % name)
+                    try:
+                        imp.reload(m) # type: ignore
+                    except Exception as e:
+                        print("error while loading %s" % e)
         self.shell.extension_manager.reload_extension(__name__)
 
     @args("<report_archive>")
     @line_magic("load")
     def load(self, query):
+        # type: (str) -> None
         self.window.clear_cache()
         user_ns = self.shell.user_ns
         if not Path(query).exists():
@@ -122,21 +130,13 @@ class HaseMagics(Magics):
             executable = rep.executable
             states = rep.run()
             addr2line = annotate.Addr2line()
-            '''
-            for s in states.major_states:
-                if s.object() in rep.tracer.project.loader.all_elf_objects:
-                    # TODO: show addr, ip at same time?
-                    addr2line.add_addr(s.object(), s.address())
-            '''
             # NOTE: we calculate all trace instead of state
-            for s in rep.tracer.trace:
-                addrs = [s.addr, s.ip]
-                for addr in addrs:
-                    obj = rep.tracer.project.loader.find_object_containing(addr)
-                    if obj in rep.tracer.project.loader.all_elf_objects:
-                        addr2line.add_addr(obj, addr)
+            for instr in rep.tracer.trace:
+                obj = rep.tracer.project.loader.find_object_containing(instr.ip)
+                if obj in rep.tracer.project.loader.all_elf_objects:
+                    addr2line.add_addr(obj, instr.ip)
             addr_map = addr2line.compute()
-            
+
 
         self.active_state = states.major_states[-1]
 
@@ -159,10 +159,12 @@ class HaseMagics(Magics):
                 for i, p in addr_map.items():
                     if not Path(p[0]).exists():
                         if p[0] == origin_f and i != k:
-                            addr_map[i][0] = new_f
-                addr_map[k][0] = new_f
+                            addr_map[i] = (new_f, p[1])
+                addr_map[k] = (new_f, v[1])
 
+        l.warning('Caching tokens')
         self.window.cache_tokens(addr_map)
+        l.warning('Add states')
         self.window.add_states(user_ns["states"], user_ns["tracer"])
         self.window.enable_buttons()
         self.window.set_slider(user_ns["addr_map"], user_ns["states"])
@@ -173,6 +175,7 @@ class HaseMagics(Magics):
     @args(info="USAGE: info")
     @line_magic("info")
     def gdb_information(self, query):
+        # type: (str) -> None
         self.gdb_update('')
         user_ns = self.shell.user_ns
         addr_map = user_ns['addr_map']
@@ -182,11 +185,12 @@ class HaseMagics(Magics):
             user_ns['gdbs'].write_request('bt')
             self.window.set_variable()
         else:
-            print("Cannot retrieve variables on unresolvable source code")        
+            print("Cannot retrieve variables on unresolvable source code")
 
     @args(info="USAGE: init")
     @line_magic("init")
     def gdb_init(self, query):
+        # type: (str) -> None
         user_ns = self.shell.user_ns
         if 'gdbs' in user_ns.keys():
             user_ns['gdbs'].gdb.exit()
@@ -195,7 +199,7 @@ class HaseMagics(Magics):
         addr_map = user_ns['addr_map']
         executable = user_ns['executable']
         user_ns["gdbs"] = gdb.GdbServer(
-            states, executable, 
+            states, executable,
             user_ns["tracer"].cdanalyzer, active_state)
         user_ns["gdbs"].write_request("dir {}".format(
             ':'.join([os.path.dirname(str(p)) for p, _ in addr_map.values()])
@@ -210,12 +214,14 @@ class HaseMagics(Magics):
     @args(info="USAGE: update")
     @line_magic("update")
     def gdb_update(self, query):
+        # type: (str) -> None
         user_ns = self.shell.user_ns
         user_ns['gdbs'].active_state = user_ns['active_state']
         user_ns['gdbs'].update_active()
 
     @line_magic("p")
     def print_value(self, query):
+        # type: (str) -> int
         """
         open current breakpoint in editor.
         """
@@ -223,6 +229,7 @@ class HaseMagics(Magics):
 
     @line_magic("backtrace")
     def backtrace(self, query):
+        # type: (str) -> None
         """
         open current breakpoint in editor.
         """
@@ -231,6 +238,7 @@ class HaseMagics(Magics):
     @args(comp=op_restrict(1), info="USAGE: gdb ...")
     @line_magic("gdb")
     def gdb_angr(self, query):
+        # type: (str) -> None
         try:
             resp = self.shell.user_ns['gdbs'].write_request(query)
             for r in resp:
@@ -243,6 +251,7 @@ class HaseMagics(Magics):
     @args(comp=op_restrict(1), info="USAGE: gdb-core ...")
     @line_magic("gdb-core")
     def gdb_core(self, query):
+        # type: (str) -> None
         try:
             resp = self.shell.user_ns['tracer'].cdanalyzer.gdb.write_request(query)
             for r in resp:

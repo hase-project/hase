@@ -1,3 +1,5 @@
+from __future__ import absolute_import, division, print_function
+
 import claripy
 from angr.sim_type import SimTypeInt, SimTypeString, SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 from angr import SimProcedure
@@ -16,6 +18,6 @@ class __recvfrom_chk(SimProcedure):
         recvfrom = SIM_PROCEDURES['libc']['recvfrom']
         return self.inline_call(
             recvfrom, fd, buf,
-            len, flag, 
+            len, flag,
             from_addr, from_len
         ).ret_expr

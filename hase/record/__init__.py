@@ -3,22 +3,25 @@ from __future__ import absolute_import, division, print_function
 import shutil
 import json
 from tempfile import NamedTemporaryFile
-from threading import Thread
+from threading import Thread, Condition
 import subprocess
 import logging
 from Queue import Queue
 import os
-import argparse  # NOQA
+import argparse
 from types import FrameType
 from signal import SIGUSR2
-from typing import Optional, IO, Any, Tuple, List
+import errno
+import fcntl
+from typing import Optional, IO, Any, Tuple, List, Union, Dict
 
 from . import coredumps
-from ..path import Path, Tempdir
-from ..mapping import Mapping
+from ..path import Path, Tempdir, APP_ROOT
 from .signal_handler import SignalHandler
 from .. import pwn_wrapper
-from .perf_record import PerfData, PTSnapshot, IncreasePerfBuffer
+from ..errors import HaseError
+from ..perf import Perf, IncreasePerfBuffer, Trace
+from .ptrace import ptrace_detach, ptrace_me
 
 l = logging.getLogger(__name__)
 
@@ -27,87 +30,80 @@ DEFAULT_LOG_DIR = Path("/var/lib/hase")
 PROT_EXEC = 4
 
 
+def record_process(process, record_paths):
+    # type: (subprocess.Popen, RecordPaths) -> Optional[Tuple[coredumps.Coredump, Trace]]
+    handler = coredumps.Handler(
+        str(record_paths.coredump),
+        str(record_paths.fifo),
+        str(record_paths.manifest),
+        log_path=str(record_paths.log_path.join("coredump.log")))
+
+    # work around missing nonlocal keyword in python2 with a list
+    got_coredump = [False]
+
+    def received_coredump(signum, frame_type):
+        # type: (int, FrameType) -> None
+        got_coredump[0] = True
+
+    with IncreasePerfBuffer(100 * 1024), Perf(process.pid) as perf, \
+            handler as coredump, \
+            SignalHandler(SIGUSR2, received_coredump):
+        write_pid_file(record_paths.pid_file)
+
+        ptrace_detach(process.pid)
+        process.wait()
+
+        if not got_coredump[0]:
+            return None
+
+        record_paths.perf_directory.mkdir_p()
+        trace = perf.write(str(record_paths.perf_directory))
+
+        return (coredump, trace)
+
+
 def record(record_paths, command=None):
-    # type: (RecordPaths, Optional[List[str]]) -> Optional[Tuple[coredumps.Coredump, PerfData]]
+    # type: (RecordPaths, Optional[List[str]]) -> Optional[Tuple[coredumps.Coredump, Trace]]
 
-    snapshot = PTSnapshot(perf_file=str(record_paths.perf), command=command)
-    with snapshot:
-        handler = coredumps.Handler(
-            snapshot.perf_pid,
-            str(record_paths.coredump),
-            str(record_paths.fifo),
-            str(record_paths.manifest),
-            log_path=str(record_paths.log_path.join("coredump.log")))
+    if command is None:
+        raise HaseError(
+            "recording without command is not supported at the moment")
 
-        # work around missing nonlocal keyword in python2 with a list
-        got_coredump = [False]
+    proc = subprocess.Popen(command, preexec_fn=ptrace_me)
+    return record_process(proc, record_paths)
 
-        def received_coredump(signum, frame_type):
-            # Type (int FrameType) -> None
-            # Relying on receiving the SIGUSR2 in time is potentially buggy,
-            # since we sent the signal first to perf. This is however not very
-            # likely. In the worst case this will make us miss events.
-            got_coredump[0] = True
 
-        with handler as coredump, \
-                IncreasePerfBuffer(100 * 1024), \
-                SignalHandler(SIGUSR2, received_coredump):
-            if record_paths.pid_file is not None:
-                with open(record_paths.pid_file, "w") as f:
-                    f.write(str(os.getpid()))
-            c = coredump  # type: coredumps.Coredump
-            perf_data = snapshot.get()
-            if got_coredump[0]:
-                return (c, perf_data)
-            else:
-                return None
+def write_pid_file(pid_file):
+    # type: (Optional[str]) -> None
+    if pid_file is not None:
+        with open(pid_file, "w") as f:
+            f.write(str(os.getpid()))
+
+
+class ExitEvent(object):
+    pass
 
 
 class Job(object):
-    def __init__(
-            self,
-            coredump=None,  # type: Optional[coredumps.Coredump]
-            perf_data=None,  # type: Optional[PerfData]
-            record_paths=None,  # type: Optional[RecordPaths]
-            exit=False  # type: bool
-    ):
-        # type: (...) -> None
+    def __init__(self, coredump, trace, record_paths):
+        # type: (coredumps.Coredump, Trace, RecordPaths) -> None
         self.coredump = coredump
-        self._perf_data = perf_data
-        self._record_paths = record_paths
-        self.exit = exit
-
-    @property
-    def perf_data(self):
-        # type: () -> PerfData
-        assert self._perf_data is not None
-        return self._perf_data
-
-    @property
-    def record_paths(self):
-        # type: () -> RecordPaths
-        assert self._record_paths is not None
-        return self._record_paths
+        self.trace = trace
+        self.record_paths = record_paths
 
     def core_file(self):
         # type: () -> str
-        assert self.coredump is not None
         return self.coredump.get()
 
     def remove(self):
         # type: () -> None
         try:
-            if self.coredump:
-                l.info("remove coredump %s", self.coredump.fifo_path)
-                self.coredump.remove()
+            self.coredump.remove()
         except OSError:
             pass
 
-        try:
-            if self.perf_data:
-                self.perf_data.remove()
-        except OSError:
-            pass
+        shutil.rmtree(
+            str(self.record_paths.perf_directory), ignore_errors=True)
 
 
 class RecordPaths(object):
@@ -118,35 +114,46 @@ class RecordPaths(object):
         self.pid_file = pid_file
         self.id = id
 
-    @property
-    def state_dir(self):
-        # type: () -> Path
-        return self.path
+        self.state_dir = self.path
+        self.perf_directory = self.path.join("traces-%d" % self.id)
+        self.coredump = self.path.join("core.%d" % self.id)
 
-    @property
-    def perf(self):
-        # type: () -> Path
-        return self.path.join("perf.data.%d" % self.id)
-
-    @property
-    def coredump(self):
-        # type: () -> Path
-        return self.path.join("core.%d" % self.id)
-
-    @property
-    def fifo(self):
-        # type: () -> Path
-        return self.path.join("fifo.%d" % self.id)
-
-    @property
-    def manifest(self):
-        # type: () -> Path
-        return self.path.join("manifest.json")
+        self.fifo = self.path.join("fifo.%d" % self.id)
+        self.manifest = self.path.join("manifest.json")
 
     def report_archive(self, executable, timestamp):
         # type: (str, str) -> Path
         return self.log_path.join("%s-%s.tar.gz" %
                                   (os.path.basename(executable), timestamp))
+
+
+def serialize_trace(trace, state_dir):
+    # type: (Trace, Path) -> Dict[str, Any]
+    cpus = []
+    for cpu in trace.cpus:
+        event_path = str(state_dir.relpath(cpu.event_path))
+        trace_path = str(state_dir.relpath(cpu.trace_path))
+
+        c = dict(
+            idx=cpu.idx,
+            event_path=event_path,
+            trace_path=trace_path,
+            start_time=cpu.start_time,
+            start_pid=cpu.start_pid,
+            start_tid=cpu.start_tid)
+        cpus.append(c)
+
+    return dict(
+        cpus=cpus,
+        time_mult=trace.time_mult,
+        time_shift=trace.time_shift,
+        time_zero=trace.time_zero,
+        sample_type=trace.sample_type,
+        cpu_family=trace.cpu_family,
+        cpu_model=trace.cpu_model,
+        cpu_stepping=trace.cpu_stepping,
+        cpuid_0x15_eax=trace.cpuid_0x15_eax,
+        cpuid_0x15_ebx=trace.cpuid_0x15_ebx)
 
 
 def store_report(job):
@@ -166,24 +173,14 @@ def store_report(job):
         append(manifest_path)
 
         manifest = json.load(open(manifest_path))
-        mappings = manifest["mappings"] = []
         binaries = manifest["binaries"] = []
 
         paths = set()
         for obj in pwn_wrapper.Coredump(str(core_file)).mappings:
-            path = obj.path
-            if (obj.flags & PROT_EXEC
-                ) and path.startswith("/") and os.path.exists(path):
-                paths.add(path)
-                path = os.path.join("binaries", path[1:])
-
-            mappings.append(
-                vars(
-                    Mapping(
-                        start=obj.start,
-                        stop=obj.stop,
-                        path=path,
-                        flags=obj.flags)))
+            if (obj.flags & PROT_EXEC) \
+                    and obj.path.startswith("/") \
+                    and os.path.exists(obj.path):
+                paths.add(obj.path)
 
         for path in paths:
             # FIXME check if elf, only create parent directory once
@@ -201,8 +198,13 @@ def store_report(job):
         coredump["file"] = str(state_dir.relpath(core_file))
         append(core_file)
 
-        manifest["perf_data"] = str(state_dir.relpath(job.perf_data.path))
-        append(job.perf_data.path)
+        trace = serialize_trace(job.trace, state_dir)
+
+        for cpu in trace["cpus"]:
+            append(str(state_dir.join(cpu["event_path"])))
+            append(str(state_dir.join(cpu["trace_path"])))
+
+        manifest["trace"] = trace
 
         with open(manifest_path, "w") as manifest_file:
             json.dump(manifest, manifest_file, indent=4)
@@ -231,8 +233,8 @@ def report_worker(queue):
     # type: (Queue) -> None
     l.info("start worker")
     while True:
-        job = queue.get()  # type: Job
-        if job.exit:
+        job = queue.get()  # type: Union[Job, ExitEvent]
+        if isinstance(job, ExitEvent):
             return
 
         try:
@@ -248,7 +250,7 @@ def report_worker(queue):
 def record_loop(record_path, log_path, pid_file=None, limit=0, command=None):
     # type: (Path, Path, Optional[str], int, Optional[List[str]]) -> None
 
-    job_queue = Queue()  # type: Queue
+    job_queue = Queue()  # type: Queue[Union[Job, ExitEvent]]
     post_process_thread = Thread(target=report_worker, args=(job_queue, ))
     post_process_thread.start()
 
@@ -260,10 +262,7 @@ def record_loop(record_path, log_path, pid_file=None, limit=0, command=None):
             record_paths = RecordPaths(record_path, i, log_path, pid_file)
             result = record(record_paths, command)
             if result is None:
-                # Perf exited without coredump:
-                # This either means we have started it with a command, which
-                # exited or perf failed to setup processor trace/process.
-                break
+                return
             (coredump, perf_data) = result
             job_queue.put(Job(coredump, perf_data, record_paths))
             if command is not None:
@@ -272,7 +271,7 @@ def record_loop(record_path, log_path, pid_file=None, limit=0, command=None):
     except KeyboardInterrupt:
         pass
     finally:
-        job_queue.put(Job(exit=True))
+        job_queue.put(ExitEvent())
         l.info("Wait for child")
         post_process_thread.join()
 

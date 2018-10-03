@@ -1,9 +1,5 @@
-language: python
-cache: pip
+language: nix
 install:
-  - pip install -e '.[test]' 
-  - bin/build-mypy-path 
-  - source ~/virtualenv/python3.6/bin/activate
-  - pip install mypy
+  - nix-shell --command "virtualenv venv && . ./venv/bin/activate && pip install -e '.[test]' && ./bin/build-mypy-path"
 script:
-  - mypy .
+  - nix run nixpkgs.python3Packages.mypy -c mypy .

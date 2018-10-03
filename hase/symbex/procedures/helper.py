@@ -1,5 +1,10 @@
+from __future__ import absolute_import, division, print_function
+
+from ... import errors
+
 # Need to resymbolize hooks
 
+import angr
 
 
 def test_concrete_value(proc, sym, value):
@@ -32,9 +37,8 @@ def minmax(proc, sym, upper=None):
         if upper:
             return max(min_v, min(max_v, upper))
         return max_v
-    except:
+    except angr.SimUnsatError:
         if upper:
             return upper
         else:
-            raise Exception("Cannot eval value")
-
+            raise errors.HaseError("Cannot eval value")

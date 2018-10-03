@@ -45,6 +45,7 @@ def process_coredump(os_args, core_file, manifest_file):
 
 
 def creat(path):
+    # type: (str) -> IO[Any]
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     return os.fdopen(os.open(path, flags), "w")
 

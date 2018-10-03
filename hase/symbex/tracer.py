@@ -1,31 +1,29 @@
 from __future__ import absolute_import, division, print_function
 
-import angr
+import gc
 import logging
 import os
-import sys
-import struct
+import signal
+import ctypes
+from bisect import bisect_right
+from collections import deque
+from typing import Any, Dict, List, Optional, Tuple
+
+import angr
 import archinfo
 import claripy
-import gc
-import signal
-from capstone import x86_const
+from angr import SimState
 from angr import sim_options as so
 from angr.state_plugins.sim_action import SimActionExit
-from angr.knowledge_plugins.functions.function import Function
-from angr import SimState, SimProcedure, PointerWrapper, SIM_PROCEDURES
-from typing import List, Any, Dict, Tuple, Optional
+from capstone import x86_const
 from pygdbmi.gdbcontroller import GdbController
-from collections import deque
-from memory_profiler import profile
 
-from ..perf import read_trace, Branch
-from ..pwn_wrapper import ELF, Coredump
-from ..mapping import Mapping
-
-from .state import State, StateManager
-from .hook import all_hookable_symbols, addr_symbols
+from ..errors import HaseError
+from ..pt.events import Instruction
+from ..pwn_wrapper import ELF, Coredump, Mapping
 from .filter import FilterTrace
+from .hook import addr_symbols, all_hookable_symbols
+from .state import State, StateManager
 
 l = logging.getLogger("hase")
 
@@ -47,8 +45,6 @@ def timeout(seconds=10):
             signal.alarm(seconds)
             try:
                 res = func(*args, **kwargs)
-            except:
-                raise
             finally:
                 signal.alarm(0)
             return res
@@ -56,13 +52,14 @@ def timeout(seconds=10):
     return wrapper
 
 
-class CoredumpGDB():        
+class CoredumpGDB(object):
     def __init__(self, elf, coredump):
+        # type: (ELF, Coredump) -> None
         self.coredump = coredump
         self.elf = elf
         self.corefile = self.coredump.file.name
         self.execfile = self.elf.file.name
-        # XXX: use --nx will let manually set debug-file-directory 
+        # XXX: use --nx will let manually set debug-file-directory
         # and unknown cause for not showing libc_start_main and argv
         # FIXME: get all response and retry if failed
         self.gdb = GdbController(gdb_args=['--quiet', '--interpreter=mi2'])
@@ -71,28 +68,29 @@ class CoredumpGDB():
         self.setup_gdb()
 
     def setup_gdb(self):
+        # type: () -> None
         self.write_request("file {}".format(self.execfile))
         self.write_request("core {}".format(self.corefile))
 
     def get_response(self):
-        resp = []
+        # type: () -> List[Dict[str, Any]]
+        resp = []  # type: List[Dict[str, Any]]
         while True:
             try:
                 resp += self.gdb.get_gdb_response()
-            except:
+            except Exception:
                 break
         return resp
-        
+
     def write_request(self, req, **kwargs):
-        timeout_sec = kwargs.pop('timeout_sec', 1)
-        kwargs['read_response'] = False
-        self.gdb.write(req, timeout_sec=timeout_sec, **kwargs)
+        # type: (str, **Any) -> List[Dict[str, Any]]
+        self.gdb.write(req, timeout_sec=1, read_response=False, **kwargs)
         resp = self.get_response()
         return resp
 
     def parse_frame(self, r):
         # type: (str) -> Dict[str, Any]
-        attrs = {} # Dict[str, Any]
+        attrs = {}  # type: Dict[str, Any]
         # NOTE: #n  addr in func (args=args[ <name>][@entry=v]) at source_code[:line]\n
         r = r.replace('\\n', '')
         attrs['index'] = r.partition(' ')[0][1:]
@@ -107,6 +105,7 @@ class CoredumpGDB():
 
         # NOTE: remove <xxx>
         def remove_comment(arg):
+            # type: (str) -> str
             if arg.find('<') != -1:
                 arg = arg.partition('<')[0]
                 arg = arg.replace(' ', '')
@@ -140,6 +139,7 @@ class CoredumpGDB():
         return attrs
 
     def parse_addr(self, r):
+        # type: (str) -> int
         # $n = (...) 0xaddr <name>
         l = r.split(' ')
         for blk in l:
@@ -148,6 +148,7 @@ class CoredumpGDB():
         return 0
 
     def parse_offset(self, r):
+        # type: (str) -> int
         # addr <+offset>:  inst
         l = r.split(' ')
         for blk in l:
@@ -157,6 +158,7 @@ class CoredumpGDB():
         return 0
 
     def backtrace(self):
+        # type: () -> List[Dict[str, Any]]
         resp = self.write_request("where")
         bt = []
         for r in resp:
@@ -172,6 +174,7 @@ class CoredumpGDB():
         return resp[1]['payload']
 
     def get_reg(self, reg_name):
+        # type: (str) -> int
         resp = self.write_request("info reg {}".format(reg_name))
         if len(resp) < 5 or not resp[2]['payload'].startswith('\\t'):
             return 0
@@ -194,9 +197,9 @@ class CoredumpGDB():
         return [addr, size + 1]
 
 
-class CoredumpAnalyzer():
+class CoredumpAnalyzer(object):
     def __init__(self, elf, coredump):
-        # type: (Coredump, int, int) -> None
+        # type: (ELF, Coredump) -> None
         self.coredump = coredump
         self.elf = elf
         self.gdb = CoredumpGDB(elf, coredump)
@@ -204,21 +207,21 @@ class CoredumpAnalyzer():
         self.argc = self.coredump.argc
         self.argv = [self.read_argv(i) for i in range(self.argc)]
         self.argv_addr = [self.read_argv_addr(i) for i in range(self.argc)]
-    
+
     def read_stack(self, addr, length=0x1):
-        # type: ignore
+        # type: (int, int) -> str
         # NOTE: a op b op c will invoke weird typing
         assert self.coredump.stack.start <= addr < self.coredump.stack.stop
         offset = addr - self.coredump.stack.start
         return self.coredump.stack.data[offset:offset+length]
 
     def read_argv(self, n):
-        # type: ignore
+        # type: (int) -> str
         assert 0 <= n < self.coredump.argc
         return self.coredump.string(self.coredump.argv[n])
 
     def read_argv_addr(self, n):
-        # type: ignore
+        # type: (int) -> str
         assert 0 <= n < self.coredump.argc
         return self.coredump.argv[n]
 
@@ -233,15 +236,16 @@ class CoredumpAnalyzer():
     @property
     def stack_start(self):
         return self.coredump.stack.start
-    
+
     @property
     def stack_stop(self):
         return self.coredump.stack.stop
-    
+
     def call_argv(self, name):
+        # type: (str) -> Optional[List[Optional[int]]]
         for bt in self.backtrace:
             if bt['func'] == name:
-                args = []
+                args = []  # type: List[Optional[int]]
                 for _, value, entry in bt['args']:
                     if entry:
                         args.append(int(entry, 16))
@@ -251,12 +255,14 @@ class CoredumpAnalyzer():
                         else:
                             args.append(None)
                 return args
-        raise Exception("Unknown function {} in backtrace".format(name))
+        return None
 
     def stack_base(self, name):
+        # type: (str) -> Tuple[Optional[int], Optional[int]]
         for bt in self.backtrace:
             if bt['func'] == name:
                 return self.gdb.get_stack_base(int(bt['index']))
+        return (None, None)
 
 
 def build_load_options(mappings):
@@ -264,8 +270,8 @@ def build_load_options(mappings):
     """
     Extract shared object memory mapping from coredump
     """
-    # FIXME: actually this library path different will cause 
-    # simulation path different? need re-record if original 
+    # FIXME: actually this library path different will cause
+    # simulation path different? need re-record if original
     # executable is recompiled
     main = mappings[0]
     lib_opts = {}  # type: dict
@@ -291,24 +297,18 @@ def build_load_options(mappings):
 class Tracer(object):
     def __init__(self,
                  executable,
-                 thread_id,
-                 trace_path,
-                 coredump,
-                 mappings,
-                 executable_root=None):
-        # type: (str, int, str, str, List[Mapping], Optional[str]) -> None
+                 trace,
+                 coredump):
+        # type: (str, List[Instruction], Coredump) -> None
         self.executable = executable
-        self.mappings = mappings
-        options = build_load_options(mappings)
+        options = build_load_options(coredump.mappings)
         self.project = angr.Project(executable, **options)
 
-        self.coredump = Coredump(coredump)
+        self.coredump = coredump
         self.debug_unsat = None  # type: Optional[SimState]
 
         command = os.path.basename(self.coredump.string(self.coredump.argv[0]))
 
-        trace = read_trace(
-            trace_path, thread_id, command, executable_root=executable_root)
         self.trace = trace
 
         if self.trace[-1].ip == 0:  # trace last ends in syscall
@@ -324,20 +324,8 @@ class Tracer(object):
         self.cdanalyzer = CoredumpAnalyzer(
             self.elf, self.coredump)
 
-        args = self.cdanalyzer.call_argv('main')
-        # NOTE: gdb sometimes take this wrong
-        args[0] = self.coredump.argc
-
-        rsp, rbp = self.cdanalyzer.stack_base('main')
-
-        if not rbp:
-            rbp = 0x7ffffffcf00
-        if not rsp:
-            rsp = 0x7ffffffcf00
-
         for (idx, event) in enumerate(self.trace):
-            if event.addr == start or event.addr == main or \
-                    event.ip == start or event.ip == main:
+            if event.ip == start or event.ip == main:
                 self.trace = trace[idx:]
 
         add_options = {
@@ -370,7 +358,7 @@ class Tracer(object):
             self.hooked_symbols = {}
             self.project._sim_procedures = {}
 
-        self.from_initial = True
+        self.from_initial = False
 
         self.filter = FilterTrace(
             self.project,
@@ -381,37 +369,53 @@ class Tracer(object):
             self.omitted_section,
             self.from_initial,
             self.elf.statically_linked,
+            self.cdanalyzer.backtrace,
         )
 
         self.old_trace = self.trace
-        self.trace = self.filter.filtered_trace()
+        self.trace, self.trace_idx, self.hook_target = self.filter.filtered_trace()
+        self.hook_plt_idx = self.hook_target.keys()
+        self.hook_plt_idx.sort()
 
-        if self.from_initial or self.filter.start_idx == 0 or self.filter.start_idx == -len(self.old_trace):
-            # workaround for main, should not be required in future
-            if self.trace[0].addr == 0 or self.trace[0].ip == main:
-                start_address = self.trace[0].ip
+        start_address = self.trace[0].ip
+
+        if self.filter.start_funcname == 'main':
+            args = self.cdanalyzer.call_argv('main')
+            if not args:
+                self.start_state = self.project.factory.blank_state(
+                    addr=start_address,
+                    add_options=add_options,
+                    remove_options=remove_simplications)
             else:
-                start_address = self.trace[0].addr
+                # NOTE: gdb sometimes take this wrong
+                args[0] = self.coredump.argc
+                self.start_state = self.project.factory.call_state(
+                    start_address,
+                    *args,
+                    add_options=add_options,
+                    remove_options=remove_simplications)
+            rsp, rbp = self.cdanalyzer.stack_base('main')
+            # TODO: or just stop?
+            if not rbp:
+                rbp = 0x7ffffffcf00
+            if not rsp:
+                rsp = 0x7ffffffcf00         
         else:
-            start_address = self.trace[0].addr
-
-        assert start_address != 0
-        
-        if self.from_initial or self.filter.start_idx == 0 or self.filter.start_idx == -len(self.old_trace):
-            self.start_state = self.project.factory.call_state(
-                start_address,
-                *args,
-                add_options=add_options,
-                remove_options=remove_simplications)
-                # from main entry, then push rbp, mov rbp, rsp, sub rsp, n
-            self.start_state.regs.rsp = rbp + 8
-        else:
+            rsp, rbp = self.cdanalyzer.stack_base(self.filter.start_funcname)
+            if not rbp:
+                rbp = 0x7ffffffcf00
+            if not rsp:
+                rsp = 0x7ffffffcf00
             self.start_state = self.project.factory.blank_state(
                 addr=start_address,
                 add_options=add_options,
                 remove_options=remove_simplications)
+
+        if self.filter.is_start_entry:
+            self.start_state.regs.rsp = rbp + 8
+        else:
             self.start_state.regs.rsp = rsp
-            self.start_state.regs.rbp = rbp
+            self.start_state.regs.rbp = rbp  
 
         self.setup_argv()
         self.simgr = self.project.factory.simgr(
@@ -420,13 +424,17 @@ class Tracer(object):
             hierarchy=False,
             save_unconstrained=True)
 
+        # self.setup_breakpoint()
+
         # For debugging
         # self.project.pt = self
+        self.constraints_index = {} # type: Dict[int, int]
 
     def setup_argv(self):
+        # type: () -> None
+        # argv follows argc
+        argv_addr = self.coredump.argc_address + ctypes.sizeof(ctypes.c_int)
         # TODO: if argv is modified by users, this won't help
-        args = self.cdanalyzer.call_argv('main')
-        argv_addr = args[1]
         for i in range(len(self.coredump.argv)):
             self.start_state.memory.store(
                 argv_addr + i * 8, 
@@ -440,6 +448,20 @@ class Tracer(object):
             )
 
     def setup_hook(self):
+        # type: () -> None
+        self.hooked_symbols.pop('abort', None)
+        self.hooked_symbols.pop('__assert_fail', None)
+        self.hooked_symbols.pop('__stack_chk_fail', None)
+        try:
+            abort_addr = self.project.loader.find_symbol('abort').rebased_addr
+            assert_addr = self.project.loader.find_symbol('__assert_fail').rebased_addr
+            stack_addr = self.project.loader.find_symbol('__stack_chk_fail').rebased_addr
+            self.project._sim_procedures.pop(abort_addr, None)
+            self.project._sim_procedures.pop(assert_addr, None)
+            self.project._sim_procedures.pop(stack_addr, None)
+        except:
+            pass
+
         for symname, func in self.hooked_symbols.items():
             self.project.hook_symbol(
                 symname, func()
@@ -454,7 +476,24 @@ class Tracer(object):
                     )
                     self.omitted_section.append(r)
 
+    def setup_breakpoint(self):
+        self.start_state.inspect.b('mem_write', when=angr.BP_AFTER, action=Tracer.inspect_mem_write)
+
+    @staticmethod
+    def inspect_mem_write(state):
+        length = state.inspect.mem_write_length
+        if not state.se.symbolic(length) and \
+            state.se.eval(length) > 0x1000:
+            l.warning(
+                hex(state.addr) + \
+                ': write ' + \
+                str(state.inspect.mem_write_expr) + \
+                'with length ' + \
+                str(state.inspect.mem_write_length))
+            raw_input()
+
     def test_rep_ins(self, state):
+        # type: (SimState) -> bool
         # NOTE: rep -> sat or unsat
         capstone = state.block().capstone
         first_ins = capstone.insns[0].insn
@@ -462,7 +501,29 @@ class Tracer(object):
         ins_repr = first_ins.mnemonic
         return ins_repr.startswith('rep')
 
+    def repair_hook_return(self, state, index):
+        # given a force_jump, from hook -> last
+        # caller -> plt -> hook
+        if self.project.is_hooked(state.addr):
+            '''
+                it might be that call -> jmp -> real plt
+                or it could be add rsp 0x8, jmp -> directly ret
+                the only way seems to be sacrifice some execution 
+                or look back to old_trace
+            '''
+            old_branch_idx = self.trace_idx[index] - 1
+            # should be plt
+            plt_idx = bisect_right(self.hook_plt_idx, old_branch_idx) - 1
+            ret_addr = self.hook_target[self.hook_plt_idx[plt_idx]]
+            # like a ret
+            new_state = state.copy()
+            new_state.regs.rsp += 8
+            new_state.regs.ip = ret_addr
+            return True, new_state
+        return False, None
+
     def repair_exit_handler(self, state, step):
+        # type: (SimState, SimState) -> SimState
         artifacts = getattr(step, 'artifacts', None)
         if artifacts and 'procedure' in artifacts.keys() \
             and artifacts['name'] == 'exit':
@@ -476,6 +537,7 @@ class Tracer(object):
         return step
 
     def repair_alloca_ins(self, state):
+        # type: (SimState) -> None
         # NOTE: alloca problem, focus on sub rsp, rax
         # Typical usage: alloca(strlen(x))
         capstone = state.block().capstone
@@ -488,51 +550,76 @@ class Tracer(object):
                 if state.se.symbolic(reg_v):
                     setattr(state.regs, reg_name, state.libc.max_str_len)
 
-    def repair_jump_ins(self, state, branch):
+    def repair_jump_ins(self, state, previous_instruction, instruction):
+        # type: (SimState, Instruction, Instruction) -> Tuple[bool, str]
+        # ret: force_jump
         # NOTE: typical case: switch(getchar())
-        if state.addr != branch.addr:
-            return False
+        if previous_instruction.ip != state.addr:
+            return False, ''
         jump_ins = ['jmp', 'call'] # currently not deal with jcc regs
         capstone = state.block().capstone
         first_ins = capstone.insns[0].insn
         ins_repr = first_ins.mnemonic
-        for ins in jump_ins:
-            if ins_repr.startswith(ins) and first_ins.operands[0].type == 1:
-                reg_name = first_ins.op_str
-                reg_v = getattr(state.regs, reg_name)
-                if state.se.symbolic(reg_v) or state.se.eval(reg_v) != branch.ip:
-                    setattr(state.regs, reg_name, branch.ip)
-                    return False
-            # TODO: read jump table and repair register?
-            # NOTE: for jmp [base + index*scale + disp], directly use force_addr
-            if ins_repr.startswith(ins) and first_ins.operands[0].type == 3:
-                self.last_jump_table = state
-                mem = first_ins.operands[0].value.mem
-                target = mem.disp
-                if mem.index:
-                    reg_index_name = first_ins.reg_name(mem.index)
-                    reg_index = getattr(state.regs, reg_index_name)
-                    if state.se.symbolic(reg_index):
-                        return True
-                    else:
-                        target += state.se.eval(reg_index) * mem.scale
-                if mem.base:
-                    reg_base_name = first_ins.reg_name(mem.base)
-                    reg_base = getattr(state.regs, reg_base_name)
-                    if state.se.symbolic(reg_base):
-                        return True
-                    else:
-                        target += state.se.eval(reg_base)
-                ip_mem = state.memory.load(target, 8, endness='Iend_LE')
-                if not state.se.symbolic(ip_mem):
-                    jump_target = state.se.eval(ip_mem)
-                    if jump_target != branch.ip:
-                        return True
+
+        if ins_repr.startswith('ret'):
+            if not state.se.symbolic(state.regs.rsp):
+                mem = state.memory.load(state.regs.rsp, 8)
+                jump_target = 0
+                if not state.se.symbolic(mem):
+                    jump_target = state.se.eval(mem)
+                if jump_target != instruction.ip:
+                    return True, 'ret'
                 else:
-                    return True
-        return False
+                    return True, 'ok'
+            else:
+                return True, 'ret'
+
+        for ins in jump_ins:
+            if ins_repr.startswith(ins):
+                # call rax
+                if first_ins.operands[0].type == 1:
+                    reg_name = first_ins.op_str
+                    reg_v = getattr(state.regs, reg_name)
+                    if state.se.symbolic(reg_v) or state.se.eval(reg_v) != instruction.ip:
+                        setattr(state.regs, reg_name, instruction.ip)
+                        return True, ins
+
+                # jmp 0xaabb
+                if first_ins.operands[0].type == 2:
+                    return True, ins
+
+                # jmp [base + index*scale + disp]
+                if first_ins.operands[0].type == 3:
+                    self.last_jump_table = state
+                    mem = first_ins.operands[0].value.mem
+                    target = mem.disp
+                    if mem.index:
+                        reg_index_name = first_ins.reg_name(mem.index)
+                        reg_index = getattr(state.regs, reg_index_name)
+                        if state.se.symbolic(reg_index):
+                            return True, ins
+                        else:
+                            target += state.se.eval(reg_index) * mem.scale
+                    if mem.base:
+                        reg_base_name = first_ins.reg_name(mem.base)
+                        reg_base = getattr(state.regs, reg_base_name)
+                        if state.se.symbolic(reg_base):
+                            return True, ins
+                        else:
+                            target += state.se.eval(reg_base)
+                    ip_mem = state.memory.load(target, 8, endness='Iend_LE')
+                    if not state.se.symbolic(ip_mem):
+                        jump_target = state.se.eval(ip_mem)
+                        if jump_target != instruction.ip:
+                            return True, ins
+                        else:
+                            return True, 'ok'
+                    else:
+                        return True, ins
+        return False, 'ok'
 
     def repair_ip(self, state):
+        # type: (SimState) -> int
         try:
             addr = state.se.eval(state._ip)
             # NOTE: repair IFuncResolver
@@ -543,12 +630,13 @@ class Tracer(object):
                     libf = self.project.loader.find_symbol(funcname)
                     if libf:
                         addr = libf.rebased_addr
-        except:
+        except Exception:
             # NOTE: currently just try to repair ip for syscall
             addr = self.debug_state[-2].addr
         return addr
 
     def repair_func_resolver(self, state, step):
+        # type: (SimState, SimState) -> SimState
         artifacts = getattr(step, 'artifacts', None)
         if artifacts and 'procedure' in artifacts.keys() \
             and artifacts['name'] == 'IFuncResolver':
@@ -561,24 +649,29 @@ class Tracer(object):
                     force_addr=addr
                 )
             else:
-                raise Exception("Cannot resolve function")
+                raise HaseError("Cannot resolve function")
         return step
 
-    def last_match(self, choice, branch):
+    def last_match(self, choice, instruction):
+        # type: (SimState, Instruction) -> bool
         # if last trace is A -> A
-        if branch == self.trace[-1] and branch.addr == branch.ip:
-            if choice.addr == branch.addr and branch.addr == branch.ip:
+        if instruction == self.trace[-1] \
+                and len(self.trace) > 2 \
+                and self.trace[-1].ip == self.trace[-2].ip:
+            if choice.addr == instruction.ip:
                 l.debug("jump 0%x -> 0%x", choice.addr, choice.addr)
                 return True
         return False
 
-    def jump_match(self, old_state, choice, branch):
-        if old_state.addr == branch.addr and choice.addr == branch.ip:
+    def jump_match(self, old_state, choice, previous_instruction, instruction):
+        # type: (SimState, SimState, Instruction, Instruction) -> bool
+        if old_state.addr == previous_instruction.ip and choice.addr == instruction.ip:
             l.debug("jump 0%x -> 0%x", old_state.addr, choice.addr)
             return True
         return False
 
     def jump_was_not_taken(self, old_state, new_state):
+        # type: (SimState, SimState) -> bool
         # was the last control flow change an exit vs call/jump?
         ev = new_state.events[-1]
         instructions = old_state.block().capstone.insns
@@ -587,8 +680,31 @@ class Tracer(object):
         size = instructions[0].insn.size
         return (new_state.addr - size) == old_state.addr
 
-    def find_next_branch(self, state, branch):
-        # type: (SimState, Branch) -> SimState
+    def repair_satness(self, old_state, new_state):
+        if not new_state.solver.satisfiable(): # type: ignore
+            sat_constraints = old_state.solver._solver.constraints
+            '''
+            unsat_constraints = list(new_state.solver._solver.constraints)
+            sat_uuid = map(lambda c: c.uuid, sat_constraints)
+            for i, c in enumerate(unsat_constraints):
+                if c.uuid not in sat_uuid:
+                    unsat_constraints[i] = claripy.Not(c)
+            '''
+            new_state.solver._stored_solver = old_state.solver._solver.branch()
+            
+            if not self.debug_unsat: # type: ignore
+                self.debug_sat = old_state
+                self.debug_unsat = new_state
+
+    def record_constraints_index(self, old_state, new_state, index):
+        sat_uuid = map(lambda c: c.uuid, old_state.se.constraints)
+        unsat_constraints = list(new_state.se.constraints)
+        for c in unsat_constraints:
+            if c.uuid not in sat_uuid:
+                self.constraints_index[c] = index
+
+    def execute(self, state, previous_instruction, instruction, index):
+        # type: (SimState, Instruction, Instruction, int) -> SimState
         CNT_LIMIT = 200
         REP_LIMIT = 128
         cnt = 0
@@ -596,7 +712,8 @@ class Tracer(object):
         while cnt < CNT_LIMIT:
             cnt += 1
             self.debug_state.append(state)
-            force_jump = self.repair_jump_ins(state, branch)
+            force_ret, force_state = self.repair_hook_return(state, index)
+            force_jump, force_type = self.repair_jump_ins(state, previous_instruction, instruction)
             self.repair_alloca_ins(state)
             addr = self.repair_ip(state)
             is_interrupt = False
@@ -613,65 +730,94 @@ class Tracer(object):
             except KeyboardInterrupt:
                 # NOTE: should have a timeout fallback
                 insns = state.block().capstone.insns
-                if state.addr != branch.addr and len(insns) > 1:
+                if state.addr != previous_instruction.ip and len(insns) > 1:
                     is_interrupt = True
                     next_addr = insns[1].address
                     self.skip_addr[state.addr] = next_addr
                 else:
                     import traceback
                     traceback.print_exc()
-                    raise Exception("Manually stop")
+                    raise HaseError("Manually stop")
+            except Exception:
+                # if force_jump, we have a chance (sp symbolic error)
+                if not force_jump and not force_ret:
+                    raise HaseError("Unable to continue")
             if is_interrupt:
                 state._ip = next_addr
                 continue
-            step = self.repair_func_resolver(state, step)
-            step = self.repair_exit_handler(state, step)
+
             if force_jump:
+                # always boring. the rest call stack done by outselves to avoid exception
+                # will cause history to be unusable
+                # jumpkind = 'Ijk_Boring'
                 new_state = state.copy()
+                if force_type == 'call':
+                    new_state.regs.rsp -= 8
+                    ret_addr = state.addr + state.block().capstone.insns[0].size
+                    new_state.memory.store(new_state.regs.rsp, ret_addr, endness='Iend_LE')
+                elif force_type == 'ret':
+                    new_state.regs.rsp += 8
+                new_state.regs.ip = instruction.ip
+                all_choices = {
+                    'sat': [new_state],
+                    'unsat': [],
+                    'unconstrained': []
+                }
+                choices = [new_state]
+                '''
                 step.add_successor(
                     new_state,
-                    branch.ip,
+                    instruction.ip,
                     state.se.true,
-                    'Ijk_Boring'
+                    jumpkind
                 )
-            # l.debug("0x%x", state.addr)
-            all_choices = {
-                'sat': step.successors,
-                'unsat': step.unsat_successors,
-                'unconstrained': step.unconstrained_successors,
-            }
-            # lookup sequence: sat, unsat, unconstrained
-            choices = [] # type: List[Any]
-            choices += all_choices['sat']
-            choices += all_choices['unsat']
-            # choices += all_choices['unconstrained']
+                '''
+            elif force_ret:
+                all_choices = {
+                    'sat': [force_state],
+                    'unsat': [],
+                    'unconstrained': []
+                }
+                choices = [force_state]
+            else:
+                step = self.repair_func_resolver(state, step)
+                step = self.repair_exit_handler(state, step)
+
+                all_choices = {
+                    'sat': step.successors,
+                    'unsat': step.unsat_successors,
+                    'unconstrained': step.unconstrained_successors,
+                }
+                # lookup sequence: sat, unsat, unconstrained
+                choices = []
+                choices += all_choices['sat']
+                choices += all_choices['unsat']
+                # choices += all_choices['unconstrained']
+
             old_state = state
             # TODO: add successors with no constraint if match branch.addr
             l.warning(
                 repr(cnt) + ' ' +
                 repr(state) + ' ' +
                 # repr(all_choices) + ' ' +
-                repr(branch) + '\n'
+                repr(instruction) + '\n'
             )
             if choices == []:
-                raise Exception("Unable to continue")
-            try:
-                if choices[0].addr == branch.addr:
-                    self.current_state = choices[0]
-            except:
-                pass
+                raise HaseError("Unable to continue")
+
             for choice in choices:
-                if self.last_match(choice, branch):
+                if self.last_match(choice, instruction):
                     return choice, choice
-                if old_state.addr == branch.addr:
-                    if self.jump_match(old_state, choice, branch):
+                if old_state.addr == previous_instruction.ip:
+                    if self.jump_match(old_state, choice, previous_instruction, instruction):
                         return old_state, choice
-            # NOTE: need to consider repz here, if repz repeats for less than N times, 
+            # NOTE: need to consider repz here, if repz repeats for less than N times,
             # then, it should still be on sat path
             if self.test_rep_ins(state):
                 rep_cnt += 1
                 if rep_cnt < REP_LIMIT and len(all_choices['sat']) == 1:
                     state = all_choices['sat'][0]
+                    self.record_constraints_index(old_state, choice, index)
                     continue
             else:
                 rep_cnt = 0
@@ -686,25 +832,16 @@ class Tracer(object):
                 elif len(choices) == 1:
                     state = choices[0]
                 else:
-                    raise Exception("Unable to continue")
-            if not state.solver.satisfiable(): # type: ignore
-                sat_constraints = old_state.solver._solver.constraints
-                unsat_constraints = list(state.solver._solver.constraints)
-                sat_uuid = map(lambda c: c.uuid, sat_constraints)
-                for i, c in enumerate(unsat_constraints):
-                    if c.uuid not in sat_uuid:
-                        unsat_constraints[i] = claripy.Not(c)
-                state.solver._solver._cached_satness = True
-                state.solver._solver.constraints = unsat_constraints
-                if not self.debug_unsat: # type: ignore
-                    self.debug_sat = old_state
-                    self.debug_unsat = state
+                    raise HaseError("Unable to continue")
+            self.repair_satness(old_state, state)
+            self.record_constraints_index(old_state, state, index)
             for c in choices:
-                if c != state:
+               if c != state:
                     c.downsize()
                     del c
-        print(choices, state, branch)
-        raise Exception("Unable to continue")
+
+        print(choices, state, instruction)
+        raise HaseError("Unable to continue")
 
     def valid_address(self, address):
         # type: (int) -> bool
@@ -716,6 +853,7 @@ class Tracer(object):
         # If same address, then give registers
         if state.registers['rip'].value == self.coredump.registers['rip']:
             # don't give rbp, rsp
+            assert state.registers['rsp'].value == self.coredump.registers['rsp']
             registers = [
                 "gs", "rip", "rdx", "r15", "rax", "rsi", "rcx", "r14", "fs", "r12",
                 "r13", "r10", "r11", "rbx", "r8", "r9", "eflags", "rdi"
@@ -727,27 +865,27 @@ class Tracer(object):
         # type: () -> StateManager
         simstate = self.simgr.active[0]
         states = StateManager(self, len(self.trace))
-        states.add_major(State(0, self.trace[0], None, simstate))
-        self.debug_unsat = None # type: Optional[SimState]
-        self.debug_state = deque(maxlen=5) # type: deque
-        self.skip_addr = {} # type: Dict[int, int]
+        states.add_major(State(0, None, self.trace[0], None, simstate))
+        self.debug_unsat = None  # type: Optional[SimState]
+        self.debug_state = deque(maxlen=5)  # type: deque
+        self.skip_addr = {}  # type: Dict[int, int]
         cnt = 0
-        interval = max(1, len(self.trace) // 1500)
+        interval = max(1, len(self.trace) // 200)
         length = len(self.trace) - 1
-        
-        for event in self.trace[1:]:
+
+        for previous_idx, instruction in enumerate(self.trace[1:]):
+            previous_instruction = self.trace[previous_idx]
+
             cnt += 1
             if not cnt % 500:
                 l.warning('Do a garbage collection')
                 gc.collect()
-            l.debug("look for jump: 0x%x -> 0x%x" % (event.addr, event.ip))
-            assert self.valid_address(event.addr) and self.valid_address(
-                event.ip)
-            self.current_branch = event
-            old_simstate, new_simstate = self.find_next_branch(simstate, event)
+            l.debug("look for jump: 0x%x -> 0x%x" % (previous_instruction.ip, instruction.ip))
+            assert self.valid_address(previous_instruction.ip) and self.valid_address(instruction.ip)
+            old_simstate, new_simstate = self.execute(simstate, previous_instruction, instruction, cnt)
             simstate = new_simstate
-            if cnt % interval == 0 or length - cnt < 50:
-                states.add_major(State(cnt, event, old_simstate, new_simstate))
+            if cnt % interval == 0 or length - cnt < 15:
+                states.add_major(State(cnt, previous_instruction, instruction, old_simstate, new_simstate))
         self.constrain_registers(states.major_states[-1])
 
         return states

@@ -11,10 +11,13 @@ import termios
 import struct
 import xml.etree.ElementTree as ET
 from pygdbmi.gdbcontroller import GdbController
-from typing import Tuple, IO, Any, Optional
+from typing import Tuple, IO, Any, Optional, List, Dict, Union
+from cle import ELF
 
 from ..symbex.state import State, StateManager
+from ..symbex.tracer import CoredumpAnalyzer
 from ..path import APP_ROOT
+from ..errors import HaseError
 
 logging.basicConfig()
 l = logging.getLogger(__name__)
@@ -22,6 +25,7 @@ l = logging.getLogger(__name__)
 
 class GdbRegSpace(object):
     def __init__(self, active_state):
+        # type: (State) -> None
         # https://github.com/radare/radare2/blob/fe6372339da335bd08a8b568d95bb0bd29f24406/shlr/gdb/src/arch.c#L5
         self.names = [
             "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp", "r8", "r9",
@@ -41,14 +45,13 @@ class GdbRegSpace(object):
             elif reg.size == 64:
                 fmt = "<Q"
             else:
-                raise Exception("Unsupported bit width %d" % reg.size)
+                raise HaseError("Unsupported bit width %d" % reg.size)
             return struct.pack(fmt, reg.value).encode("hex")
-        except:
+        except Exception:
             return "xx" * 8
 
     def __setitem__(self, name, value):
         # type: (str, int) -> None
-        # TODO: affect simstate registers
         return
 
     def read_all(self):
@@ -60,13 +63,12 @@ class GdbRegSpace(object):
 
     def write_all(self, values):
         # type: (str) -> None
-        # TODO: affect simstate registers
-        # TODO: exception handling
         return
 
 
 class GdbMemSpace(object):
     def __init__(self, active_state, cda):
+        # type: (State, CoredumpAnalyzer) -> None
         self.active_state = active_state
         self.cda = cda
 
@@ -78,17 +80,17 @@ class GdbMemSpace(object):
             try:
                 value = ord(
                     self.active_state.simstate.project.loader.memory[addr])
-            except:
+            except Exception:
                 value = None
             if value is None:
                 # FIXME: weird, this works for rsp index accessing
                 sec = self.active_state.simstate.memory.load(addr, 0x1)
                 try:
                     value = self.active_state.eval(sec)
-                except:
+                except Exception:
                     value = None
         if value is None:
-            return "ff"
+            return "xx"
         return "%.2x" % value
 
     def __setitem__(self, addr, value):
@@ -109,17 +111,18 @@ class GdbMemSpace(object):
         return
 
 
-class GdbSharedLibrary():
+class GdbSharedLibrary(object):
     def __init__(self, active_state, pksize):
+        # type: (State, int) -> None
         self.active_state = active_state
-        self.libs = []
+        self.libs = []  # type: List[ELF]
         self.pksize = pksize
         self.tls_object = self.active_state.simstate.project.loader.tls_object
         loader = self.active_state.simstate.project.loader
         for lib in loader.shared_objects.values():
             if lib != loader.main_object:
                 self.libs.append(lib)
-        self.xml = None
+        self.xml = None  # type: Optional[str]
 
     def make_xml(self, update=False):
         # type: (Optional[bool]) -> str
@@ -142,7 +145,7 @@ class GdbSharedLibrary():
             h_lm = 0
             # h_addr = active_state.simstate.memory.load(h_lm + 8, 0x8)
             h_addr = 0
-            
+
             ET.SubElement(
                 root, 'library', {
                     'name': '/' + '/'.join(lib.binary.split('/')[4:]),
@@ -196,7 +199,7 @@ def compute_checksum(data):
 
 class GdbServer(object):
     def __init__(self, states, binary, cda, active_state=None):
-        # type: (StateManager, str, Any, Optional[State]) -> None
+        # type: (StateManager, str, CoredumpAnalyzer, Optional[State]) -> None
         # FIXME: this binary is original path
         master, ptsname = create_pty()
         self.master = master
@@ -231,12 +234,14 @@ class GdbServer(object):
         self.gdb.write('set stack-cache off', timeout_sec=100)
 
     def update_active(self):
+        # type: () -> None
         self.regs.active_state = self.active_state
         self.mem.active_state = self.active_state
         self.libs.active_state = self.active_state
         self.write_request('c')
 
     def read_variables(self):
+        # type: () -> List[Dict[str, Any]]
         py_file = APP_ROOT.join("gdb/gdb_get_locals.py")
         resp = self.write_request('python execfile (\"{}\")'.format(py_file))
         res = []
@@ -247,20 +252,25 @@ class GdbServer(object):
                 l = r['payload'].split(' ')
                 name = l[1]
                 tystr = l[2].replace('%', ' ')
-                idr = int(l[3]) - 1
+                idr = int(l[3])
                 addr_comment = l[4].strip().replace('\\n', '')
                 if '&' in addr_comment:
-                    ll = addr_comment.partition('&')
-                    addr = int(ll[0], 16)
-                    comment = ll[2]
+                    if idr == 1:
+                        ll = addr_comment.partition('&')
+                        addr = int(ll[0], 16)  # type: Union[unicode, int]
+                        comment = ll[2]
                 else:
-                    addr = int(addr_comment, 16)
-                    comment = ''
+                    if idr == 1:
+                        addr = int(addr_comment, 16)
+                        comment = ''
+                    else:
+                        addr = addr_comment
+                        comment = ''
                 size = int(l[5].strip().replace('\\n', ''))
                 res.append({
                     'name': name,
                     'type': tystr,
-                    'indirect': idr,
+                    'loc': idr,
                     'addr': addr,
                     'size': size,
                     'comment': comment,
@@ -274,21 +284,22 @@ class GdbServer(object):
         print(res)
 
     def write_request(self, req, **kwargs):
+        # type: (str, **Any) -> List[Dict[str, Any]]
         timeout_sec = kwargs.pop('timeout_sec', 10)
         kwargs['read_response'] = False
         self.gdb.write(req, timeout_sec=timeout_sec, **kwargs)
-        resp = []
+        resp = []  # type: List[Dict[str, Any]]
         while True:
             try:
                 resp += self.gdb.get_gdb_response()
-            except:
+            except Exception:
                 break
         return resp
 
     def run(self):
-        # () -> None
+        # type: () -> None
         l.info("start server gdb server")
-        buf = []
+        buf = ''
         while True:
             try:
                 data = os.read(self.master.fileno(), PAGESIZE)

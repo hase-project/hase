@@ -2,11 +2,11 @@ from __future__ import absolute_import, division, print_function
 
 import sys
 import os
-import tempfile
+from tempfile import NamedTemporaryFile
 import resource
 # TODO python3
 from pipes import quote
-from typing import Optional, IO, Any
+from typing import Optional, IO, Any, Tuple
 import logging
 
 from .coredump_handler import RECV_MESSAGE, EXTRA_CORE_DUMP_PARAMETER
@@ -61,30 +61,27 @@ class Coredump(object):
 
 class Handler(object):
     def __init__(self,
-                 perf_pid,
                  core_file,
                  fifo_path,
                  manifest_path,
                  log_path="/tmp/coredump.log"):
-        # type: (int, str, str, str, str) -> None
-        self.previous_pattern = None
-        self.old_core_rlimit = None
-        self.handler_script = None
+        # type: ( str, str, str, str) -> None
+        self.previous_pattern = None  # type: Optional[str]
+        self.old_core_rlimit = None  # type: Optional[Tuple[int, int]]
+        self.handler_script = None  # type: Optional[Any]
         self.core_file = core_file
         self.fifo_path = fifo_path
         self.manifest_path = manifest_path
         self.log_path = log_path
         os.mkfifo(fifo_path)
 
-        self.perf_pid = perf_pid
-
     def __enter__(self):
-        # () -> Coredump
+        # type: () -> Coredump
 
         kill_command = which("kill")
         assert kill_command is not None
 
-        self.handler_script = tempfile.NamedTemporaryFile(
+        self.handler_script = NamedTemporaryFile(
             prefix="core_handler", delete=False)
         os.chmod(self.handler_script.name, 0o755)
         assert len(self.handler_script.name) < 128
@@ -93,8 +90,7 @@ class Handler(object):
 exec 1>>{log_path}
 exec 2>&1
 
-{kill} -SIGUSR2 "{perf_pid}" "{hase_pid}"
-{kill} -SIGTERM "{perf_pid}"
+{kill} -SIGUSR2 "{pid}"
 
 export PYTHONPATH={pythonpath}
 
@@ -103,8 +99,7 @@ exec {python} -m hase.record.coredump_handler {fifo_path} {core_file} {manifest_
 
         script_content = script_template.format(
             kill=kill_command,
-            perf_pid=self.perf_pid,
-            hase_pid=os.getpid(),
+            pid=os.getpid(),
             python=quote(sys.executable),
             pythonpath=":".join(sys.path),
             fifo_path=quote(self.fifo_path),

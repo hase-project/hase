@@ -1,11 +1,12 @@
 from __future__ import absolute_import, division, print_function
+
 import bisect
 from angr import SimState
 from cle import ELF
-from typing import Dict, Tuple, Optional, List, Union, Any
+from typing import Dict, Tuple, Optional, List, Tuple, Any
 from claripy.ast.bv import BV
 
-from ..perf import Branch
+from ..pt.events import Instruction
 from ..annotate import Addr2line
 
 
@@ -58,16 +59,18 @@ class Memory(object):
 
 
 class State(object):
-    def __init__(self, index, branch, from_simstate, to_simstate):
-        # type: (int, Branch, SimState, SimState) -> None
+    def __init__(self, index, from_instruction, to_instruction, from_simstate, to_simstate):
+        # type: (int, Optional[Instruction], Instruction, SimState, SimState) -> None
         self.index = index
-        self.branch = branch
+        self.from_instruction = from_instruction
+        self.to_instruction = to_instruction
         self.from_simstate = from_simstate
         self.to_simstate = to_simstate
         self.is_to_simstate = True
 
     @property
     def simstate(self):
+        # type: () -> SimState
         if self.is_to_simstate:
             return self.to_simstate
         return self.from_simstate
@@ -77,11 +80,11 @@ class State(object):
         return self.simstate.solver.eval(expression)
 
     def __repr__(self):
-        # () -> str
-        if self.branch.addr == 0:
-            return "State(Start -> 0x%x)" % (self.branch.ip)
+        # type: () -> str
+        if self.from_instruction is None:
+            return "State(Start -> 0x%x)" % (self.to_instruction.ip)
         else:
-            return "State(0x%x -> 0x%x)" % (self.branch.addr, self.branch.ip)
+            return "State(0x%x -> 0x%x)" % (self.from_instruction.ip, self.to_instruction.ip)
 
     @property
     def registers(self):
@@ -103,7 +106,7 @@ class State(object):
         return self.simstate.addr
 
     def location(self):
-        # type: () -> List[Union[str, int]]
+        # type: () -> Tuple[str, int]
         """
         Binary of current state
         """
@@ -121,7 +124,7 @@ class StateManager(object):
         # Better have something like skip-table
         self.ordered_index = [] # type: List[int]
         self.major_index = [] # type: List[int]
-    
+
     def add(self, state):
         # type: (State) -> None
         self.index_to_state[state.index] = state
@@ -160,8 +163,9 @@ class StateManager(object):
             simstate = self.index_to_state[start_pos].simstate # type: ignore
             diff = index - start_pos
             for i in range(diff):
-                event = self.tracer.trace[start_pos + i + 1]
-                from_simstate, simstate = self.tracer.find_next_branch(simstate, event)
+                from_instruction = self.tracer.trace[start_pos + i]
+                to_instruction = self.tracer.trace[start_pos + i + 1]
+                from_simstate, simstate = self.tracer.execute(simstate, from_instruction, to_instruction, index)
                 if diff - i < 15:
-                    self.add(State(start_pos + i + 1, event, from_simstate, simstate))
+                    self.add(State(start_pos + i + 1, from_instruction, to_instruction, from_simstate, simstate))
         return self.index_to_state[index], is_new # type: ignore

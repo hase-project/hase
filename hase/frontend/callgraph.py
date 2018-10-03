@@ -1,5 +1,7 @@
+from __future__ import absolute_import, division, print_function
+
 from PyQt5.QtWidgets import (
-    QGraphicsItem, QGraphicsRectItem, 
+    QGraphicsItem, QGraphicsRectItem,
     QGraphicsTextItem, QGraphicsPathItem,
     QGraphicsLineItem,
     QGraphicsScene, QGraphicsView,
@@ -12,7 +14,9 @@ from PyQt5.QtGui import (
 from networkx import Graph, kamada_kawai_layout
 from math import hypot
 
-from typing import Tuple, Any, List, Union
+from typing import Tuple, Any, List, Union, Optional
+
+from ..errors import HaseError
 
 class StateEdgeArrow(QGraphicsLineItem):
     def __init__(self, line):
@@ -20,7 +24,7 @@ class StateEdgeArrow(QGraphicsLineItem):
         super(StateEdgeArrow, self).__init__(line)
         pen = QPen(QBrush(Qt.blue), 2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
         self.setPen(pen)
-    
+
     def update_pos(self, line):
         # type: (QLineF) -> None
         self.setLine(line)
@@ -86,7 +90,7 @@ class StateEdge(QGraphicsLineItem):
         # type: () -> QPointF
         line = self.line()
         return QPointF(
-            (line.x1() + line.x2()) / 2, 
+            (line.x1() + line.x2()) / 2,
             (line.y1() + line.y2()) / 2)
 
     def update_pos(self):
@@ -110,6 +114,7 @@ class StateEdge(QGraphicsLineItem):
 
 class StateNode(QGraphicsRectItem):
     def __init__(self, name, index, addr, rect, text, manager):
+        # type: (str, int, int, QRectF, str, CallGraphManager) -> None
         self.text = QGraphicsTextItem(text)
         self.text_width = self.text.boundingRect().width()
         if self.text_width > rect.width() - 6:
@@ -127,7 +132,7 @@ class StateNode(QGraphicsRectItem):
         self.setFlag(QGraphicsItem.ItemIsMovable)
         self.setFlag(QGraphicsItem.ItemIsSelectable)
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges)
-        self.edges = []
+        self.edges = []  # type: List[StateEdge]
         self.str_to_node = {
             'right': self.right_node,
             'top': self.top_node,
@@ -193,7 +198,7 @@ class StateNode(QGraphicsRectItem):
         # type: (Any, QPointF) -> None
         if change == QGraphicsItem.ItemPositionChange:
             self.set_text_edge(value.x(), value.y())
-        return QGraphicsRectItem.itemChange(self, change, value) 
+        return QGraphicsRectItem.itemChange(self, change, value)
 
     def __del__(self):
         # weird segfault
@@ -307,7 +312,7 @@ class CallGraphManager(object):
         addr_sym = tracer.filter.find_function(state.branch.addr)
         ip_sym = tracer.filter.find_function(state.branch.ip)
         if not addr_sym or not ip_sym:
-            raise Exception("Unable to find symbols for %x and %x", 
+            raise HaseError("Unable to find symbols for %x and %x",
                 state.branch.addr, state.branch.ip)
         addr_name = addr_sym.name
         ip_name = ip_sym.name
@@ -368,9 +373,10 @@ class CallGraphManager(object):
 
 class CallGraphView(QGraphicsView):
     def __init__(self, manager, window, parent=None):
+        # type: (CallGraphManager, Any, Optional[Any]) -> None
         super(CallGraphView, self).__init__(parent)
         manager.view = self
-        self.setScene(manager.create_scene(400 + len(manager.nodes) * 10))
+        self.setScene(manager.create_scene(400 + len(manager.nodes) * 20))
         self.setRenderHint(QPainter.Antialiasing)
         self.resize(1000, 1000)
         self.window = window

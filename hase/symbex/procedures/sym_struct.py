@@ -1,6 +1,9 @@
+from __future__ import absolute_import, division, print_function
+
 # pylint: disable=E1101
 from claripy import BVS
 from ctypes import * # noqa # pylint: disable=W0614
+from ...errors import HaseError
 
 
 def SPOINTER(cls):
@@ -10,7 +13,7 @@ def SPOINTER(cls):
 class SymbolicMeta(type):
     def __new__(cls, name, base, attrs):
         if '_fields_' not in attrs.keys():
-            raise Exception("Need _fields_")
+            raise HaseError("Need _fields_")
         fields = []
         for f in fields:
             if getattr(f[1], 'is_symstruct', False):
@@ -32,7 +35,7 @@ class SymbolicMeta(type):
 # disable pylint error
 class SymStruct(object):
     def __init__(self, buf):
-        self.buf = buf        
+        self.buf = buf
 
     def read(self, proc, sym):
         sym_list = sym.partition('.')
@@ -80,14 +83,14 @@ class SymStruct(object):
     def store_all(self, proc):
         for sym, _ in self.c_cls._fields_:
             self.store(proc, sym)
-    
+
 
 
 # https://code.woboq.org/userspace/glibc/sysdeps/unix/sysv/linux/bits/types/__sigset_t.h.html
 class sigset_t(SymStruct):
     __metaclass__ = SymbolicMeta
     _fields_ = [
-        ('__bits', c_ulong * (128 / sizeof(c_long)))
+        ('__bits', c_ulong * (128 // sizeof(c_long)))
     ]
 
 
@@ -187,7 +190,7 @@ class stat_t(SymStruct):
         ('st_ctimensec', c_ulong),
         ('glibc_reserved[3]', c_ulong * 3)
     ]
- 
+
 
 class statfs_t(SymStruct):
     __metaclass__ = SymbolicMeta
@@ -203,7 +206,7 @@ class statfs_t(SymStruct):
         ('f_namelen' ,c_long),
         ('f_frsize', c_long),
         ('f_flags', c_long),
-        ('f_spare[4]', c_long * 4)        
+        ('f_spare[4]', c_long * 4)
     ]
 
 

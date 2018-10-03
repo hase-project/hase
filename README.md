@@ -23,7 +23,7 @@ $ . venv/bin/activate
 2. Install project into virtualenv
 
 ```console
-$ pip install -e .
+$ pip install -e . --process-dependency-links
 ```
 
 Note: you may need to upgrade your pip >= 9.0.1
