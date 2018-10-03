@@ -12,7 +12,11 @@ from cle import ELF
 from ..errors import HaseError
 from ..pt.events import Instruction
 from .hook import unsupported_symbols
-from . import tracer
+
+try:
+    from . import tracer
+except ImportError: # make mypy happy
+    pass
 
 
 class FakeSymbol(object):
