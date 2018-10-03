@@ -311,9 +311,6 @@ class Tracer(object):
 
         self.trace = trace
 
-        if self.trace[-1].ip == 0:  # trace last ends in syscall
-            self.trace[-1].ip = self.coredump.registers["rip"]
-
         assert self.project.loader.main_object.os.startswith('UNIX')
 
         self.elf = ELF(executable)
