@@ -1,18 +1,21 @@
 from __future__ import absolute_import, division, print_function
 
 import subprocess
+from typing import Any, List, Dict
 from pygdbmi.gdbcontroller import GdbController
 from ..path import APP_ROOT
+from ..pt.events import Instruction
 
 DEFAULT_RR_PATH = APP_ROOT.join('/bin/rr')
 
 def rr_record(binary_path, *args):
+    # type: (str, *str) -> None
     proc = subprocess.Popen(
         [
-            DEFAULT_RR_PATH,
+            str(DEFAULT_RR_PATH),
             'replay',
             binary_path,
-        ] + args,
+        ] + list(args),
     )
     proc.wait()
     if proc.stdout:
@@ -22,6 +25,7 @@ def rr_record(binary_path, *args):
 
 class RRController(object):
     def __init__(self, binary_path, trace):
+        # type: (str, List[Instruction]) -> None
         self.binary_path = binary_path
         self.trace = trace
         self.rr = GdbController(
@@ -38,10 +42,11 @@ class RRController(object):
         print(res)
 
     def write_request(self, req, get_resp=True, **kwargs):
+        # type: (str, bool, *Any) -> List[Dict[str, Any]]
         timeout_sec = kwargs.pop('timeout_sec', 10)
         kwargs['read_response'] = False
         self.rr.write(req, timeout_sec=timeout_sec, **kwargs)
-        resp = []
+        resp = [] # List
         if get_resp:
             while True:
                 try:
@@ -51,6 +56,7 @@ class RRController(object):
         return resp
 
     def count_occurence(self, idx):
+        # type: (int) -> None
         """Count # of addr -> target in trace"""
         event = self.trace[idx]
         addr = event.addr
@@ -62,6 +68,7 @@ class RRController(object):
                 cnt += 1
 
     def run_until(self, idx):
+        # type: (int) -> None
         event = self.trace[idx]
         addr = event.addr
         n = self.count_occurence(idx)
