@@ -25,10 +25,10 @@ $ . venv/bin/activate
 3. Install project into virtualenv
 
 ```console
-$ pip install -e . --process-dependency-links
+$ pip install -e .
 ```
 
-Note: you may need to upgrade your pip >= 9.0.1
+Note: you may need to upgrade your pip >= 18.1
 
 Additionally pyqt5 is required and cannot be installed via pip. 
 
