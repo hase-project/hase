@@ -1,4 +1,4 @@
-CC 		= musl-gcc
+CC 		= gcc
 CFLAGS = -g # -fno-plt
 SRCS	= ./src
 BINS	= ./bin

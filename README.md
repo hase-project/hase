@@ -13,7 +13,7 @@ to recover states prior to the crash.
 
 # INSTALL
 
-1. Setup virtualenv
+1. Setup virtualenv with python3.6
 
 ```console
 $ virtualenv venv
@@ -25,10 +25,10 @@ $ . venv/bin/activate
 3. Install project into virtualenv
 
 ```console
-$ pip install -e . --process-dependency-links
+$ pip3 install -e .
 ```
 
-Note: you may need to upgrade your pip >= 9.0.1
+Note: you may need to upgrade your pip >= 18.1
 
 Additionally pyqt5 is required and cannot be installed via pip. 
 

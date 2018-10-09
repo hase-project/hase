@@ -52,10 +52,7 @@ class Memory(object):
         # type: (int) -> Optional[int]
         # good idea?
         byte = self.state.simstate.mem[addr].byte
-        try:
-            return self.state.eval(byte)
-        except Exception:
-            return None
+        return self.state.eval(byte)
 
 
 class State(object):

@@ -73,7 +73,7 @@ class SymStruct(object):
                 else:
                     ins.store(proc, sym_list[2], value_)
             else:
-                value = value_ if value_ else proc.state.se.Unconstrained(sym, member.size * 8, uninitialized=False)
+                value = value_ if value_ else proc.state.solver.Unconstrained(sym, member.size * 8, uninitialized=False)
                 proc.state.memory.store(
                     self.buf + member.offset,
                     value,

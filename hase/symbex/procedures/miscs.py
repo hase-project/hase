@@ -19,10 +19,10 @@ class setlocale(SimProcedure):
         max_str_len = self.state.libc.max_str_len
         malloc = SIM_PROCEDURES['libc']['malloc']
         str_addr = self.inline_call(malloc, max_str_len).ret_expr
-        return self.state.se.If(
-            self.state.se.BoolS("setlocale_flag"),
+        return self.state.solver.If(
+            self.state.solver.BoolS("setlocale_flag"),
             str_addr,
-            self.state.se.BVV(0, self.state.arch.bits)
+            self.state.solver.BVV(0, self.state.arch.bits)
         )
 
 
@@ -40,10 +40,10 @@ class getenv(SimProcedure):
         max_str_len = self.state.libc.max_str_len
         malloc = SIM_PROCEDURES['libc']['malloc']
         str_addr = self.inline_call(malloc, max_str_len).ret_expr
-        return self.state.se.If(
-            self.state.se.BoolS("getenv_flag"),
+        return self.state.solver.If(
+            self.state.solver.BoolS("getenv_flag"),
             str_addr,
-            self.state.se.BVV(0, self.state.arch.bits)
+            self.state.solver.BVV(0, self.state.arch.bits)
         )
 
 
@@ -51,15 +51,15 @@ class getenv(SimProcedure):
 # NOTE: angr sigaction does nothing now
 class sigaction(SimProcedure):
     def run(self, signum, act, oact):
-        return self.state.se.BVV(0, self.state.arch.bits)
+        return self.state.solver.BVV(0, self.state.arch.bits)
 
 
 # FIXME: do real things
 class atexit(SimProcedure):
     def run(self, func_ptr):
-        if not self.state.se.symbolic(func_ptr):
-            self.state.libc.exit_handler.append(self.state.se.eval(func_ptr))
-        return self.state.se.BVV(0, self.state.arch.bits)
+        if not self.state.solver.symbolic(func_ptr):
+            self.state.libc.exit_handler.append(self.state.solver.eval(func_ptr))
+        return self.state.solver.BVV(0, self.state.arch.bits)
 
 
 class exit(SimProcedure):
@@ -73,26 +73,26 @@ class exit(SimProcedure):
 
 class __cxa_atexit(SimProcedure):
     def run(self, func_ptr, arg, dso_handle):
-        return self.state.se.BVV(0, self.state.arch.bits)
+        return self.state.solver.BVV(0, self.state.arch.bits)
 
 
 class gethostid(SimProcedure):
     def run(self):
-        return self.state.se.Unconstrained('hostid', self.state.arch.bits, uninitialized=False)
+        return self.state.solver.Unconstrained('hostid', self.state.arch.bits, uninitialized=False)
 
 
 class sethostid(SimProcedure):
     def run(self, hostid):
         self.state.hostid = hostid
-        return self.state.se.BVV(0, 32)
+        return self.state.solver.BVV(0, 32)
 
 
 class gettext(SimProcedure):
     def run(self, msgid):
         malloc = SIM_PROCEDURES['libc']['malloc']
         str_addr = self.inline_call(malloc, self.state.libc.max_str_len).ret_expr
-        return self.state.se.If(
-            self.state.se.BoolS('gettext'),
+        return self.state.solver.If(
+            self.state.solver.BoolS('gettext'),
             str_addr,
             msgid
         )
@@ -111,4 +111,4 @@ class dcgettext(SimProcedure):
 # NOTE: this function is not recorded by ltrace? and cannot be resolved by angr
 class __sched_cpucount(SimProcedure):
     def run(self, setsize, setp):
-        return self.state.se.Unconstrained('__sched_cpucount', 32, uninitialized=False)
+        return self.state.solver.Unconstrained('__sched_cpucount', 32, uninitialized=False)

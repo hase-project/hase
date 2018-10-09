@@ -17,6 +17,8 @@ from math import hypot
 from typing import Tuple, Any, List, Union, Optional
 
 from ..errors import HaseError
+from ..symbex.state import State
+from ..symbex.tracer import Tracer
 
 class StateEdgeArrow(QGraphicsLineItem):
     def __init__(self, line):
@@ -293,7 +295,8 @@ class CallGraphManager(object):
         return edge
 
     def judge_ret(self, state):
-        # type: (Any) -> bool
+        # type: (State) -> bool
+        assert state.from_simstate is not None
         insn = state.from_simstate.block().capstone.insns[0]
         return insn.mnemonic == 'ret'
 
@@ -308,7 +311,7 @@ class CallGraphManager(object):
         return text
 
     def get_func_node(self, state, tracer):
-        # type: (Any, Any) -> Tuple[StateNode, StateNode]
+        # type: (State, Tracer) -> Tuple[StateNode, StateNode]
         addr_sym = tracer.filter.find_function(state.branch.addr)
         ip_sym = tracer.filter.find_function(state.branch.ip)
         if not addr_sym or not ip_sym:

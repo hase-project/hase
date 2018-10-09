@@ -193,7 +193,8 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         new_state, is_new = self.states[active_index]
         user_ns = self.kernel_client.kernel.shell.user_ns
         if is_new:
-            self.callgraph.add_node(new_state, user_ns['tracer'])
+            pass
+            #self.callgraph.add_node(new_state, user_ns['tracer'])
         major_index = self.states.major_index
         if active_index in major_index:
             slider_index = len(major_index) - major_index.index(active_index) - 1

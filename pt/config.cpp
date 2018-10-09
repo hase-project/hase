@@ -22,8 +22,8 @@ static const char *checkNullByte(const char *str, const Py_ssize_t size) {
 
 static std::optional<const char *> getFilename(PyObject *pyFilename) {
   const char *str = nullptr;
-  if (PyString_Check(pyFilename)) {
-    str = PyString_AsString(pyFilename);
+  if (PyBytes_Check(pyFilename)) {
+    str = PyBytes_AsString(pyFilename);
     if (!str) {
       return {};
     }

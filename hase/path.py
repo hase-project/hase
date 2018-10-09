@@ -59,7 +59,7 @@ class Path(object):
         return os.path.exists(self._path)
 
     def relpath(self, path):
-        # type: (AnyStr) -> Path
+        # type: (str) -> Path
         return Path(os.path.relpath(path, self._path))
 
     def dirname(self):

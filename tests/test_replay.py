@@ -12,7 +12,7 @@ from .helper import TEST_TRACES
 def test_loopy():
     state = main([
         "hase", "replay",
-        str(TEST_TRACES.join("loopy-20181003T123336.tar.gz"))
+        str(TEST_TRACES.join("loopy-20181009T182008.tar.gz"))
     ])
     last_state = state[-1]
     # We called loopy with 6 arguments:
