@@ -35,7 +35,7 @@ Additionally pyqt5 is required and cannot be installed via pip.
 4. Install test dependencies
 
 ```console
-$ pip install -e '.[test]' --process-dependency-links
+$ pip install -e '.[test]'
 ```
 
 5. Testing examples
