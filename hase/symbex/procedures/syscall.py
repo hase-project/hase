@@ -2,8 +2,8 @@ from __future__ import absolute_import, division, print_function
 
 import claripy
 from angr import SimProcedure
-from angr.procedures import SIM_PROCEDURES
 from angr.errors import SimProcedureError
+from angr.procedures import SIM_PROCEDURES
 from angr.storage.file import Flags
 
 from .helper import *

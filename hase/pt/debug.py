@@ -1,8 +1,10 @@
-import pandas as pd
 from collections import defaultdict
+from typing import Any, DefaultDict, List, Union
+
+import pandas as pd
+
 from .decode import Chunk, ScheduleEntry
 from .events import Instruction, TraceEvent
-from typing import DefaultDict, List, Any, Union
 
 
 def to_file(data, filename):

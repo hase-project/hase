@@ -1,13 +1,13 @@
 from __future__ import absolute_import, division, print_function
 
-import os
-import mmap
 import ctypes as ct
+import mmap
+import os
 from typing import Generator
 
+from ..mmap import MMap
 from .consts import perf_event_header
 from .snapshot import EVENTS
-from ..mmap import MMap
 
 
 def perf_events(trace_file):

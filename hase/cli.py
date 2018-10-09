@@ -3,7 +3,7 @@ from __future__ import absolute_import, division, print_function
 import argparse
 from typing import List
 
-from .record import record_command, DEFAULT_LOG_DIR
+from .record import DEFAULT_LOG_DIR, record_command
 
 
 def parse_arguments(argv):

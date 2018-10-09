@@ -1,10 +1,11 @@
 from __future__ import absolute_import, division, print_function
 
+import angr
+
 from ... import errors
 
 # Need to resymbolize hooks
 
-import angr
 
 
 def test_concrete_value(proc, sym, value):

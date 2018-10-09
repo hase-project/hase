@@ -1,16 +1,16 @@
 from __future__ import absolute_import, division, print_function
 
 import argparse
-import subprocess
 import json
 import shutil
+import subprocess
 import sys
-from typing import List, Any, Dict
-from .pwn_wrapper import Coredump, Mapping
+from typing import Any, Dict, List
 
-from .symbex.tracer import Tracer, State, StateManager
-from .path import Tempdir, Path
 from . import pt
+from .path import Path, Tempdir
+from .pwn_wrapper import Coredump, Mapping
+from .symbex.tracer import State, StateManager, Tracer
 
 
 def decode_trace(manifest, mappings, vdso_x64, executable_root):

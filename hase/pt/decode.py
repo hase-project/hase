@@ -1,26 +1,20 @@
 from __future__ import absolute_import, division, print_function
 
+import bisect
 import ctypes as ct
 import os
+import shutil
 from io import BytesIO
 from tempfile import NamedTemporaryFile
-from typing import List, Union, Any, Optional, DefaultDict
-import shutil
-import bisect
+from typing import Any, DefaultDict, List, Optional, Union
 
-from ..pwn_wrapper import Mapping
 from .. import _pt  # type: ignore
 from ..path import Path
-from .events import (
-    Instruction,
-    InstructionClass,
-    TraceEvent,
-    EnableEvent,
-    DisableEvent,
-    AsyncDisableEvent,
-)
-from ..perf.reader import perf_events
 from ..perf.consts import PerfRecord
+from ..perf.reader import perf_events
+from ..pwn_wrapper import Mapping
+from .events import (AsyncDisableEvent, DisableEvent, EnableEvent, Instruction,
+                     InstructionClass, TraceEvent)
 
 
 class ScheduleEntry(object):

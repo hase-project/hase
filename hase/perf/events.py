@@ -1,7 +1,8 @@
 from __future__ import absolute_import, division, print_function
 
 import ctypes as ct
-from .consts import perf_event_header, PerfRecord, RecordMisc, Libc
+
+from .consts import Libc, PerfRecord, RecordMisc, perf_event_header
 from .snapshot import EVENTS
 
 

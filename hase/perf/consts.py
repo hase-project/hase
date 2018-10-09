@@ -2,8 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import ctypes as ct
 import resource
-
-from typing import List, Tuple, Any, Type
+from typing import Any, List, Tuple, Type
 
 
 class Libc(object):

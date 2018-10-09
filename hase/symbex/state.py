@@ -1,13 +1,14 @@
 from __future__ import absolute_import, division, print_function
 
 import bisect
-from angr import SimState
-from cle import ELF
-from typing import Dict, Tuple, Optional, List, Tuple, Any
-from claripy.ast.bv import BV
+from typing import Any, Dict, List, Optional, Tuple
 
-from ..pt.events import Instruction
+from angr import SimState
+from claripy.ast.bv import BV
+from cle import ELF
+
 from ..annotate import Addr2line
+from ..pt.events import Instruction
 
 
 class Register(object):

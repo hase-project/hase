@@ -1,10 +1,10 @@
 from __future__ import absolute_import, division, print_function
 
+import errno
 import os
 import os.path
-import tempfile
-import errno
 import shutil
+import tempfile
 
 try:
     # make typing optional so we can use it in bin/update-vendor

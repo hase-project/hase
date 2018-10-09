@@ -1,16 +1,12 @@
 from __future__ import absolute_import, division, print_function
 
-from PyQt5.QtWidgets import (
-    QTableWidget,
-    QTableWidgetItem,
-    QAbstractScrollArea,
-    QAction,
-    QMenu,
-)
-from PyQt5.QtGui import QCursor, QContextMenuEvent
 from binascii import unhexlify
 from struct import unpack
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
+from PyQt5.QtGui import QContextMenuEvent, QCursor
+from PyQt5.QtWidgets import (QAbstractScrollArea, QAction, QMenu, QTableWidget,
+                             QTableWidgetItem)
 
 
 class RegTableWidget(QTableWidget):

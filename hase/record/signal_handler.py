@@ -1,5 +1,4 @@
 import signal
-
 from types import FrameType
 from typing import Callable, Union
 

@@ -1,17 +1,16 @@
 from __future__ import absolute_import, division, print_function
 
-import sys
+import logging
 import os
-from tempfile import NamedTemporaryFile
 import resource
-
+import sys
 # TODO python3
 from pipes import quote
-from typing import Optional, IO, Any, Tuple
-import logging
+from tempfile import NamedTemporaryFile
+from typing import IO, Any, Optional, Tuple
 
-from .coredump_handler import RECV_MESSAGE, EXTRA_CORE_DUMP_PARAMETER
 from ..path import which
+from .coredump_handler import EXTRA_CORE_DUMP_PARAMETER, RECV_MESSAGE
 
 l = logging.getLogger(__name__)
 

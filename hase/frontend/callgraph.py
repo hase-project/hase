@@ -1,22 +1,15 @@
 from __future__ import absolute_import, division, print_function
 
-from PyQt5.QtWidgets import (
-    QGraphicsItem,
-    QGraphicsRectItem,
-    QGraphicsTextItem,
-    QGraphicsPathItem,
-    QGraphicsLineItem,
-    QGraphicsScene,
-    QGraphicsView,
-)
-from PyQt5.QtCore import QPointF, QLineF, QRectF, Qt
-from PyQt5.QtGui import QPainter, QPainterPath, QPen, QBrush, QColor
+from math import hypot
+from typing import Any, List, Optional, Tuple, Union
 
 # NOTE: requires matplotlib, scipy
 from networkx import Graph, kamada_kawai_layout
-from math import hypot
-
-from typing import Tuple, Any, List, Union, Optional
+from PyQt5.QtCore import QLineF, QPointF, QRectF, Qt
+from PyQt5.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen
+from PyQt5.QtWidgets import (QGraphicsItem, QGraphicsLineItem,
+                             QGraphicsPathItem, QGraphicsRectItem,
+                             QGraphicsScene, QGraphicsTextItem, QGraphicsView)
 
 from ..errors import HaseError
 from ..symbex.state import State

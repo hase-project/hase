@@ -1,17 +1,11 @@
 from __future__ import absolute_import, division, print_function
 
 import claripy
-from angr.sim_type import (
-    SimTypeInt,
-    SimTypeString,
-    SimTypeFd,
-    SimTypeChar,
-    SimTypeArray,
-    SimTypeLength,
-)
 from angr import SimProcedure
-from angr.procedures import SIM_PROCEDURES
 from angr.errors import SimProcedureError
+from angr.procedures import SIM_PROCEDURES
+from angr.sim_type import (SimTypeArray, SimTypeChar, SimTypeFd, SimTypeInt,
+                           SimTypeLength, SimTypeString)
 
 
 class __recv_chk(SimProcedure):

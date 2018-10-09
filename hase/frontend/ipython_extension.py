@@ -1,24 +1,23 @@
 from __future__ import absolute_import, division, print_function
 
-from IPython.core.magic import magics_class, line_magic, Magics
-from IPython.core.interactiveshell import InteractiveShell
-from IPython import get_ipython
-from PyQt5 import QtWidgets
-from . import MainWindow
-import sys
-import os
-import os.path
 import imp
 import logging
-from types import ModuleType
+import os
+import os.path
+import sys
 from shlex import split as shsplit
+from types import ModuleType
 
-from .. import annotate
-from .. import gdb
-from ..replay import replay_trace
-from ..record import DEFAULT_LOG_DIR
+from IPython import get_ipython
+from IPython.core.interactiveshell import InteractiveShell
+from IPython.core.magic import Magics, line_magic, magics_class
+from PyQt5 import QtWidgets
+
+from . import MainWindow
+from .. import annotate, gdb
 from ..path import Path
-
+from ..record import DEFAULT_LOG_DIR
+from ..replay import replay_trace
 
 l = logging.getLogger("hase")
 

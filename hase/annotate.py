@@ -1,9 +1,10 @@
 from __future__ import absolute_import, division, print_function
 
-import subprocess
 import os.path
+import subprocess
 import sys
-from typing import Dict, Tuple, List, Optional, DefaultDict, Set
+from typing import DefaultDict, Dict, List, Optional, Set, Tuple
+
 from cle import ELF
 
 from .errors import HaseError

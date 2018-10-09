@@ -1,29 +1,18 @@
 from __future__ import absolute_import, division, print_function
 
 import ctypes as ct
-import mmap
 import fcntl
+import mmap
 import os
-from typing import List, Generator, Any, Optional, Iterator, Dict
+from typing import Any, Dict, Generator, Iterator, List, Optional
 
-from .cpuid import CPUID
 from ..mmap import MMap
-from .consts import (
-    Libc,
-    AttrFlags,
-    SampleFlags,
-    PerfRecord,
-    Ioctls,
-    EventStructs,
-    perf_event_header,
-    perf_event_attr,
-    perf_event_mmap_page,
-    PERF_FLAG_FD_CLOEXEC,
-    PERF_TYPE_SOFTWARE,
-    SYS_perf_event_open,
-    PERF_COUNT_SW_DUMMY,
-    CAP_USER_TIME_ZERO,
-)
+from .consts import (CAP_USER_TIME_ZERO, PERF_COUNT_SW_DUMMY,
+                     PERF_FLAG_FD_CLOEXEC, PERF_TYPE_SOFTWARE, AttrFlags,
+                     EventStructs, Ioctls, Libc, PerfRecord, SampleFlags,
+                     SYS_perf_event_open, perf_event_attr, perf_event_header,
+                     perf_event_mmap_page)
+from .cpuid import CPUID
 
 event_structs = EventStructs(SampleFlags.PERF_SAMPLE_MASK)
 

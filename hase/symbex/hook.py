@@ -1,21 +1,14 @@
 from __future__ import absolute_import, division, print_function
 
-from angr import SimProcedure
-from angr.procedures import SIM_PROCEDURES, SIM_LIBRARIES
-from .procedures import (
-    file_operation,
-    memory_operation,
-    group_operation,
-    miscs,
-    socket_operation,
-    string_operation,
-    time_operation,
-    syscall,
-    all_IO_hook,
-    alias_symbols,
-)
+from typing import Any, Dict, List, Tuple
 
-from typing import Dict, List, Any, Tuple
+from angr import SimProcedure
+from angr.procedures import SIM_LIBRARIES, SIM_PROCEDURES
+
+from .procedures import (alias_symbols, all_IO_hook, file_operation,
+                         group_operation, memory_operation, miscs,
+                         socket_operation, string_operation, syscall,
+                         time_operation)
 
 # TODO: How to deal with overload function hook?
 # TODO: wchar functions support?

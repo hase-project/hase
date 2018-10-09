@@ -7,11 +7,11 @@
 
 from __future__ import absolute_import, division, print_function
 
-import platform
-import os
 import ctypes
-from ctypes import c_uint32, c_int, c_size_t, c_void_p, POINTER, CFUNCTYPE
-from typing import Tuple, Iterator
+import os
+import platform
+from ctypes import CFUNCTYPE, POINTER, c_int, c_size_t, c_uint32, c_void_p
+from typing import Iterator, Tuple
 
 # Posix x86_64:
 # Three first call registers : RDI, RSI, RDX

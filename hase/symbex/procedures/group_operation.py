@@ -1,18 +1,12 @@
 from __future__ import absolute_import, division, print_function
 
 import claripy
-from angr.sim_type import (
-    SimTypeInt,
-    SimTypeString,
-    SimTypeFd,
-    SimTypeChar,
-    SimTypeArray,
-    SimTypeLength,
-)
 from angr import SimProcedure
 from angr.procedures import SIM_PROCEDURES
+from angr.sim_type import (SimTypeArray, SimTypeChar, SimTypeFd, SimTypeInt,
+                           SimTypeLength, SimTypeString)
 
-from .helper import minmax, errno_success, null_success, test_concrete_value
+from .helper import errno_success, minmax, null_success, test_concrete_value
 from .sym_struct import passwd, sizeof
 
 # TODO: getgrgid, getgrnam, getgrent, endgrent, setgrent,

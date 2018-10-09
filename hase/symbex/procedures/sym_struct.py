@@ -1,8 +1,10 @@
 from __future__ import absolute_import, division, print_function
 
+from ctypes import *  # noqa # pylint: disable=W0614
+
 # pylint: disable=E1101
 from claripy import BVS
-from ctypes import *  # noqa # pylint: disable=W0614
+
 from ...errors import HaseError
 
 
