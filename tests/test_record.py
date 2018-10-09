@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 from glob import glob
+from tempfile import TemporaryDirectory
 from multiprocessing import Process
 from time import sleep
 from typing import List
@@ -14,7 +15,6 @@ import nose
 from nose.plugins.skip import SkipTest
 
 from hase import main
-from hase.path import Tempdir
 
 from .helper import TEST_BIN
 
@@ -34,15 +34,15 @@ def test_record_command():
     """
     if os.geteuid() != 0:
         raise SkipTest("Requires root")
-    with Tempdir() as tempdir:
-        pid_file = str(tempdir.join("record.pid"))
+    with TemporaryDirectory() as tempdir:
+        pid_file = os.path.join(tempdir, "record.pid")
         # generate coredump
         loopy = str(TEST_BIN.join("loopy"))
         argv = [
             "hase",
             "record",
             "--log-dir",
-            str(tempdir),
+            tempdir,
             "--limit",
             "1",
             "--pid-file",
