@@ -1,27 +1,27 @@
 from __future__ import absolute_import, division, print_function
 
-import shutil
-import json
-from tempfile import NamedTemporaryFile
-from threading import Thread, Condition
-import subprocess
-import logging
-from queue import Queue
-import os
 import argparse
-from types import FrameType
-from signal import SIGUSR2
 import errno
 import fcntl
-from typing import Optional, IO, Any, Tuple, List, Union, Dict
+import json
+import logging
+import os
+import shutil
+import subprocess
+from queue import Queue
+from signal import SIGUSR2
+from tempfile import NamedTemporaryFile
+from threading import Condition, Thread
+from types import FrameType
+from typing import IO, Any, Dict, List, Optional, Tuple, Union
 
 from . import coredumps
-from ..path import Path, Tempdir, APP_ROOT
-from .signal_handler import SignalHandler
 from .. import pwn_wrapper
 from ..errors import HaseError
-from ..perf import Perf, IncreasePerfBuffer, Trace
+from ..path import APP_ROOT, Path, Tempdir
+from ..perf import IncreasePerfBuffer, Perf, Trace
 from .ptrace import ptrace_detach, ptrace_me
+from .signal_handler import SignalHandler
 
 l = logging.getLogger(__name__)
 
@@ -30,8 +30,11 @@ DEFAULT_LOG_DIR = Path("/var/lib/hase")
 PROT_EXEC = 4
 
 
-def record_process(process, record_paths):
-    # type: (subprocess.Popen, RecordPaths) -> Optional[Tuple[coredumps.Coredump, Trace]]
+def record_process(
+    process: subprocess.Popen,
+    record_paths: "RecordPaths",
+    timeout: Optional[int] = None
+) -> Optional[Tuple[coredumps.Coredump, Trace]]:
     handler = coredumps.Handler(
         str(record_paths.coredump),
         str(record_paths.fifo),
@@ -51,7 +54,7 @@ def record_process(process, record_paths):
         write_pid_file(record_paths.pid_file)
 
         ptrace_detach(process.pid)
-        process.wait()
+        process.wait(timeout)
 
         if not got_coredump[0]:
             return None
@@ -62,15 +65,19 @@ def record_process(process, record_paths):
         return (coredump, trace)
 
 
-def record(record_paths, command=None):
-    # type: (RecordPaths, Optional[List[str]]) -> Optional[Tuple[coredumps.Coredump, Trace]]
+def record(
+    record_paths: "RecordPaths",
+    command: Optional[List[str]] = None,
+    stdin: Optional[IO[Any]] = None,
+    timeout: Optional[int] = None
+) -> Optional[Tuple[coredumps.Coredump, Trace]]:
 
     if command is None:
         raise HaseError(
             "recording without command is not supported at the moment")
 
-    proc = subprocess.Popen(command, preexec_fn=ptrace_me)
-    return record_process(proc, record_paths)
+    proc = subprocess.Popen(command, preexec_fn=ptrace_me, stdin=stdin)
+    return record_process(proc, record_paths, timeout)
 
 
 def write_pid_file(pid_file):
@@ -247,10 +254,16 @@ def report_worker(queue):
             job.remove()
 
 
-def record_loop(record_path, log_path, pid_file=None, limit=0, command=None):
-    # type: (Path, Path, Optional[str], int, Optional[List[str]]) -> None
-
-    job_queue = Queue()  # type: Queue[Union[Job, ExitEvent]]
+def record_loop(
+   record_path: Path,
+   log_path: Path,
+   pid_file: Optional[str] = None,
+   limit: int = 0,
+   command: Optional[List[str]] = None,
+   stdin: Optional[IO[Any]] = None,
+   timeout: Optional[int] = None
+) -> None:
+    job_queue: Queue[Union[Job, ExitEvent]] = Queue()
     post_process_thread = Thread(target=report_worker, args=(job_queue, ))
     post_process_thread.start()
 
@@ -260,7 +273,7 @@ def record_loop(record_path, log_path, pid_file=None, limit=0, command=None):
             i += 1
             # TODO ratelimit
             record_paths = RecordPaths(record_path, i, log_path, pid_file)
-            result = record(record_paths, command)
+            result = record(record_paths, command, stdin=stdin, timeout=timeout)
             if result is None:
                 return
             (coredump, perf_data) = result
