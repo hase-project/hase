@@ -1,13 +1,11 @@
 import ctypes as ct
 
-libc = ct.CDLL('libc.so.6', use_errno=True)
+libc = ct.CDLL("libc.so.6", use_errno=True)
 
 MAP_FAILED = ct.c_void_p(-1)
 mmap = libc.mmap
 mmap.restype = ct.c_void_p
-mmap.argtypes = [
-    ct.c_void_p, ct.c_size_t, ct.c_int, ct.c_int, ct.c_int, ct.c_long
-]
+mmap.argtypes = [ct.c_void_p, ct.c_size_t, ct.c_int, ct.c_int, ct.c_int, ct.c_long]
 
 munmap = libc.munmap
 munmap.restype = ct.c_int

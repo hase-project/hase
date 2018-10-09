@@ -2,12 +2,11 @@ from __future__ import absolute_import, division, print_function
 
 import ctypes as ct
 import resource
-
-from typing import List, Tuple, Any, Type
+from typing import Any, List, Tuple, Type
 
 
 class Libc(object):
-    libc = ct.CDLL('libc.so.6', use_errno=True)
+    libc = ct.CDLL("libc.so.6", use_errno=True)
 
     MAP_FAILED = ct.c_void_p(-1)
     PAGESIZE = resource.getpagesize()
@@ -18,60 +17,61 @@ class Libc(object):
 
 class perf_event_header(ct.Structure):
     _fields_ = [
-        ('type', ct.c_uint),  #
-        ('misc', ct.c_ushort),  #
-        ('size', ct.c_ushort),  #
+        ("type", ct.c_uint),  #
+        ("misc", ct.c_ushort),  #
+        ("size", ct.c_ushort),  #
     ]
 
 
 class perf_event_attr(ct.Structure):
     _fields_ = [
-        ('type', ct.c_uint),  #
-        ('size', ct.c_uint),  #
-        ('config', ct.c_ulong),  #
-        ('sample_period', ct.c_ulong),  #
-        ('sample_type', ct.c_ulong),  #
-        ('read_format', ct.c_ulong),  #
-        ('flags', ct.c_ulong),  #
-        ('wakeup_events', ct.c_uint),  #
-        ('bp_type', ct.c_uint),  #
-        ('config1', ct.c_ulong),  #
-        ('config2', ct.c_ulong),  #
-        ('branch_sample_type', ct.c_ulong),  #
-        ('sample_regs_user', ct.c_ulong),  #
-        ('sample_stack_user', ct.c_uint),  #
-        ('clockid', ct.c_int),  #
-        ('sample_regs_intr', ct.c_ulong),  #
-        ('aux_watermark', ct.c_uint),  #
-        ('sample_max_stack', ct.c_ushort),  #
-        ('__reserved_2', ct.c_ushort)
+        ("type", ct.c_uint),  #
+        ("size", ct.c_uint),  #
+        ("config", ct.c_ulong),  #
+        ("sample_period", ct.c_ulong),  #
+        ("sample_type", ct.c_ulong),  #
+        ("read_format", ct.c_ulong),  #
+        ("flags", ct.c_ulong),  #
+        ("wakeup_events", ct.c_uint),  #
+        ("bp_type", ct.c_uint),  #
+        ("config1", ct.c_ulong),  #
+        ("config2", ct.c_ulong),  #
+        ("branch_sample_type", ct.c_ulong),  #
+        ("sample_regs_user", ct.c_ulong),  #
+        ("sample_stack_user", ct.c_uint),  #
+        ("clockid", ct.c_int),  #
+        ("sample_regs_intr", ct.c_ulong),  #
+        ("aux_watermark", ct.c_uint),  #
+        ("sample_max_stack", ct.c_ushort),  #
+        ("__reserved_2", ct.c_ushort),
     ]
+
 
 class perf_event_mmap_page(ct.Structure):
     _fields_ = [
-        ('version', ct.c_uint),  #
-        ('compat_version', ct.c_uint),  #
-        ('lock', ct.c_uint),  #
-        ('index', ct.c_uint),  #
-        ('offset', ct.c_long),  #
-        ('time_enabled', ct.c_ulong),  #
-        ('time_running', ct.c_ulong),  #
-        ('capabilities', ct.c_ulong),  #
-        ('pmc_width', ct.c_ushort),  #
-        ('time_shift', ct.c_ushort),  #
-        ('time_mult', ct.c_uint),  #
-        ('time_offset', ct.c_ulong),  #
-        ('time_zero', ct.c_ulong),  #
-        ('time_size', ct.c_uint),  #
-        ('reserved', ct.c_byte * (118 * 8 + 4)),  #
-        ('data_head', ct.c_ulong),  #
-        ('data_tail', ct.c_ulong),  #
-        ('data_offset', ct.c_ulong),  #
-        ('data_size', ct.c_ulong),  #
-        ('aux_head', ct.c_ulong),  #
-        ('aux_tail', ct.c_ulong),  #
-        ('aux_offset', ct.c_ulong),  #
-        ('aux_size', ct.c_ulong),  #
+        ("version", ct.c_uint),  #
+        ("compat_version", ct.c_uint),  #
+        ("lock", ct.c_uint),  #
+        ("index", ct.c_uint),  #
+        ("offset", ct.c_long),  #
+        ("time_enabled", ct.c_ulong),  #
+        ("time_running", ct.c_ulong),  #
+        ("capabilities", ct.c_ulong),  #
+        ("pmc_width", ct.c_ushort),  #
+        ("time_shift", ct.c_ushort),  #
+        ("time_mult", ct.c_uint),  #
+        ("time_offset", ct.c_ulong),  #
+        ("time_zero", ct.c_ulong),  #
+        ("time_size", ct.c_uint),  #
+        ("reserved", ct.c_byte * (118 * 8 + 4)),  #
+        ("data_head", ct.c_ulong),  #
+        ("data_tail", ct.c_ulong),  #
+        ("data_offset", ct.c_ulong),  #
+        ("data_size", ct.c_ulong),  #
+        ("aux_head", ct.c_ulong),  #
+        ("aux_tail", ct.c_ulong),  #
+        ("aux_offset", ct.c_ulong),  #
+        ("aux_size", ct.c_ulong),  #
     ]
 
 
@@ -112,27 +112,28 @@ def sample_id_struct(sample_flags):
     # type: (int) -> Type[Any]
     fields = []  # type: List[Tuple[str, Any]]
     if sample_flags & SampleFlags.PERF_SAMPLE_TID != 0:
-        fields.append(('pid', ct.c_uint))
-        fields.append(('tid', ct.c_uint))
+        fields.append(("pid", ct.c_uint))
+        fields.append(("tid", ct.c_uint))
 
     if sample_flags & SampleFlags.PERF_SAMPLE_TIME != 0:
-        fields.append(('time', ct.c_ulong))
+        fields.append(("time", ct.c_ulong))
 
     if sample_flags & SampleFlags.PERF_SAMPLE_ID != 0:
-        fields.append(('id', ct.c_ulong))
+        fields.append(("id", ct.c_ulong))
 
     if sample_flags & SampleFlags.PERF_SAMPLE_STREAM_ID != 0:
-        fields.append(('id', ct.c_ulong))
+        fields.append(("id", ct.c_ulong))
 
     if sample_flags & SampleFlags.PERF_SAMPLE_CPU != 0:
-        fields.append(('cpu', ct.c_uint))
-        fields.append(('res', ct.c_uint))
+        fields.append(("cpu", ct.c_uint))
+        fields.append(("res", ct.c_uint))
 
     if sample_flags & SampleFlags.PERF_SAMPLE_IDENTIFIER != 0:
-        fields.append(('id', ct.c_uint))
+        fields.append(("id", ct.c_uint))
 
     class sample_id(ct.Structure):
         _fields_ = fields
+
     return sample_id
 
 
@@ -157,6 +158,7 @@ def compute_string_size(fn):
             else:
                 memo[size] = fn(self, size - minimum_size)
         return memo[size]
+
     return wrapper
 
 
@@ -168,59 +170,67 @@ class EventStructs(object):
     def _event_header(self, event_fields):
         # type: (List[Tuple[str, Any]]) -> Type[ct.Structure]
         class event(ct.Structure):
-            _fields_ = perf_event_header._fields_ + event_fields + [
-                    ("sample_id", self.sample_id)
-            ]
+            _fields_ = (
+                perf_event_header._fields_
+                + event_fields
+                + [("sample_id", self.sample_id)]
+            )
+
         return event
 
     @compute_string_size
     def mmap_event(self, size):
         # type: (int) -> Type[ct.Structure]
-        return self._event_header([
-            ('pid', ct.c_uint),  #
-            ('tid', ct.c_uint),  #
-            ('addr', ct.c_ulong),  #
-            ('tid', ct.c_ulong),  #
-            ('pgoff', ct.c_ulong),  #
-            ('filename', ct.c_char * size),  #
-        ])
+        return self._event_header(
+            [
+                ("pid", ct.c_uint),  #
+                ("tid", ct.c_uint),  #
+                ("addr", ct.c_ulong),  #
+                ("tid", ct.c_ulong),  #
+                ("pgoff", ct.c_ulong),  #
+                ("filename", ct.c_char * size),  #
+            ]
+        )
 
     @compute_string_size
     def lost_event(self, _size):
         # type: (int) -> Type[ct.Structure]
-        return self._event_header([
-            ('id', ct.c_ulong),  #
-            ('lost', ct.c_ulong),  #
-        ])
+        return self._event_header([("id", ct.c_ulong), ("lost", ct.c_ulong)])  #  #
 
     @compute_string_size
     def comm_event(self, size):
         # type: (int) -> Type[ct.Structure]
-        return self._event_header([
-            ('pid', ct.c_uint),  #
-            ('tid', ct.c_uint),  #
-            ('comm', ct.c_char * size),  #
-        ])
+        return self._event_header(
+            [
+                ("pid", ct.c_uint),  #
+                ("tid", ct.c_uint),  #
+                ("comm", ct.c_char * size),  #
+            ]
+        )
 
     @compute_string_size
     def exit_event(self, _size):
         # type: (int) -> Type[ct.Structure]
-        return self._event_header([
-            ('pid', ct.c_uint),  #
-            ('ppid', ct.c_uint),  #
-            ('tid', ct.c_uint),  #
-            ('ptid', ct.c_uint),  #
-            ('time', ct.c_long),  #
-        ])
+        return self._event_header(
+            [
+                ("pid", ct.c_uint),  #
+                ("ppid", ct.c_uint),  #
+                ("tid", ct.c_uint),  #
+                ("ptid", ct.c_uint),  #
+                ("time", ct.c_long),  #
+            ]
+        )
 
     @compute_string_size
     def throttle_event(self, _size):
         # type: (int) -> Type[ct.Structure]
-        return self._event_header([
-            ('time', ct.c_ulong),  #
-            ('id', ct.c_ulong),  #
-            ('stream_id', ct.c_long),  #
-        ])
+        return self._event_header(
+            [
+                ("time", ct.c_ulong),  #
+                ("id", ct.c_ulong),  #
+                ("stream_id", ct.c_long),  #
+            ]
+        )
 
     unthrottle_event = throttle_event
 
@@ -229,63 +239,62 @@ class EventStructs(object):
     @compute_string_size
     def mmap2_event(self, size):
         # type: (int) -> Type[ct.Structure]
-        return self._event_header([
-            ('pid', ct.c_uint),  #
-            ('tid', ct.c_uint),  #
-            ('addr', ct.c_ulong),  #
-            ('len', ct.c_ulong),  #
-            ('pgoff', ct.c_ulong),  #
-            ('maj', ct.c_uint),  #
-            ('min', ct.c_uint),  #
-            ('ino', ct.c_ulong),  #
-            ('ino_generation', ct.c_ulong),  #
-            ('prot', ct.c_uint),  #
-            ('flags', ct.c_uint),  #
-            ('filename', ct.c_char * size),  #
-        ])
+        return self._event_header(
+            [
+                ("pid", ct.c_uint),  #
+                ("tid", ct.c_uint),  #
+                ("addr", ct.c_ulong),  #
+                ("len", ct.c_ulong),  #
+                ("pgoff", ct.c_ulong),  #
+                ("maj", ct.c_uint),  #
+                ("min", ct.c_uint),  #
+                ("ino", ct.c_ulong),  #
+                ("ino_generation", ct.c_ulong),  #
+                ("prot", ct.c_uint),  #
+                ("flags", ct.c_uint),  #
+                ("filename", ct.c_char * size),  #
+            ]
+        )
 
     @compute_string_size
     def aux_event(self, size):
         # type: (int) -> Type[ct.Structure]
-        return self._event_header([
-            ('aux_offset', ct.c_ulong),  #
-            ('aux_size', ct.c_ulong),  #
-            ('flags', ct.c_ulong),  #
-        ])
+        return self._event_header(
+            [
+                ("aux_offset", ct.c_ulong),  #
+                ("aux_size", ct.c_ulong),  #
+                ("flags", ct.c_ulong),  #
+            ]
+        )
 
     @compute_string_size
     def itrace_start_event(self, size):
         # type: (int) -> Type[ct.Structure]
-        return self._event_header([
-            ('pid', ct.c_uint),  #
-            ('tid', ct.c_uint),  #
-        ])
+        return self._event_header([("pid", ct.c_uint), ("tid", ct.c_uint)])  #  #
 
     @compute_string_size
     def lost_samples_event(self, size):
         # type: (int) -> Type[ct.Structure]
-        return self._event_header([
-            ('lost', ct.c_ulong),  #
-        ])
+        return self._event_header([("lost", ct.c_ulong)])  #
 
     @compute_string_size
     def record_switch_event(self, size):
         # type: (int) -> Type[ct.Structure]
-        base = self._event_header([]) # type: Any
+        base = self._event_header([])  # type: Any
 
         class RecordSwitch(base):
             def is_switch_out(self):
                 # otherwise switch in
                 return (self.misc & RecordMisc.PERF_RECORD_MISC_SWITCH_OUT) != 0
+
         return RecordSwitch
 
     @compute_string_size
     def record_switch_cpu_wide_event(self, size):
         # type: (int) -> Type[ct.Structure]
-        return self._event_header([
-            ('next_prev_pid', ct.c_uint),  #
-            ('next_prev_tid', ct.c_uint),  #
-        ])
+        return self._event_header(
+            [("next_prev_pid", ct.c_uint), ("next_prev_tid", ct.c_uint)]  #  #
+        )
 
 
 class SampleFlags:
@@ -310,15 +319,17 @@ class SampleFlags:
     PERF_SAMPLE_REGS_INTR = 1 << 18
     PERF_SAMPLE_PHYS_ADDR = 1 << 19
 
-    PERF_SAMPLE_MASK = PERF_SAMPLE_IP | \
-        PERF_SAMPLE_TID | \
-        PERF_SAMPLE_TIME | \
-        PERF_SAMPLE_ADDR | \
-        PERF_SAMPLE_ID | \
-        PERF_SAMPLE_STREAM_ID | \
-        PERF_SAMPLE_CPU | \
-        PERF_SAMPLE_PERIOD | \
-        PERF_SAMPLE_IDENTIFIER
+    PERF_SAMPLE_MASK = (
+        PERF_SAMPLE_IP
+        | PERF_SAMPLE_TID
+        | PERF_SAMPLE_TIME
+        | PERF_SAMPLE_ADDR
+        | PERF_SAMPLE_ID
+        | PERF_SAMPLE_STREAM_ID
+        | PERF_SAMPLE_CPU
+        | PERF_SAMPLE_PERIOD
+        | PERF_SAMPLE_IDENTIFIER
+    )
 
 
 class AttrFlags(object):
@@ -360,9 +371,10 @@ PERF_TYPE_SOFTWARE = 1
 PERF_COUNT_SW_DUMMY = 9
 CAP_USER_TIME_ZERO = 4
 
+
 class RecordMisc(object):
-    PERF_RECORD_MISC_CPUMODE_UNKNOWN =  0
-    PERF_RECORD_MISC_CPUMODE_MASK   = 7
+    PERF_RECORD_MISC_CPUMODE_UNKNOWN = 0
+    PERF_RECORD_MISC_CPUMODE_MASK = 7
     PERF_RECORD_MISC_KERNEL = 1
     PERF_RECORD_MISC_USER = 2
     PERF_RECORD_MISC_HYPERVISOR = 3

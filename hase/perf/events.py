@@ -1,12 +1,14 @@
 from __future__ import absolute_import, division, print_function
 
 import ctypes as ct
-from .consts import (perf_event_header, PerfRecord, RecordMisc, Libc)
+
+from .consts import Libc, PerfRecord, RecordMisc, perf_event_header
 from .snapshot import EVENTS
+
 
 def string_size(path):
     # type: (str) -> int
-    return ((len(path) + 1 + 7) & ~7)
+    return (len(path) + 1 + 7) & ~7
 
 
 def comm_event(tid, command):
@@ -60,7 +62,7 @@ def mmap2_event(tid, path, start, stop, page_offset):
     event.filename = path
     event.pgoff = page_offset
     event.len = stop - start
-    #event.misc = RecordMisc.PERF_RECORD_MISC_KERNEL
+    # event.misc = RecordMisc.PERF_RECORD_MISC_KERNEL
     # Unused by decoder library at the moment
     event.maj = 0
     event.min = 0

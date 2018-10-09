@@ -1,10 +1,10 @@
 from __future__ import absolute_import, division, print_function
 
+import errno
 import os
 import os.path
-import tempfile
-import errno
 import shutil
+import tempfile
 
 try:
     # make typing optional so we can use it in bin/update-vendor
@@ -100,15 +100,14 @@ class Path(object):
                     collected_root.append(root)
 
         def intersect_judge(root):
-            elems_f = filename.split('/')
-            elems_r = os.path.join(
-                root, os.path.basename(filename)).split('/')
+            elems_f = filename.split("/")
+            elems_r = os.path.join(root, os.path.basename(filename)).split("/")
             return len([v for v in elems_f if v in elems_r])
 
         if collected_root != []:
             return os.path.join(
-                        max(collected_root, key=intersect_judge),
-                        os.path.basename(b))
+                max(collected_root, key=intersect_judge), os.path.basename(b)
+            )
         return filename
 
     def __str__(self):

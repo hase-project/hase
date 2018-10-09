@@ -1,10 +1,11 @@
 from __future__ import absolute_import, division, print_function
 
-import sys
 import os
+import sys
 
-sys.path.append(os.environ['PERF_EXEC_PATH'] +
-                '/scripts/python/Perf-Trace-Util/lib/Perf/Trace')
+sys.path.append(
+    os.environ["PERF_EXEC_PATH"] + "/scripts/python/Perf-Trace-Util/lib/Perf/Trace"
+)
 expected_command = sys.argv[1]
 
 

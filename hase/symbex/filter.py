@@ -15,7 +15,7 @@ from .hook import unsupported_symbols
 
 try:
     from . import tracer
-except ImportError: # make mypy happy
+except ImportError:  # make mypy happy
     pass
 
 
@@ -48,22 +48,20 @@ class FilterBase(object):
         self.trace = trace
         self.hooked_symbol = hooked_symbol
         self.gdb = gdb
-        self.new_trace = [] # type: List[Instruction]
-        self.omitted_section = [] # type: List[List[int]]
+        self.new_trace = []  # type: List[Instruction]
+        self.omitted_section = []  # type: List[List[int]]
         self.analyze_unsupported()
 
     def analyze_unsupported(self):
         # type: () -> None
         for l in unsupported_symbols:
-            self.omitted_section.append(
-                self.gdb.get_func_range(l[0])
-            )
+            self.omitted_section.append(self.gdb.get_func_range(l[0]))
 
     def test_plt(self, addr):
         # type: (int) -> bool
         # NOTE: .plt or .plt.got
         section = self.project.loader.find_section_containing(addr)
-        return section.name.startswith('.plt')
+        return section.name.startswith(".plt")
 
     def test_ld(self, addr):
         # type: (int) -> bool
@@ -79,20 +77,29 @@ class FilterBase(object):
 
 
 class FilterTrace(object):
-    def __init__(self, project, cfg, trace, \
-        hooked_symbol, gdb, omitted_section, \
-        from_initial, static_link, backtrace):
+    def __init__(
+        self,
+        project,
+        cfg,
+        trace,
+        hooked_symbol,
+        gdb,
+        omitted_section,
+        from_initial,
+        static_link,
+        backtrace,
+    ):
         # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], tracer.CoredumpGDB, List[List[int]], bool, bool, List[Dict[str, Any]]) -> None
         self.project = project
         self.main_cfg = cfg
         self.main_object = project.loader.main_object
         self.trace = trace
         self.hooked_symbol = hooked_symbol
-        self.new_trace = [] # type: List[Instruction]
-        self.trace_idx = [] # type: List[int]
-        self.hook_target = {} # type: Dict[int, int]
+        self.new_trace = []  # type: List[Instruction]
+        self.trace_idx = []  # type: List[int]
+        self.hook_target = {}  # type: Dict[int, int]
         self.gdb = gdb
-        self.omitted_section = omitted_section # type: List[List[int]]
+        self.omitted_section = omitted_section  # type: List[List[int]]
         self.analyze_unsupported()
         self.from_initial = from_initial
         self.static_link = static_link
@@ -104,20 +111,20 @@ class FilterTrace(object):
         # HACK: angr currently solve symbols by legacy name
         # Actually only solve strchr/strrchr to index/rindex
         self.libc_legacy_map = {
-            'memcmp': 'bcmp',
-            'memmove': 'bmove',
-            'memset': 'bzero',
-            'strchr': 'index',
-            'strrchr': 'rindex',
+            "memcmp": "bcmp",
+            "memmove": "bmove",
+            "memset": "bzero",
+            "strchr": "index",
+            "strrchr": "rindex",
         }
 
         for name, sub in self.libc_legacy_map.items():
             if name in self.hooked_symname:
                 self.hooked_symname.append(sub)
 
-        self.syms = {} # type: Dict[Any, List[int]]
+        self.syms = {}  # type: Dict[Any, List[int]]
         # NOTE: just copy the dict, or it would be slow to access by lib property
-        self.syms_dict = {} # type: Dict[Any, Dict[int, Any]]
+        self.syms_dict = {}  # type: Dict[Any, Dict[int, Any]]
         for lib in self.project.loader.all_elf_objects:
             self.syms_dict[lib] = lib.symbols_by_addr.copy()
             self.syms[lib] = list(self.syms_dict[lib].keys())
@@ -139,7 +146,7 @@ class FilterTrace(object):
         # NOTE: .plt or .plt.got
         section = self.project.loader.find_section_containing(addr)
         if section:
-            return section.name.startswith('.plt')
+            return section.name.startswith(".plt")
         else:
             # NOTE: unrecognizable section, regard as vDSO
             return True
@@ -161,7 +168,7 @@ class FilterTrace(object):
         for lib in self.project.loader.all_elf_objects:
             if addr in lib.reverse_plt.keys():
                 return lib.reverse_plt[addr]
-        return ''
+        return ""
 
     def find_function(self, addr):
         # type: (int) -> Optional[Any]
@@ -184,7 +191,7 @@ class FilterTrace(object):
         if sym and sym.rebased_addr == addr:
             symname = sym.name
             return True, symname
-        return False, ''
+        return False, ""
 
     def analyze_start(self, least_reserve=2000, most_reserve=1500):
         # type: (int, int) -> Tuple[List[Instruction], int]
@@ -195,9 +202,9 @@ class FilterTrace(object):
         is_last_passed = {}
         all_backtrace_name = []
         for frame in self.gdb_backtrace:
-            all_backtrace_name.append(frame['func'])
-            last_occurence_idx[frame['func']] = -1
-            is_last_passed[frame['func']] = False
+            all_backtrace_name.append(frame["func"])
+            last_occurence_idx[frame["func"]] = -1
+            is_last_passed[frame["func"]] = False
 
         start_idx = -1
         self.is_main = False
@@ -213,17 +220,22 @@ class FilterTrace(object):
                 if not self.test_plt_vdso(instruction.ip):
                     func = self.find_function(instruction.ip)
                     if func:
-                        if func.name in all_backtrace_name and not is_last_passed[func.name]:
+                        if (
+                            func.name in all_backtrace_name
+                            and not is_last_passed[func.name]
+                        ):
                             last_occurence_idx[func.name] = idx + len(self.trace)
                             start_idx = idx
                     flg, symname = self.test_function_entry(instruction.ip)
                     if flg and symname in all_backtrace_name:
-                        is_last_passed[symname] = True                    
+                        is_last_passed[symname] = True
         if start_idx == -1:
             raise Exception("Unable to find suitable start instruction")
         self.start_idx = len(self.trace) + start_idx
         self.is_start_entry, _ = self.test_function_entry(self.trace[start_idx].ip)
-        self.start_funcname = self.find_function(self.trace[start_idx].ip).name # type: ignore
+        self.start_funcname = self.find_function(
+            self.trace[start_idx].ip
+        ).name  # type: ignore
         return self.trace[start_idx:], start_idx
 
     def analyze_trace(self):
@@ -236,7 +248,7 @@ class FilterTrace(object):
         is_current_hooked = False
         hook_idx = 0
         # FIXME: seems dso object not always this one
-        dso_sym = self.project.loader.find_symbol('_dl_find_dso_for_object')
+        dso_sym = self.project.loader.find_symbol("_dl_find_dso_for_object")
         plt_sym = None
         previous_instr = None
         for (idx, instruction) in enumerate(cut_trace):
@@ -244,10 +256,11 @@ class FilterTrace(object):
                 previous_instr = cut_trace[idx - 1]
 
             present = True
-            if previous_instr is not None and \
-                (self.test_plt_vdso(previous_instr.ip) or \
-                self.test_ld(previous_instr.ip) or \
-                self.test_omit(previous_instr.ip)):
+            if previous_instr is not None and (
+                self.test_plt_vdso(previous_instr.ip)
+                or self.test_ld(previous_instr.ip)
+                or self.test_omit(previous_instr.ip)
+            ):
                 present = False
             # NOTE: if already in hooked function, leaving to parent
             # FIXME: gcc optimization will lead to main->func1->(set rbp)func2->main
@@ -282,9 +295,12 @@ class FilterTrace(object):
                 # At least when we get back to main object, it should be unhooked
                 # NOTE: that doesn't work for static compiled object
                 if not self.static_link:
-                    if is_current_hooked and \
-                        not self.test_plt_vdso(instruction.ip) and \
-                        self.project.loader.find_object_containing(instruction.ip) == self.main_object:
+                    if (
+                        is_current_hooked
+                        and not self.test_plt_vdso(instruction.ip)
+                        and self.project.loader.find_object_containing(instruction.ip)
+                        == self.main_object
+                    ):
                         is_current_hooked = False
                         hooked_parent = None
                         self.hook_target[hook_idx] = instruction.ip

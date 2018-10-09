@@ -1,7 +1,8 @@
 from __future__ import absolute_import, division, print_function
 
-from typing import Optional
 from enum import IntEnum
+from typing import Optional
+
 
 class TraceEvent(object):
     """
@@ -17,7 +18,7 @@ class TraceEvent(object):
         time = ""
         if self.time is not None:
             time = ", time: 0x%x" % self.time
-        return '<%s @ 0x%x%s>' % (self.__class__.__name__, self.pos, time)
+        return "<%s @ 0x%x%s>" % (self.__class__.__name__, self.pos, time)
 
 
 class InstructionClass(IntEnum):
@@ -58,7 +59,7 @@ class Instruction(object):
         self.chunk = -1
 
     def __repr__(self):
-        return '<Instruction[%s] @ %x>' % (self.iclass.name, self.ip)
+        return "<Instruction[%s] @ %x>" % (self.iclass.name, self.ip)
 
 
 class EnableEvent(TraceEvent):

@@ -10,6 +10,7 @@ def main(argv=sys.argv):
     args = parse_arguments(argv)
     if args.debug:
         import pry
+
         with pry:
             return args.func(args)
     return args.func(args)

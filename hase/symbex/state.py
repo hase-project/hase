@@ -1,13 +1,14 @@
 from __future__ import absolute_import, division, print_function
 
 import bisect
-from angr import SimState
-from cle import ELF
-from typing import Dict, Tuple, Optional, List, Tuple, Any
-from claripy.ast.bv import BV
+from typing import Any, Dict, List, Optional, Tuple
 
-from ..pt.events import Instruction
+from angr import SimState
+from claripy.ast.bv import BV
+from cle import ELF
+
 from ..annotate import Addr2line
+from ..pt.events import Instruction
 
 
 class Register(object):
@@ -56,7 +57,9 @@ class Memory(object):
 
 
 class State(object):
-    def __init__(self, index, from_instruction, to_instruction, from_simstate, to_simstate):
+    def __init__(
+        self, index, from_instruction, to_instruction, from_simstate, to_simstate
+    ):
         # type: (int, Optional[Instruction], Instruction, Optional[SimState], SimState) -> None
         self.index = index
         self.from_instruction = from_instruction
@@ -82,7 +85,10 @@ class State(object):
         if self.from_instruction is None:
             return "State(Start -> 0x%x)" % (self.to_instruction.ip)
         else:
-            return "State(0x%x -> 0x%x)" % (self.from_instruction.ip, self.to_instruction.ip)
+            return "State(0x%x -> 0x%x)" % (
+                self.from_instruction.ip,
+                self.to_instruction.ip,
+            )
 
     @property
     def registers(self):
@@ -96,8 +102,7 @@ class State(object):
 
     def object(self):
         # type: () -> ELF
-        return self.simstate.project.loader.find_object_containing(
-            self.simstate.addr)
+        return self.simstate.project.loader.find_object_containing(self.simstate.addr)
 
     def address(self):
         # type: () -> int
@@ -118,10 +123,10 @@ class StateManager(object):
     def __init__(self, tracer, length):
         # type: (Any, int) -> None
         self.tracer = tracer
-        self.index_to_state = [None] * length # type: List[Optional[State]]
+        self.index_to_state = [None] * length  # type: List[Optional[State]]
         # Better have something like skip-table
-        self.ordered_index = [] # type: List[int]
-        self.major_index = [] # type: List[int]
+        self.ordered_index = []  # type: List[int]
+        self.major_index = []  # type: List[int]
 
     def add(self, state):
         # type: (State) -> None
@@ -140,7 +145,7 @@ class StateManager(object):
 
     def get_major(self, index):
         # type: (int) -> State
-        return self.index_to_state[self.major_index[index]] # type: ignore
+        return self.index_to_state[self.major_index[index]]  # type: ignore
 
     @property
     def len_major(self):
@@ -155,15 +160,25 @@ class StateManager(object):
         is_new = False
         pos = bisect.bisect_left(self.ordered_index, index)
         if self.ordered_index[pos] != index:
-            print('Computing new states')
+            print("Computing new states")
             is_new = True
             start_pos = self.ordered_index[pos - 1]
-            simstate = self.index_to_state[start_pos].simstate # type: ignore
+            simstate = self.index_to_state[start_pos].simstate  # type: ignore
             diff = index - start_pos
             for i in range(diff):
                 from_instruction = self.tracer.trace[start_pos + i]
                 to_instruction = self.tracer.trace[start_pos + i + 1]
-                from_simstate, simstate = self.tracer.execute(simstate, from_instruction, to_instruction, index)
+                from_simstate, simstate = self.tracer.execute(
+                    simstate, from_instruction, to_instruction, index
+                )
                 if diff - i < 15:
-                    self.add(State(start_pos + i + 1, from_instruction, to_instruction, from_simstate, simstate))
-        return self.index_to_state[index], is_new # type: ignore
+                    self.add(
+                        State(
+                            start_pos + i + 1,
+                            from_instruction,
+                            to_instruction,
+                            from_simstate,
+                            simstate,
+                        )
+                    )
+        return self.index_to_state[index], is_new  # type: ignore

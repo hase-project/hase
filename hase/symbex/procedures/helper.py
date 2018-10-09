@@ -1,10 +1,11 @@
 from __future__ import absolute_import, division, print_function
 
+import angr
+
 from ... import errors
 
 # Need to resymbolize hooks
 
-import angr
 
 
 def test_concrete_value(proc, sym, value):
@@ -16,17 +17,17 @@ def test_concrete_value(proc, sym, value):
 
 def errno_success(proc):
     return proc.state.solver.If(
-        proc.state.solver.BoolS('errno'),
+        proc.state.solver.BoolS("errno"),
         proc.state.solver.BVV(0, proc.state.arch.bits),
-        proc.state.solver.BVV(-1, proc.state.arch.bits)
+        proc.state.solver.BVV(-1, proc.state.arch.bits),
     )
 
 
 def null_success(proc, sym):
     return proc.state.solver.If(
-        proc.state.solver.BoolS('errno'),
+        proc.state.solver.BoolS("errno"),
         sym,
-        proc.state.solver.BVV(0, proc.state.arch.bits)
+        proc.state.solver.BVV(0, proc.state.arch.bits),
     )
 
 

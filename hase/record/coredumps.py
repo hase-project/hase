@@ -1,16 +1,16 @@
 from __future__ import absolute_import, division, print_function
 
-import sys
+import logging
 import os
-from tempfile import NamedTemporaryFile
 import resource
+import sys
 # TODO python3
 from pipes import quote
-from typing import Optional, IO, Any, Tuple
-import logging
+from tempfile import NamedTemporaryFile
+from typing import IO, Any, Optional, Tuple
 
-from .coredump_handler import RECV_MESSAGE, EXTRA_CORE_DUMP_PARAMETER
 from ..path import which
+from .coredump_handler import EXTRA_CORE_DUMP_PARAMETER, RECV_MESSAGE
 
 l = logging.getLogger(__name__)
 
@@ -45,7 +45,9 @@ class Coredump(object):
         self.result_file = open(self.result_path)
         msg = self.result_file.read(len(RECV_MESSAGE))
         assert msg == RECV_MESSAGE, "got '%s' from fifo, expected: '%s'" % (
-            msg, RECV_MESSAGE)
+            msg,
+            RECV_MESSAGE,
+        )
         return self.core_file
 
     def remove(self) -> None:
@@ -56,11 +58,13 @@ class Coredump(object):
 
 
 class Handler:
-    def __init__(self,
-                 core_file: str,
-                 fifo_path: str,
-                 manifest_path: str,
-                 log_path: str ="/tmp/coredump.log") -> None:
+    def __init__(
+        self,
+        core_file: str,
+        fifo_path: str,
+        manifest_path: str,
+        log_path: str = "/tmp/coredump.log",
+    ) -> None:
         self.previous_pattern: Optional[str] = None
         self.old_core_rlimit: Optional[Tuple[int, int]] = None
         self.handler_script: Optional[Any] = None
@@ -73,7 +77,9 @@ class Handler:
         kill_command = which("kill")
         assert kill_command is not None
 
-        self.handler_script = NamedTemporaryFile(prefix="core_handler", delete=False, mode="w+")
+        self.handler_script = NamedTemporaryFile(
+            prefix="core_handler", delete=False, mode="w+"
+        )
         os.chmod(self.handler_script.name, 0o755)
         assert len(self.handler_script.name) < 128
 
@@ -96,7 +102,8 @@ exec {python} -m hase.record.coredump_handler {fifo_path} {core_file} {manifest_
             fifo_path=quote(self.fifo_path),
             core_file=quote(self.core_file),
             log_path=quote(self.log_path),
-            manifest_path=quote(self.manifest_path))
+            manifest_path=quote(self.manifest_path),
+        )
 
         self.handler_script.write(script_content)
         self.handler_script.close()
@@ -105,12 +112,13 @@ exec {python} -m hase.record.coredump_handler {fifo_path} {core_file} {manifest_
         self.old_core_rlimit = resource.getrlimit(resource.RLIMIT_CORE)
         resource.setrlimit(resource.RLIMIT_CORE, (inf, inf))
 
-        with open(HANDLER_PATH, "r+") as f,\
-                open(COREDUMP_FILTER_PATH, "w+") as filter_file:
+        with open(HANDLER_PATH, "r+") as f, open(
+            COREDUMP_FILTER_PATH, "w+"
+        ) as filter_file:
             self.previous_pattern = f.read()
             f.seek(0)
             extra_args = " ".join(EXTRA_CORE_DUMP_PARAMETER.values())
-            f.write('|{} {}'.format(self.handler_script.name, extra_args))
+            f.write("|{} {}".format(self.handler_script.name, extra_args))
 
             # just dump everything into core dumps and worry later
             filter_file.write("0xff\n")

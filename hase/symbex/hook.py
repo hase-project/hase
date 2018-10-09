@@ -1,14 +1,14 @@
 from __future__ import absolute_import, division, print_function
 
-from angr import SimProcedure
-from angr.procedures import SIM_PROCEDURES, SIM_LIBRARIES
-from .procedures import (
-        file_operation, memory_operation, group_operation, miscs,
-        socket_operation, string_operation, time_operation, syscall,
-        all_IO_hook, alias_symbols
-)
+from typing import Any, Dict, List, Tuple
 
-from typing import Dict, List, Any, Tuple
+from angr import SimProcedure
+from angr.procedures import SIM_LIBRARIES, SIM_PROCEDURES
+
+from .procedures import (alias_symbols, all_IO_hook, file_operation,
+                         group_operation, memory_operation, miscs,
+                         socket_operation, string_operation, syscall,
+                         time_operation)
 
 # TODO: How to deal with overload function hook?
 # TODO: wchar functions support?
@@ -16,26 +16,24 @@ from typing import Dict, List, Any, Tuple
 
 
 addr_symbols = [
-    '__strcmp_sse2',
-    '__strchr_sse2',
-    '__strncpy_sse2',
-    '__memcpy_sse2',
-    '__memcpy_sse2_unaligned',
-    '__memset_sse2',
-    '__strncasecmp_l_avx',
-    'malloc',
-    'calloc',
-    'realloc',
-    'free',
-    'memalign',
+    "__strcmp_sse2",
+    "__strchr_sse2",
+    "__strncpy_sse2",
+    "__memcpy_sse2",
+    "__memcpy_sse2_unaligned",
+    "__memset_sse2",
+    "__strncasecmp_l_avx",
+    "malloc",
+    "calloc",
+    "realloc",
+    "free",
+    "memalign",
 ]
 
 
-unsupported_symbols = [
-] # type: List[Tuple[str]]
+unsupported_symbols = []  # type: List[Tuple[str]]
 
-skip_hook = [
-] # type: List[str]
+skip_hook = []  # type: List[str]
 
 
 def hook_angr_procedures(dct, libs, skip_hook, hook_IO=True):
@@ -52,8 +50,13 @@ def hook_angr_procedures(dct, libs, skip_hook, hook_IO=True):
 def hook_user_procedures(dct, hook_IO=True):
     # type: (Dict[str, Any], bool) -> None
     procedures = [
-       memory_operation, group_operation, miscs, socket_operation,
-       string_operation, time_operation, syscall
+        memory_operation,
+        group_operation,
+        miscs,
+        socket_operation,
+        string_operation,
+        time_operation,
+        syscall,
     ]
     if hook_IO:
         procedures.append(file_operation)
@@ -62,15 +65,15 @@ def hook_user_procedures(dct, hook_IO=True):
         for op in dir(module):
             obj = getattr(module, op)
             if isinstance(obj, type) and SimProcedure in obj.__mro__:
-                if not getattr(obj, 'INCOMPLETE', False):
+                if not getattr(obj, "INCOMPLETE", False):
                     dct[op] = obj
-                if getattr(obj, 'IS_SYSCALL', False):
+                if getattr(obj, "IS_SYSCALL", False):
                     ins = obj(display_name=op)
                     ins.cc = None
                     ins.is_syscall = True
                     ins.NO_RET = False
                     ins.ADDS_EXITS = False
-                    SIM_LIBRARIES['linux'].procedures[op] = ins
+                    SIM_LIBRARIES["linux"].procedures[op] = ins
 
 
 def hook_alias_procedures(dct):
@@ -80,13 +83,13 @@ def hook_alias_procedures(dct):
         if sym in dct.keys():
             dct[decr_sym] = dct[sym]
             obj = dct[sym]
-            if getattr(obj, 'IS_SYSCALL', False):
+            if getattr(obj, "IS_SYSCALL", False):
                 ins = obj(display_name=decr_sym)
                 ins.cc = None
                 ins.is_syscall = True
                 ins.NO_RET = False
                 ins.ADDS_EXITS = False
-                SIM_LIBRARIES['linux'].procedures[decr_sym] = ins
+                SIM_LIBRARIES["linux"].procedures[decr_sym] = ins
 
 
 # FIXME: it would be too hack to use inspect or something to generate
@@ -96,13 +99,9 @@ def hook_fallback_procedures(dct):
     pass
 
 
-all_hookable_symbols = {} # type: Dict[str, Any]
+all_hookable_symbols = {}  # type: Dict[str, Any]
 
-libs = [
-    'libc', 'glibc',
-    'linux_kernel', 'posix',
-    'linux_loader'
-]
+libs = ["libc", "glibc", "linux_kernel", "posix", "linux_loader"]
 
 
 hook_angr_procedures(all_hookable_symbols, libs, skip_hook, True)

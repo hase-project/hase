@@ -22,7 +22,8 @@ l = logging.getLogger("hase")
 
 
 form_class, base_class = loadUiType(
-    str(APP_ROOT.join('frontend', 'mainwindow.ui')))  # type: Tuple[Any, Any]
+    str(APP_ROOT.join("frontend", "mainwindow.ui"))
+)  # type: Tuple[Any, Any]
 
 code_template = """
 <html>
@@ -51,30 +52,31 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.jupiter_widget.kernel_client = self.kernel_client
         self.jupiter_widget.reset()
 
-
         self.reg_view.setColumnCount(2)
-        self.reg_view.setHorizontalHeaderLabels(['Name', 'Value'])
+        self.reg_view.setHorizontalHeaderLabels(["Name", "Value"])
 
         self.var_view.setColumnCount(4)
-        self.var_view.setHorizontalHeaderLabels(['Name', 'Type', 'Address', 'Value'])
+        self.var_view.setHorizontalHeaderLabels(["Name", "Type", "Address", "Value"])
 
         # NOTE: icons are from Google Material Design
-        self.up_button.setIcon(QIcon(str(APP_ROOT.join('frontend/icon/up.png'))))
+        self.up_button.setIcon(QIcon(str(APP_ROOT.join("frontend/icon/up.png"))))
         self.up_button.setIconSize(QSize(15, 15))
         self.up_button.clicked.connect(self.push_up)
         self.up_button.setEnabled(False)
 
-        self.upto_button.setIcon(QIcon(str(APP_ROOT.join('frontend/icon/upto.png'))))
+        self.upto_button.setIcon(QIcon(str(APP_ROOT.join("frontend/icon/upto.png"))))
         self.upto_button.setIconSize(QSize(15, 15))
         self.upto_button.clicked.connect(self.push_upto)
         self.upto_button.setEnabled(False)
 
-        self.down_button.setIcon(QIcon(str(APP_ROOT.join('frontend/icon/down.png'))))
+        self.down_button.setIcon(QIcon(str(APP_ROOT.join("frontend/icon/down.png"))))
         self.down_button.setIconSize(QSize(15, 15))
         self.down_button.clicked.connect(self.push_down)
         self.down_button.setEnabled(False)
 
-        self.downto_button.setIcon(QIcon(str(APP_ROOT.join('frontend/icon/downto.png'))))
+        self.downto_button.setIcon(
+            QIcon(str(APP_ROOT.join("frontend/icon/downto.png")))
+        )
         self.downto_button.setIconSize(QSize(15, 15))
         self.downto_button.clicked.connect(self.push_downto)
         self.downto_button.setEnabled(False)
@@ -98,10 +100,10 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
     def cache_coredump_constraints(self):
         user_ns = self.kernel_client.kernel.shell.user_ns
-        tracer = user_ns['tracer']
+        tracer = user_ns["tracer"]
         start_state = tracer.start_state
         active_state = self.states.major_states[-1]
-        coredump = user_ns['coredump']
+        coredump = user_ns["coredump"]
         low = active_state.simstate.regs.rsp
         MAX_FUNC_FRAME = 0x200
         high = start_state.regs.rsp + MAX_FUNC_FRAME
@@ -117,72 +119,71 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             high_v = coredump.stack.stop
 
         for addr in range(low_v, high_v):
-            value = active_state.simstate.memory.load(addr, 1, endness='Iend_LE')
+            value = active_state.simstate.memory.load(addr, 1, endness="Iend_LE")
             if value.variables == frozenset():
                 continue
             cmem = coredump.stack[addr]
-            self.coredump_constraints.append(
-                value == cmem
-            )
+            self.coredump_constraints.append(value == cmem)
 
     def eval_variable(self, active_state, loc, addr, size):
         # type: (Any, int, Any, int) -> Tuple[str, str]
         # NOTE: * -> uninitialized / 'E' -> symbolic
-        if not getattr(active_state, 'had_coredump_constraints', False):
+        if not getattr(active_state, "had_coredump_constraints", False):
             for c in self.coredump_constraints:
                 old_solver = active_state.simstate.solver._solver.branch()
                 active_state.simstate.se.add(c)
                 if not active_state.simstate.se.satisfiable():
-                    print('Unsatisfiable coredump constraints: ' + str(c))
+                    print("Unsatisfiable coredump constraints: " + str(c))
                     active_state.simstate.solver._stored_solver = old_solver
             active_state.had_coredump_constraints = True
 
         if loc == 1:
-            mem = active_state.simstate.memory.load(addr, size, endness='Iend_LE')
+            mem = active_state.simstate.memory.load(addr, size, endness="Iend_LE")
         elif loc == 2:
             mem = getattr(active_state.simstate.regs, addr)
         elif loc == -1:
-            return 'optimized', 'unknown'
+            return "optimized", "unknown"
         else:
-            return 'gdb error', 'unknown'
+            return "gdb error", "unknown"
         if mem.uninitialized and mem.variables != frozenset() and loc == 1:
-            result = ''
+            result = ""
             for i in range(size):
-                value = active_state.simstate.memory.load(addr + i, 1, endness='Iend_LE')
+                value = active_state.simstate.memory.load(
+                    addr + i, 1, endness="Iend_LE"
+                )
                 if value.uninitialized:
-                    result += '** '
+                    result += "** "
                     continue
                 try:
                     v = hex(active_state.simstate.se.eval(value))[2:]
                     if len(v) == 1:
-                        v = '0' + v
+                        v = "0" + v
                 except Exception:
-                    v = 'Er'
-                result += v + ' '
+                    v = "Er"
+                result += v + " "
             result = result[:-1]
-            return result, 'array'
+            return result, "array"
         else:
             v = self.eval_value(active_state, mem)
-            if v == 'uninitialized' or v == 'symbolic':
-                return v, 'unknown'
-            return v, 'hex'
-    
+            if v == "uninitialized" or v == "symbolic":
+                return v, "unknown"
+            return v, "hex"
 
     def eval_value(self, active_state, value):
         # type: (Any, Any) -> str
         if value.uninitialized:
-            return 'uninitialized'
+            return "uninitialized"
         try:
             v = hex(active_state.simstate.se.eval(value))
         except Exception:
-            v = 'symbolic'
+            v = "symbolic"
         return v
 
     def update_active(self, new_active):
         # type: (Any) -> None
         user_ns = self.kernel_client.kernel.shell.user_ns
-        user_ns['active_state'] = new_active
-        user_ns['gdbs'].active_state = new_active
+        user_ns["active_state"] = new_active
+        user_ns["gdbs"].active_state = new_active
         # NOTE: gdb c for every operation is slow
         # user_ns['gdbs'].update_active()
         addr = new_active.address()
@@ -194,7 +195,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         user_ns = self.kernel_client.kernel.shell.user_ns
         if is_new:
             pass
-            #self.callgraph.add_node(new_state, user_ns['tracer'])
+            # self.callgraph.add_node(new_state, user_ns['tracer'])
         major_index = self.states.major_index
         if active_index in major_index:
             slider_index = len(major_index) - major_index.index(active_index) - 1
@@ -216,15 +217,15 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
     def push_up(self):
         # type: () -> None
         user_ns = self.kernel_client.kernel.shell.user_ns
-        active_state = user_ns['active_state']
+        active_state = user_ns["active_state"]
         state_index = max(0, active_state.index - 1)
         self.update_active_index(state_index)
 
     def push_down(self):
         # type: () -> None
         user_ns = self.kernel_client.kernel.shell.user_ns
-        active_state = user_ns['active_state']
-        tracer = user_ns['tracer']
+        active_state = user_ns["active_state"]
+        tracer = user_ns["tracer"]
         state_index = min(len(tracer.trace) - 1, active_state.index + 1)
         self.update_active_index(state_index)
 
@@ -235,11 +236,11 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
     def push_info(self):
         # type: () -> None
         user_ns = self.kernel_client.kernel.shell.user_ns
-        active_state = user_ns['active_state']
+        active_state = user_ns["active_state"]
         self.set_regs()
-        user_ns['gdbs'].update_active()
-        if self.addr_map[active_state.address()][0] != '??':
-            user_ns['gdbs'].write_request('bt')
+        user_ns["gdbs"].update_active()
+        if self.addr_map[active_state.address()][0] != "??":
+            user_ns["gdbs"].write_request("bt")
             self.set_variable()
         else:
             print("Cannot retrieve variables on unresolvable source code")
@@ -247,14 +248,14 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
     def push_switch(self):
         # type: () -> None
         user_ns = self.kernel_client.kernel.shell.user_ns
-        active_state = user_ns['active_state']
+        active_state = user_ns["active_state"]
         active_state.is_to_simstate = not active_state.is_to_simstate
         self.update_active(active_state)
 
     def slider_change(self):
         # type: () -> None
         v = self.time_slider.value()
-        new_active = self.states.get_major(-(v+1))
+        new_active = self.states.get_major(-(v + 1))
         self.update_active(new_active)
 
     def set_slider(self, addr_map, states):
@@ -274,14 +275,16 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         # type: (str, int) -> None
         shell = self.kernel_client.kernel.shell
         user_ns = shell.user_ns
-        active_state = user_ns['active_state']
+        active_state = user_ns["active_state"]
         insns = active_state.simstate.block().capstone.insns
         # fmt = QTextCharFormat()
         # fmt.setUnderlineStyle(QTextCharFormat.SingleUnderline)
-        if source_file != '??':
+        if source_file != "??":
             css, source = self.file_cache[source_file][line]
             if css:
-                self.code_view.setHtml(code_template.format(css, source.encode('utf-8')))
+                self.code_view.setHtml(
+                    code_template.format(css, source.encode("utf-8"))
+                )
                 cursor = self.code_view.textCursor()
                 cursor.movePosition(QTextCursor.Start)
                 minl = max(0, line - 30)
@@ -290,7 +293,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                 else:
                     cursor.movePosition(QTextCursor.Down, n=line - 1)
                 cursor.movePosition(QTextCursor.EndOfLine)
-                cursor.insertText('\t' + str(insns[0]))
+                cursor.insertText("\t" + str(insns[0]))
                 if not self.file_read_cache[source_file][2]:
                     self.code_view.scrollToAnchor("line-%d" % max(0, line - 10))
                 else:
@@ -302,21 +305,21 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             self.code_view.clear()
             self.code_view.append("Unresolved source code")
             for insn in insns:
-                self.code_view.append('\t' + str(insn))
+                self.code_view.append("\t" + str(insn))
 
     def set_variable(self):
         # type: () -> None
         shell = self.kernel_client.kernel.shell
         user_ns = shell.user_ns
-        var = user_ns['gdbs'].read_variables()
+        var = user_ns["gdbs"].read_variables()
         self.var_view.setRowCount(0)
         i = 0
         for v in var:
-            if v['loc'] != -2:
+            if v["loc"] != -2:
                 self.var_view.insertRow(i)
                 value, value_type = self.eval_variable(
-                    user_ns['active_state'],
-                    v['loc'], v['addr'], v['size'])
+                    user_ns["active_state"], v["loc"], v["addr"], v["size"]
+                )
                 self.var_view.set_var(i, v, value, value_type)
                 i += 1
         self.var_view.resizeColumnsToContents()
@@ -326,13 +329,13 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         def fix_new_regname(rname):
             # HACK: angr has no access to register like r9w, r8d, r15b
             for i in range(8, 16):
-                if 'r' + str(i) in rname:
-                    return 'r' + str(i)
+                if "r" + str(i) in rname:
+                    return "r" + str(i)
             return rname
 
         shell = self.kernel_client.kernel.shell
         user_ns = shell.user_ns
-        active_state = user_ns['active_state']
+        active_state = user_ns["active_state"]
         insns = active_state.simstate.block().capstone.insns
         insn = insns[0].insn
         self.reg_view.setRowCount(0)
@@ -342,8 +345,8 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                 rname = insn.reg_name(op.value.reg)
                 rname = fix_new_regname(rname)
                 value = self.eval_value(
-                    active_state,
-                    getattr(active_state.simstate.regs, rname))
+                    active_state, getattr(active_state.simstate.regs, rname)
+                )
                 self.reg_view.append_reg(rname, value)
             # OP_MEM
             elif op.type == 3:
@@ -351,15 +354,15 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                     rname = insn.reg_name(op.value.mem.base)
                     rname = fix_new_regname(rname)
                     value = self.eval_value(
-                        active_state,
-                        getattr(active_state.simstate.regs, rname))
+                        active_state, getattr(active_state.simstate.regs, rname)
+                    )
                     self.reg_view.append_reg(rname, value)
                 if op.value.mem.index:
                     rname = insn.reg_name(op.value.mem.index)
                     rname = fix_new_regname(rname)
                     value = self.eval_value(
-                        active_state,
-                        getattr(active_state.simstate.regs, rname))
+                        active_state, getattr(active_state.simstate.regs, rname)
+                    )
                     self.reg_view.append_reg(rname, value)
         self.reg_view.resizeColumnsToContents()
 
@@ -377,26 +380,29 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         config = shell.config
         config.TerminalIPythonApp.display_banner = ""
         from . import ipython_extension
+
         shell.extension_manager.load_extension(ipython_extension.__name__)
 
     def cache_tokens(self, addr_map):
         for filename, line in addr_map.values():
-            l.warning('caching file: ' + str(filename) + ' at line: ' + str(line))
-            if filename != '??':
+            l.warning("caching file: " + str(filename) + " at line: " + str(line))
+            if filename != "??":
                 if filename not in self.file_read_cache.keys():
                     self.file_cache[filename] = {}
                     self.file_read_cache[filename] = {}
                     try:
                         lexer = pygments.lexers.get_lexer_for_filename(str(filename))
                         formatter_opts = dict(
-                            linenos="inline", linespans="line", hl_lines=[line])
+                            linenos="inline", linespans="line", hl_lines=[line]
+                        )
                         html_formatter = pygments.formatters.get_formatter_by_name(
-                            "html", **formatter_opts)
-                        css = html_formatter.get_style_defs('.highlight')
+                            "html", **formatter_opts
+                        )
+                        css = html_formatter.get_style_defs(".highlight")
                         with open(str(filename)) as f:
                             content = f.readlines()
                         if len(content) < 1000:
-                            content = ''.join(content)
+                            content = "".join(content)
                             tokens = lexer.get_tokens(content)
                             source = pygments.format(tokens, html_formatter)
                             self.file_cache[filename][line] = (css, source)
@@ -405,11 +411,16 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                             minl = max(0, line - 30)
                             maxl = min(len(content), line + 30)
                             formatter_opts = dict(
-                                linenos="inline", linespans="line", hl_lines=[line])
+                                linenos="inline", linespans="line", hl_lines=[line]
+                            )
                             html_formatter = pygments.formatters.get_formatter_by_name(
-                                "html", **formatter_opts)
-                            css = html_formatter.get_style_defs('.highlight')
-                            source = pygments.format(lexer.get_tokens(''.join(content[minl:maxl])), html_formatter)
+                                "html", **formatter_opts
+                            )
+                            css = html_formatter.get_style_defs(".highlight")
+                            source = pygments.format(
+                                lexer.get_tokens("".join(content[minl:maxl])),
+                                html_formatter,
+                            )
                             self.file_cache[filename][line] = (css, source)
                             self.file_read_cache[filename] = (lexer, content, True)
                     except Exception as e:
@@ -422,21 +433,32 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                         try:
                             if not is_largefile:
                                 formatter_opts = dict(
-                                    linenos="inline", linespans="line", hl_lines=[line])
+                                    linenos="inline", linespans="line", hl_lines=[line]
+                                )
                                 html_formatter = pygments.formatters.get_formatter_by_name(
-                                    "html", **formatter_opts)
-                                css = html_formatter.get_style_defs('.highlight')
-                                source = pygments.format(lexer.get_tokens(content), html_formatter)
+                                    "html", **formatter_opts
+                                )
+                                css = html_formatter.get_style_defs(".highlight")
+                                source = pygments.format(
+                                    lexer.get_tokens(content), html_formatter
+                                )
                                 self.file_cache[filename][line] = (css, source)
                             else:
                                 minl = max(0, line - 30)
                                 maxl = min(len(content), line + 30)
                                 formatter_opts = dict(
-                                    linenos="inline", linespans="line", hl_lines=[line - minl])
+                                    linenos="inline",
+                                    linespans="line",
+                                    hl_lines=[line - minl],
+                                )
                                 html_formatter = pygments.formatters.get_formatter_by_name(
-                                    "html", **formatter_opts)
-                                css = html_formatter.get_style_defs('.highlight')
-                                source = pygments.format(lexer.get_tokens(''.join(content[minl:maxl])), html_formatter)
+                                    "html", **formatter_opts
+                                )
+                                css = html_formatter.get_style_defs(".highlight")
+                                source = pygments.format(
+                                    lexer.get_tokens("".join(content[minl:maxl])),
+                                    html_formatter,
+                                )
                                 self.file_cache[filename][line] = (css, source)
                         except Exception as e:
                             print(e)
@@ -480,7 +502,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
     def shutdown_kernel(self):
         # type: () -> None
-        print('Shutting down kernel...')
+        print("Shutting down kernel...")
         self.kernel_client.stop_channels()
         self.kernel_manager.shutdown_kernel()
 
