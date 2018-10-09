@@ -24,7 +24,7 @@ class vfprintf(SimProcedure):
     ARGS_MISMATCH = True
     # mov rsp, [rbp+xx]
     def run(self, file_ptr, fmt, ap):
-        return self.state.se.Unconstrained('vfprintf_ret', 32, uninitialized=False)
+        return self.state.solver.Unconstrained('vfprintf_ret', 32, uninitialized=False)
 
 
 class ferror(SimProcedure):
@@ -126,8 +126,8 @@ class getcwd(SimProcedure):
     def run(self, buf, size):
         _getcwd = SIM_PROCEDURES['linux_kernel']['getcwd']
         malloc = SIM_PROCEDURES['libc']['malloc']
-        if not self.state.se.symbolic(buf):
-            buf_v = self.state.se.eval(buf)
+        if not self.state.solver.symbolic(buf):
+            buf_v = self.state.solver.eval(buf)
             if buf_v == 0:
                 cwd = self.state.fs.cwd
                 new_size = self.state.solver.If(size-1 > len(cwd), len(cwd), size-1)
@@ -139,8 +139,8 @@ class getcwd(SimProcedure):
 class __freadable(SimProcedure):
     def run(self, file_ptr):
         return self.state.se.If(
-            self.state.se.BoolS("file_readable"),
-            self.state.se.BVV(1, 32),
+            self.state.solver.BoolS("file_readable"),
+            self.state.solver.BVV(1, 32),
             0
         )
 
@@ -149,8 +149,8 @@ class __freadable(SimProcedure):
 class __fwritable(SimProcedure):
     def run(self, file_ptr):
         return self.state.se.If(
-            self.state.se.BoolS("file_writable"),
-            self.state.se.BVV(1, 32),
+            self.state.solver.BoolS("file_writable"),
+            self.state.solver.BVV(1, 32),
             0
         )
 
@@ -159,8 +159,8 @@ class __fwritable(SimProcedure):
 class __freading(SimProcedure):
     def run(self, file_ptr):
         return self.state.se.If(
-            self.state.se.BoolS("file_reading"),
-            self.state.se.BVV(1, 32),
+            self.state.solver.BoolS("file_reading"),
+            self.state.solver.BVV(1, 32),
             0
         )
 
@@ -169,8 +169,8 @@ class __freading(SimProcedure):
 class __fwriting(SimProcedure):
     def run(self, file_ptr):
         return self.state.se.If(
-            self.state.se.BoolS("file_writing"),
-            self.state.se.BVV(1, 32),
+            self.state.solver.BoolS("file_writing"),
+            self.state.solver.BVV(1, 32),
             0
         )
 
@@ -178,9 +178,9 @@ class __fwriting(SimProcedure):
 # NOTE: If line-buffered
 class __flbf(SimProcedure):
     def run(self, file_ptr):
-        return self.state.se.If(
-            self.state.se.BoolS("file_bf"),
-            self.state.se.BVV(1, 32),
+        return self.state.solver.If(
+            self.state.solver.BoolS("file_bf"),
+            self.state.solver.BVV(1, 32),
             0
         )
 
@@ -218,14 +218,14 @@ class __snprintf_chk(FormatParser):
             out_str = fmt_str.replace(5, self.arg)
             self.state.memory.store(dst_ptr, out_str)
             self.state.memory.store(dst_ptr + (out_str.size() / 8), self.state.se.BVV(0, 8))
-            return self.state.se.BVV(out_str.size() / 8, self.state.arch.bits)
+            return self.state.solver.BVV(out_str.size() / 8, self.state.arch.bits)
         except SimUnsatError:
             if self.state.se.symbolic(maxlen):
                 l = minmax(self, maxlen, self.state.libc.max_buffer_size)
             else:
-                l = self.state.se.eval(maxlen)
-            self.state.memory.store(dst_ptr, self.state.se.Unconstrained('snprintf', l * 8, uninitialized=False))
-            return self.state.se.Unconstrained('length', self.state.arch.bits, uninitialized=False)
+                l = self.state.solver.eval(maxlen)
+            self.state.memory.store(dst_ptr, self.state.solver.Unconstrained('snprintf', l * 8, uninitialized=False))
+            return self.state.solver.Unconstrained('length', self.state.arch.bits, uninitialized=False)
 
 
 class __sprintf_chk(FormatParser):
@@ -249,7 +249,7 @@ class __read_chk(SimProcedure):
 
 class posix_fadvise(SimProcedure):
     def run(self, fd, offset, len, advise):
-        return self.state.se.Unconstrained('posiv_fadvise', 32, uninitialized=False)
+        return self.state.solver.Unconstrained('posiv_fadvise', 32, uninitialized=False)
 
 
 class getdelim(SimProcedure):
@@ -259,8 +259,8 @@ class getdelim(SimProcedure):
         a_addr = self.inline_call(malloc, self.state.libc.max_buffer_size).ret_expr
         self.state.memory.store(a_addr, self.state.se.Unconstrained('getdelim', self.state.libc.max_buffer_size * 8, uninitialized=False))
         self.state.memory.store(lineptr, a_addr)
-        self.state.memory.store(n, self.state.se.Unconstrained('getdelim', self.state.arch.bits, uninitialized=False))
-        return self.state.se.Unconstrained('getdelim', self.state.arch.bits, uninitialized=False)
+        self.state.memory.store(n, self.state.solver.Unconstrained('getdelim', self.state.arch.bits, uninitialized=False))
+        return self.state.solver.Unconstrained('getdelim', self.state.arch.bits, uninitialized=False)
 
 
 class getline(SimProcedure):

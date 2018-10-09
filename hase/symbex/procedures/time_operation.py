@@ -17,7 +17,7 @@ class localtime_r(SimProcedure):
     def _store_amd64(self, tm_buf):
         store = lambda offset, sym, bits: self.state.memory.store(
             tm_buf + offset,
-            self.state.se.Unconstrained(sym, bits, uninitialized=False)
+            self.state.solver.Unconstrained(sym, bits, uninitialized=False)
         )
 
         '''
@@ -56,7 +56,7 @@ class asctime_r(SimProcedure):
     def run(self, tm, buf):
         self.state.memory.store(
             buf,
-            self.state.se.Unconstrained(
+            self.state.solver.Unconstrained(
                 'asctime',
                 25 * 8
             )
@@ -101,7 +101,7 @@ class gmtime(SimProcedure):
 
 class mktime(SimProcedure):
     def run(self, tm):
-        return self.state.se.Unconstrained("mktime", 64, uninitialized=False)
+        return self.state.solver.Unconstrained("mktime", 64, uninitialized=False)
 
 
 class strftime(SimProcedure):
@@ -109,11 +109,11 @@ class strftime(SimProcedure):
         pass
 
     def run(self, ptr, maxsize, fmt_str, timeptr):
-        if self.state.se.symbolic(fmt_str):
+        if self.state.solver.symbolic(fmt_str):
             pass
-        if self.state.se.symbolic(maxsize):
-            size = self.state.se.eval(maxsize)
+        if self.state.solver.symbolic(maxsize):
+            size = self.state.solver.eval(maxsize)
         else:
             size = minmax(self, maxsize, self.state.libc.max_str_len)
-        self.state.memory.store(ptr, self.state.se.Unconstrained('strftime', size * 8, uninitialized=False))
-        return self.state.se.Unconstrained('strtime', 32, uninitialized=False)
+        self.state.memory.store(ptr, self.state.solver.Unconstrained('strftime', size * 8, uninitialized=False))
+        return self.state.solver.Unconstrained('strtime', 32, uninitialized=False)

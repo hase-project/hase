@@ -35,11 +35,11 @@ class getgrgid(SimProcedure):
 class getlogin_r(SimProcedure):
     def run(self, name, namesize, size=None):
         if not size:
-            if self.state.se.symbolic(namesize):
+            if self.state.solver.symbolic(namesize):
                 size = minmax(self, namesize, self.state.libc.max_str_len)
             else:
-                size = self.state.se.eval(namesize)
-        self.state.memory.store(name, self.state.se.Unconstrained('getlogin_r', size * 8, uninitialized=False))
+                size = self.state.solver.eval(namesize)
+        self.state.memory.store(name, self.state.solver.Unconstrained('getlogin_r', size * 8, uninitialized=False))
         return errno_success(self)
 
 
@@ -68,11 +68,11 @@ class getpwuid_r(SimProcedure):
         addr = self.inline_call(malloc, self.state.libc.max_str_len).ret_expr
         pw.store(self, 'pw_shell', addr)
         if not test_concrete_value(self, buffer, 0):
-            if self.state.se.symbolic(bufsize):
+            if self.state.solver.symbolic(bufsize):
                 size = minmax(self, bufsize, self.state.libc.max_str_len)
             else:
-                size = self.state.se.eval(bufsize)
-            self.state.memory.store(buffer, self.state.se.Unconstrained('getpwuid_r', size * 8, uninitialized=False))
+                size = self.state.solver.eval(bufsize)
+            self.state.memory.store(buffer, self.state.solver.Unconstrained('getpwuid_r', size * 8, uninitialized=False))
         if not test_concrete_value(self, result, 0):
             self.state.memory.store(result, pwd)
         return errno_success(self)

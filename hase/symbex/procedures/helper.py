@@ -8,32 +8,32 @@ import angr
 
 
 def test_concrete_value(proc, sym, value):
-    if not proc.state.se.symbolic(sym):
-        if proc.state.se.eval(sym) == value:
+    if not proc.state.solver.symbolic(sym):
+        if proc.state.solver.eval(sym) == value:
             return True
     return False
 
 
 def errno_success(proc):
-    return proc.state.se.If(
-        proc.state.se.BoolS('errno'),
-        proc.state.se.BVV(0, proc.state.arch.bits),
-        proc.state.se.BVV(-1, proc.state.arch.bits)
+    return proc.state.solver.If(
+        proc.state.solver.BoolS('errno'),
+        proc.state.solver.BVV(0, proc.state.arch.bits),
+        proc.state.solver.BVV(-1, proc.state.arch.bits)
     )
 
 
 def null_success(proc, sym):
-    return proc.state.se.If(
-        proc.state.se.BoolS('errno'),
+    return proc.state.solver.If(
+        proc.state.solver.BoolS('errno'),
         sym,
-        proc.state.se.BVV(0, proc.state.arch.bits)
+        proc.state.solver.BVV(0, proc.state.arch.bits)
     )
 
 
 def minmax(proc, sym, upper=None):
     try:
-        min_v = proc.state.se.min(sym)
-        max_v = proc.state.se.max(sym)
+        min_v = proc.state.solver.min(sym)
+        max_v = proc.state.solver.max(sym)
         if upper:
             return max(min_v, min(max_v, upper))
         return max_v
