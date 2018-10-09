@@ -75,7 +75,7 @@ class Replay(object):
         coredump = Coredump(manifest["coredump"]["file"])
         vdso_x64 = self.tempdir.join("vdso")
 
-        with open(str(vdso_x64), "w+") as f:
+        with open(str(vdso_x64), "wb+") as f:
             f.write(coredump.vdso.data)
 
         binaries = self.tempdir.join("binaries")

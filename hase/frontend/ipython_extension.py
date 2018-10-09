@@ -150,7 +150,7 @@ class HaseMagics(Magics):
             if not Path(v[0]).exists():
                 origin_f = v[0]
                 print("\nCannot resolve filename: {} at {}".format(origin_f, hex(k)))
-                d = raw_input("Try to manually set file path for {}: ".format(
+                d = input("Try to manually set file path for {}: ".format(
                     os.path.basename(origin_f)))
                 if d == 'pass-all' or d == '':
                     break
@@ -165,7 +165,7 @@ class HaseMagics(Magics):
         l.warning('Caching tokens')
         self.window.cache_tokens(addr_map)
         l.warning('Add states')
-        self.window.add_states(user_ns["states"], user_ns["tracer"])
+        #self.window.add_states(user_ns["states"], user_ns["tracer"])
         self.window.enable_buttons()
         self.window.set_slider(user_ns["addr_map"], user_ns["states"])
         self.window.set_location(*addr_map[self.active_state.address()])

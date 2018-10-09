@@ -1,6 +1,0 @@
-monkeyhex
-qtconsole
-pry.py
-pygdbmi
-typing
-https://github.com/Mic92/pwntools/archive/0f479d27e18c37288c241112adf09d100ee2c001.tar.gz#egg=pwntools-3.14.1

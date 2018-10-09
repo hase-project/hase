@@ -281,7 +281,7 @@ class ioctl(SimProcedure):
 class openat(SimProcedure):
     IS_SYSCALL = True
 
-    def run(self, dirfd, pathname, flags, mode=0644):
+    def run(self, dirfd, pathname, flags, mode=0o644):
         xopen = SIM_PROCEDURES['posix']['open']
         # XXX: Actually name is useless, we just want to open a SimFile
         return self.inline_call(xopen, pathname, flags, mode).ret_expr

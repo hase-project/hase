@@ -6,7 +6,7 @@ from tempfile import NamedTemporaryFile
 from threading import Thread, Condition
 import subprocess
 import logging
-from Queue import Queue
+from queue import Queue
 import os
 import argparse
 from types import FrameType
@@ -167,8 +167,8 @@ def store_report(job):
 
         def append(path):
             # type: (str) -> None
-            template.write(str(state_dir.relpath(path)))
-            template.write("\0")
+            template.write(str(state_dir.relpath(path)).encode("utf-8"))
+            template.write(b"\0")
 
         append(manifest_path)
 

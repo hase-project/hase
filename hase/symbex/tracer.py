@@ -19,7 +19,7 @@ from capstone import x86_const
 from pygdbmi.gdbcontroller import GdbController
 
 from ..errors import HaseError
-from ..pt.events import Instruction
+from ..pt.events import Instruction, InstructionClass
 from ..pwn_wrapper import ELF, Coredump, Mapping
 from .filter import FilterTrace
 from .hook import addr_symbols, all_hookable_symbols
@@ -371,7 +371,7 @@ class Tracer(object):
 
         self.old_trace = self.trace
         self.trace, self.trace_idx, self.hook_target = self.filter.filtered_trace()
-        self.hook_plt_idx = self.hook_target.keys()
+        self.hook_plt_idx = list(self.hook_target.keys())
         self.hook_plt_idx.sort()
 
         start_address = self.trace[0].ip
@@ -551,7 +551,9 @@ class Tracer(object):
         # type: (SimState, Instruction, Instruction) -> Tuple[bool, str]
         # ret: force_jump
         # NOTE: typical case: switch(getchar())
-        if previous_instruction.ip != state.addr:
+ 
+        if previous_instruction.iclass == InstructionClass.ptic_other \
+                or previous_instruction.ip != state.addr:
             return False, ''
         jump_ins = ['jmp', 'call'] # currently not deal with jcc regs
         capstone = state.block().capstone
@@ -670,10 +672,10 @@ class Tracer(object):
     def jump_was_not_taken(self, old_state, new_state):
         # type: (SimState, SimState) -> bool
         # was the last control flow change an exit vs call/jump?
-        ev = new_state.events[-1]
-        instructions = old_state.block().capstone.insns
+        ev = new_state.history.recent_events[-1]
         if not isinstance(ev, SimActionExit): # and len(instructions) == 1
             return False
+        instructions = old_state.block().capstone.insns
         size = instructions[0].insn.size
         return (new_state.addr - size) == old_state.addr
 
@@ -688,7 +690,7 @@ class Tracer(object):
                     unsat_constraints[i] = claripy.Not(c)
             '''
             new_state.solver._stored_solver = old_state.solver._solver.branch()
-            
+
             if not self.debug_unsat: # type: ignore
                 self.debug_sat = old_state
                 self.debug_unsat = new_state

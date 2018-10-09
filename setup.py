@@ -1,10 +1,9 @@
-from setuptools import setup, find_packages, Extension
 import glob
-import subprocess
-import shutil
 import os
+import shutil
+import subprocess
 
-
+from setuptools import Extension, find_packages, setup
 
 setup(
     name='hase',
@@ -12,18 +11,14 @@ setup(
     description="Time-travel failures",
     packages=find_packages(),
     install_requires=[
-      'angr',
-      'pwntools>3.13.0',
+      'angr @ https://github.com/hase-project/angr/archive/5219e2457c95ae8db6b3fa2897076d268fb356e5.zip',
+      'pwntools @ https://github.com/Mic92/pwntools/archive/25563ef382fbe4f5e5f9865aa6e08376cd4dab8d.zip',
       'monkeyhex',
       'qtconsole',
       'pry.py',
       'pygdbmi',
-      'typing'
       # how to add PyQt5 here?
       # 'pyqt5'
-    ],
-    dependency_links=[
-        "https://github.com/Mic92/pwntools/archive/0f479d27e18c37288c241112adf09d100ee2c001.tar.gz#egg=pwntools-3.14.0"
     ],
     tests_require=['nose'],
     test_suite='nose.collector',

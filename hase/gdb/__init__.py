@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 import pty
+import binascii
 import os
 import os.path
 import logging
@@ -46,7 +47,8 @@ class GdbRegSpace(object):
                 fmt = "<Q"
             else:
                 raise HaseError("Unsupported bit width %d" % reg.size)
-            return struct.pack(fmt, reg.value).encode("hex")
+            packed = struct.pack(fmt, reg.value)
+            return binascii.hexlify(packed).decode('ascii')
         except Exception:
             return "xx" * 8
 
@@ -153,7 +155,9 @@ class GdbSharedLibrary(object):
                     'l_addr': hex(h_addr),
                     'l_ld': hex(h_ld),
                 })
-        self.xml = header + ET.tostring(root)
+        body = ET.tostring(root)
+        assert body is not None
+        self.xml = header + str(body)
         return self.xml
 
     def validate_xml(self, xml):
@@ -247,7 +251,7 @@ class GdbServer(object):
         res = []
         for r in resp:
             if 'payload' in r.keys() and \
-                isinstance(r['payload'], unicode) and \
+                isinstance(r['payload'], str) and \
                 r['payload'].startswith('ARGS:'):
                 l = r['payload'].split(' ')
                 name = l[1]
@@ -257,7 +261,7 @@ class GdbServer(object):
                 if '&' in addr_comment:
                     if idr == 1:
                         ll = addr_comment.partition('&')
-                        addr = int(ll[0], 16)  # type: Union[unicode, int]
+                        addr : Union[str, int] = int(ll[0], 16)
                         comment = ll[2]
                 else:
                     if idr == 1:
@@ -309,7 +313,7 @@ class GdbServer(object):
 
             if len(data) == 0:
                 l.debug("gdb connection was closed")
-            buf += data
+            buf += data.decode('utf-8')
             buf = self.process_data(buf)
 
     def process_data(self, buf):

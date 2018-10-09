@@ -125,13 +125,6 @@ class VarTableWidget(QTableWidget):
             dec_value = item.core_value
         item.setText(hex(dec_value) + comment)
 
-    @staticmethod
-    def nhex(n):
-        # type: (int) -> str
-        h = hex(n)[2:]
-        h = '0' + h if len(h) % 2 else h
-        return h
-
     def repr_as_str(self, row, col):
         # type: (int, int) -> None
         item = self.item(row, col)
@@ -147,10 +140,7 @@ class VarTableWidget(QTableWidget):
                     break
                 string += chr(v)
         elif vtype == 'hex':
-            h = self.nhex(item.core_value)
-            string = unhexlify(h)[::-1]
-            if '\x00' in string:
-                string = string.partition('\x00')[0]
+            string = format(item.core_value, "02x")
         item.setText(string + comment)
 
     def repr_as_bytes(self, row, col):

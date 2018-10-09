@@ -1,5 +1,9 @@
-import gdb # pylint: disable=E0401
 import sys
+
+try:
+    import gdb  # type: ignore
+except ImportError as e:
+    print(f"this file is intended to run inside gdb: {e}", file=sys.stderr)
 
 from typing import List, Any
 

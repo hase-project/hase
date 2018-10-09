@@ -3,7 +3,7 @@ from __future__ import absolute_import, division, print_function
 import pry
 import os
 import time
-from .path import Tempdir
+from ..path import Tempdir
 
 from . import Perf
 

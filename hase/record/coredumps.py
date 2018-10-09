@@ -36,53 +36,44 @@ COREDUMP_FILTER_PATH = "/proc/self/coredump_filter"
 
 
 class Coredump(object):
-    def __init__(self, core_file, fifo_path):
-        # type: (str, str) -> None
+    def __init__(self, core_file: str, result_path: str) -> None:
         self.core_file = core_file
-        self.fifo_path = fifo_path
-        self.fifo_file = None  # type: Optional[IO[Any]]
+        self.result_path = result_path
 
-    def get(self):
-        # type: () -> str
-        l.info("wait for fifo %s", self.fifo_path)
-        self.fifo_file = open(self.fifo_path)
-        msg = self.fifo_file.read(len(RECV_MESSAGE))
+    def get(self) -> str:
+        l.info("check for result %s", self.result_path)
+        self.result_file = open(self.result_path)
+        msg = self.result_file.read(len(RECV_MESSAGE))
         assert msg == RECV_MESSAGE, "got '%s' from fifo, expected: '%s'" % (
             msg, RECV_MESSAGE)
         return self.core_file
 
-    def remove(self):
-        # type: () -> None
+    def remove(self) -> None:
         os.unlink(self.core_file)
-        if self.fifo_file is not None:
-            self.fifo_file.close()
-        os.unlink(self.fifo_path)
+        if self.result_file is not None:
+            self.result_file.close()
+        os.unlink(self.result_path)
 
 
-class Handler(object):
+class Handler:
     def __init__(self,
-                 core_file,
-                 fifo_path,
-                 manifest_path,
-                 log_path="/tmp/coredump.log"):
-        # type: ( str, str, str, str) -> None
-        self.previous_pattern = None  # type: Optional[str]
-        self.old_core_rlimit = None  # type: Optional[Tuple[int, int]]
-        self.handler_script = None  # type: Optional[Any]
+                 core_file: str,
+                 fifo_path: str,
+                 manifest_path: str,
+                 log_path: str ="/tmp/coredump.log") -> None:
+        self.previous_pattern: Optional[str] = None
+        self.old_core_rlimit: Optional[Tuple[int, int]] = None
+        self.handler_script: Optional[Any] = None
         self.core_file = core_file
         self.fifo_path = fifo_path
         self.manifest_path = manifest_path
         self.log_path = log_path
-        os.mkfifo(fifo_path)
 
-    def __enter__(self):
-        # type: () -> Coredump
-
+    def __enter__(self) -> Coredump:
         kill_command = which("kill")
         assert kill_command is not None
 
-        self.handler_script = NamedTemporaryFile(
-            prefix="core_handler", delete=False)
+        self.handler_script = NamedTemporaryFile(prefix="core_handler", delete=False, mode="w+")
         os.chmod(self.handler_script.name, 0o755)
         assert len(self.handler_script.name) < 128
 
@@ -114,7 +105,7 @@ exec {python} -m hase.record.coredump_handler {fifo_path} {core_file} {manifest_
         self.old_core_rlimit = resource.getrlimit(resource.RLIMIT_CORE)
         resource.setrlimit(resource.RLIMIT_CORE, (inf, inf))
 
-        with open(HANDLER_PATH, "rb+") as f,\
+        with open(HANDLER_PATH, "r+") as f,\
                 open(COREDUMP_FILTER_PATH, "w+") as filter_file:
             self.previous_pattern = f.read()
             f.seek(0)

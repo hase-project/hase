@@ -98,7 +98,7 @@ class FilterTrace(object):
         self.static_link = static_link
         self.gdb_backtrace = backtrace
 
-        self.hooked_symname = self.hooked_symbol.keys()
+        self.hooked_symname = list(self.hooked_symbol.keys())
         assert self.main_cfg.kb is not None
         self.callgraph = self.main_cfg.kb.functions.callgraph
         # HACK: angr currently solve symbols by legacy name
@@ -120,7 +120,7 @@ class FilterTrace(object):
         self.syms_dict = {} # type: Dict[Any, Dict[int, Any]]
         for lib in self.project.loader.all_elf_objects:
             self.syms_dict[lib] = lib.symbols_by_addr.copy()
-            self.syms[lib] = self.syms_dict[lib].keys()
+            self.syms[lib] = list(self.syms_dict[lib].keys())
             self.syms[lib].sort()
         self.analyze_trace()
 
