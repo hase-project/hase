@@ -13,7 +13,7 @@ to recover states prior to the crash.
 
 # INSTALL
 
-1. Setup virtualenv
+1. Setup virtualenv with python3.6
 
 ```console
 $ virtualenv venv
@@ -25,7 +25,7 @@ $ . venv/bin/activate
 3. Install project into virtualenv
 
 ```console
-$ pip install -e .
+$ pip3 install -e .
 ```
 
 Note: you may need to upgrade your pip >= 18.1
