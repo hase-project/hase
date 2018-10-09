@@ -244,9 +244,10 @@ class FilterTrace(object):
                 previous_instr = cut_trace[idx - 1]
 
             present = True
-            if self.test_plt_vdso(instruction.ip) or \
-                self.test_ld(instruction.ip) or \
-                self.test_omit(instruction.ip):
+            if previous_instr is not None and \
+                (self.test_plt_vdso(previous_instr.ip) or \
+                self.test_ld(previous_instr.ip) or \
+                self.test_omit(previous_instr.ip)):
                 present = False
             # NOTE: if already in hooked function, leaving to parent
             # FIXME: gcc optimization will lead to main->func1->(set rbp)func2->main
@@ -307,7 +308,7 @@ class FilterTrace(object):
                 else:
                     if self.test_omit(instruction.ip):
                         is_current_hooked = True
-                        hooked_parent = self.find_function(instruction.ip)
+                        hooked_parent = self.find_function(previous_instr.ip)
                         hook_idx = idx + self.start_idx
             if present:
                 self.new_trace.append(instruction)
@@ -319,114 +320,3 @@ class FilterTrace(object):
             return self.new_trace, self.trace_idx, self.hook_target
         self.analyze_trace()
         return self.new_trace, self.trace_idx, self.hook_target
-
-
-# Not test yet, must be slow
-class FilterCFG(object):
-    def __init__(self, project, cfg, trace, hooked_symbol, gdb):
-        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], tracer.CoredumpGDB) -> None
-        self.project = project
-        self.main_cfg = cfg.copy()
-        self.main_object = project.loader.main_object
-        self.trace = trace
-        self.hooked_symbol = hooked_symbol
-        self.new_trace = [] # type: List[Instruction]
-        self.gdb = gdb
-        self.omitted_symbol = {}  # type: Dict[str, List[int]]
-        self.omitted_section = []  # type: List[Tuple[int, int]]
-        # self.analyze_unsupported()
-
-        self.cfgs = {}  # type: Dict[Any, CFGFast]
-        self.libc_object = None  # type: Optional[ELF]
-        for lib in self.project.loader.all_elf_objects:
-            # FIXME: not a good way
-            if lib.get_symbol('__libc_memalign'):
-                self.libc_object = lib
-            if lib != self.project.loader.main_object:
-                self.cfgs[lib] = Project(
-                    lib.binary,
-                    load_options={"auto_load_libs": False},
-                    show_progressbar=True
-                ).analyses.CFGFast()
-            else:
-                self.cfgs[lib] = self.main_cfg
-        # HACK: weirdly, these functions in glibc are plt stubs resolved to self
-        self.libc_special_name = {
-            'malloc': ('__libc_malloc', 0x484130),
-            'calloc': ('__libc_calloc', 0x484d10),
-            'realloc': ('__libc_realloc', 0x4846c0),
-            'free': ('__libc_free', 0x4844f0),
-            'memalign': ('__libc_memalign', 0x1019e00)
-        }
-        self.analyze_hook()
-
-    def test_plt(self, addr):
-        # type: (int) -> bool
-        # NOTE: .plt or .plt.got
-        section = self.project.loader.find_section_containing(addr)
-        return section.name.startswith('.plt')
-
-    def test_ld(self, addr):
-        # type: (int) -> bool
-        o = self.project.loader.find_object_containing(addr)
-        return o == self.project.loader.linux_loader_object
-
-    def test_omit(self, addr):
-        # type: (int) -> bool
-        for _, l in self.omitted_symbol.items():
-            if l[0] <= addr < l[0] + l[1]:
-                return True
-        return False
-
-    def get_func_range(self, lib, cfg, func):
-        # type: (ELF, CFGFast, Function) -> List[int]
-        assert cfg.project is not None
-        return [
-            lib.offset_to_addr(func.addr - cfg.project.loader.min_addr),
-            func.size
-        ]
-
-    def find_function(self, symname):
-        # type: (str) -> Tuple[ELF, CFGFast, Function]
-        if symname in self.libc_special_name.keys() and self.libc_object is not None:
-            self.collect_subfunc(
-                self.libc_object,
-                self.cfgs[self.libc_object],
-                self.cfgs[self.libc_object].functions.function(
-                    addr=self.libc_special_name[symname][1]
-                )
-            )
-        for lib, cfg in self.cfgs.items():
-            func = cfg.functions.function(name=symname)
-            if func and not func.is_plt:
-                return lib, cfg, func
-        raise HaseError("Function {} not found".format(symname))
-
-    def collect_subfunc(self, lib, cfg, func):
-        # type: (ELF, CFGFast, Function) -> None
-        self.omitted_symbol[func.name] = self.get_func_range(lib, cfg, func)
-        for nodel in func.nodes.items():
-            node = nodel[0]
-            if isinstance(node, Function) and \
-                node.name not in self.omitted_symbol.keys():
-                lib, cfg, func = self.find_function(node.name)
-                self.collect_subfunc(lib, cfg, func)
-
-    def analyze_hook(self):
-        # type: () -> None
-        for symname in self.hooked_symbol.keys():
-            lib, cfg, func = self.find_function(symname)
-            self.collect_subfunc(lib, cfg, func)
-
-    def filtered_trace(self, update=False):
-        # type: (bool) -> List[Instruction]
-        if self.new_trace and not update:
-            return self.new_trace
-        self.new_trace = []
-        for instruction in self.trace:
-            if self.test_plt(instruction.ip) or \
-                self.test_ld(instruction.ip) or \
-                self.test_omit(instruction.ip):
-                continue
-            self.new_trace.append(instruction)
-        return self.new_trace

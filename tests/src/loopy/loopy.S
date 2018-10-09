@@ -12,7 +12,7 @@ _start:
     movq r8, [rsp]
 again:
     cmp r8, 1
-    jle exit
+    jle exit_
     ## if (argc <= 1) goto exit;
     
     movq rax, 1
@@ -27,7 +27,7 @@ again:
   	jg again
     ## if (argc > 1) goto again;
 
-exit:
+exit_:
     movq rax, 39
     syscall
     ## getpid();
