@@ -35,7 +35,7 @@ Additionally pyqt5 is required and cannot be installed via pip.
 4. Install test dependencies
 
 ```console
-$ pip install -e '.[test]'
+$ pip3 install -e '.[test]'
 ```
 
 5. Testing examples
@@ -76,6 +76,6 @@ $ sudo ./bin/hase record ls -al
 
 # Benchmarks
 
-Benchmarks require Pandas, which cannot be installed via pip.
+Benchmarks require Pandas, which cannot be installed via pip3.
 Use https://pandas.pydata.org/pandas-docs/stable/install.html instead or install
 it using your system package manager.
