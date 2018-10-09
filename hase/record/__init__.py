@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import shutil
 import json
-from tempfile import NamedTemporaryFile, TemporaryDirectory
+from tempfile import NamedTemporaryFile
 from threading import Thread, Condition
 import subprocess
 import logging
@@ -16,7 +16,7 @@ import fcntl
 from typing import Optional, IO, Any, Tuple, List, Union, Dict
 
 from . import coredumps
-from ..path import Path, APP_ROOT
+from ..path import Path, Tempdir, APP_ROOT
 from .signal_handler import SignalHandler
 from .. import pwn_wrapper
 from ..errors import HaseError
@@ -247,7 +247,8 @@ def report_worker(queue):
             job.remove()
 
 
-def record_loop(record_path: Path, log_path: Path, pid_file: Optional[str]=None, limit: int=0, command: Optional[List[str]]=None):
+def record_loop(record_path, log_path, pid_file=None, limit=0, command=None):
+    # type: (Path, Path, Optional[str], int, Optional[List[str]]) -> None
 
     job_queue = Queue()  # type: Queue[Union[Job, ExitEvent]]
     post_process_thread = Thread(target=report_worker, args=(job_queue, ))
@@ -286,9 +287,9 @@ def record_command(args):
 
     command = None if len(args.args) == 0 else args.args
 
-    with TemporaryDirectory() as tempdir:
+    with Tempdir() as tempdir:
         record_loop(
-            Path(tempdir),
+            tempdir,
             log_path,
             pid_file=args.pid_file,
             limit=args.limit,

@@ -124,4 +124,16 @@ class Path(object):
         return (str(self) > str(rhs)) - (str(self) < str(rhs))
 
 
+class Tempdir(Path):
+    def __init__(self):
+        super(Tempdir, self).__init__(tempfile.mkdtemp())
+
+    def __enter__(self):
+        # type: () -> Tempdir
+        return self
+
+    def __exit__(self, type, value, traceback):
+        shutil.rmtree(str(self))
+
+
 APP_ROOT = Path(os.path.dirname(os.path.realpath(__file__)))

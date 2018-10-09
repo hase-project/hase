@@ -5,12 +5,11 @@ import subprocess
 import json
 import shutil
 import sys
-from tempfile import TemporaryDirectory
 from typing import List, Any, Dict
-
 from .pwn_wrapper import Coredump, Mapping
+
 from .symbex.tracer import Tracer, State, StateManager
-from .path import Path
+from .path import Tempdir
 from . import pt
 
 
@@ -59,7 +58,7 @@ class Replay(object):
     def __init__(self, report):
         # type: (str) -> None
         self.report = report
-        self.tempdir = Path(str(TemporaryDirectory()))
+        self.tempdir = Tempdir()
 
     def __enter__(self):
         # type: () -> Replay
@@ -136,6 +135,6 @@ def replay_command(args):
         return rt.run()
 
 
-def unpack_command(args: argparse.Namespace) -> None:
+def unpack_command(args):
     manifest = Replay(args.report).unpack()
     json.dump(manifest, sys.stdout, sort_keys=True, indent=4)
