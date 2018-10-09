@@ -33,13 +33,14 @@ PROT_EXEC = 4
 def record_process(
     process: subprocess.Popen,
     record_paths: "RecordPaths",
-    timeout: Optional[int] = None
+    timeout: Optional[int] = None,
 ) -> Optional[Tuple[coredumps.Coredump, Trace]]:
     handler = coredumps.Handler(
         str(record_paths.coredump),
         str(record_paths.fifo),
         str(record_paths.manifest),
-        log_path=str(record_paths.log_path.join("coredump.log")))
+        log_path=str(record_paths.log_path.join("coredump.log")),
+    )
 
     # work around missing nonlocal keyword in python2 with a list
     got_coredump = [False]
@@ -48,9 +49,9 @@ def record_process(
         # type: (int, FrameType) -> None
         got_coredump[0] = True
 
-    with IncreasePerfBuffer(100 * 1024), Perf(process.pid) as perf, \
-            handler as coredump, \
-            SignalHandler(SIGUSR2, received_coredump):
+    with IncreasePerfBuffer(100 * 1024), Perf(
+        process.pid
+    ) as perf, handler as coredump, SignalHandler(SIGUSR2, received_coredump):
         write_pid_file(record_paths.pid_file)
 
         ptrace_detach(process.pid)
@@ -69,12 +70,11 @@ def record(
     record_paths: "RecordPaths",
     command: Optional[List[str]] = None,
     stdin: Optional[IO[Any]] = None,
-    timeout: Optional[int] = None
+    timeout: Optional[int] = None,
 ) -> Optional[Tuple[coredumps.Coredump, Trace]]:
 
     if command is None:
-        raise HaseError(
-            "recording without command is not supported at the moment")
+        raise HaseError("recording without command is not supported at the moment")
 
     proc = subprocess.Popen(command, preexec_fn=ptrace_me, stdin=stdin)
     return record_process(proc, record_paths, timeout)
@@ -109,8 +109,7 @@ class Job(object):
         except OSError:
             pass
 
-        shutil.rmtree(
-            str(self.record_paths.perf_directory), ignore_errors=True)
+        shutil.rmtree(str(self.record_paths.perf_directory), ignore_errors=True)
 
 
 class RecordPaths(object):
@@ -130,8 +129,9 @@ class RecordPaths(object):
 
     def report_archive(self, executable, timestamp):
         # type: (str, str) -> Path
-        return self.log_path.join("%s-%s.tar.gz" %
-                                  (os.path.basename(executable), timestamp))
+        return self.log_path.join(
+            "%s-%s.tar.gz" % (os.path.basename(executable), timestamp)
+        )
 
 
 def serialize_trace(trace, state_dir):
@@ -147,7 +147,8 @@ def serialize_trace(trace, state_dir):
             trace_path=trace_path,
             start_time=cpu.start_time,
             start_pid=cpu.start_pid,
-            start_tid=cpu.start_tid)
+            start_tid=cpu.start_tid,
+        )
         cpus.append(c)
 
     return dict(
@@ -160,7 +161,8 @@ def serialize_trace(trace, state_dir):
         cpu_model=trace.cpu_model,
         cpu_stepping=trace.cpu_stepping,
         cpuid_0x15_eax=trace.cpuid_0x15_eax,
-        cpuid_0x15_ebx=trace.cpuid_0x15_ebx)
+        cpuid_0x15_ebx=trace.cpuid_0x15_ebx,
+    )
 
 
 def store_report(job):
@@ -184,9 +186,11 @@ def store_report(job):
 
         paths = set()
         for obj in pwn_wrapper.Coredump(str(core_file)).mappings:
-            if (obj.flags & PROT_EXEC) \
-                    and obj.path.startswith("/") \
-                    and os.path.exists(obj.path):
+            if (
+                (obj.flags & PROT_EXEC)
+                and obj.path.startswith("/")
+                and os.path.exists(obj.path)
+            ):
                 paths.add(obj.path)
 
         for path in paths:
@@ -200,8 +204,7 @@ def store_report(job):
             append(str(archive_path))
 
         coredump = manifest["coredump"]
-        coredump["executable"] = os.path.join("binaries",
-                                              coredump["executable"])
+        coredump["executable"] = os.path.join("binaries", coredump["executable"])
         coredump["file"] = str(state_dir.relpath(core_file))
         append(core_file)
 
@@ -218,20 +221,23 @@ def store_report(job):
 
         template.flush()
 
-        archive_path = record_paths.report_archive(coredump["executable"],
-                                                   coredump["time"])
+        archive_path = record_paths.report_archive(
+            coredump["executable"], coredump["time"]
+        )
 
         l.info("creating archive %s", archive_path)
-        subprocess.check_call([
-            "tar",
-            "--null",
-            "-C",
-            str(record_paths.state_dir),
-            "-T",
-            str(template.name),
-            "-czf",
-            str(archive_path),
-        ])
+        subprocess.check_call(
+            [
+                "tar",
+                "--null",
+                "-C",
+                str(record_paths.state_dir),
+                "-T",
+                str(template.name),
+                "-czf",
+                str(archive_path),
+            ]
+        )
         l.info("built archive %s", archive_path)
         os.unlink(manifest_path)
 
@@ -255,16 +261,16 @@ def report_worker(queue):
 
 
 def record_loop(
-   record_path: Path,
-   log_path: Path,
-   pid_file: Optional[str] = None,
-   limit: int = 0,
-   command: Optional[List[str]] = None,
-   stdin: Optional[IO[Any]] = None,
-   timeout: Optional[int] = None
+    record_path: Path,
+    log_path: Path,
+    pid_file: Optional[str] = None,
+    limit: int = 0,
+    command: Optional[List[str]] = None,
+    stdin: Optional[IO[Any]] = None,
+    timeout: Optional[int] = None,
 ) -> None:
     job_queue: Queue[Union[Job, ExitEvent]] = Queue()
-    post_process_thread = Thread(target=report_worker, args=(job_queue, ))
+    post_process_thread = Thread(target=report_worker, args=(job_queue,))
     post_process_thread.start()
 
     try:
@@ -295,15 +301,11 @@ def record_command(args):
     log_path = Path(args.log_dir)
     log_path.mkdir_p()
 
-    logging.basicConfig(
-        filename=str(log_path.join("hase.log")), level=logging.INFO)
+    logging.basicConfig(filename=str(log_path.join("hase.log")), level=logging.INFO)
 
     command = None if len(args.args) == 0 else args.args
 
     with Tempdir() as tempdir:
         record_loop(
-            tempdir,
-            log_path,
-            pid_file=args.pid_file,
-            limit=args.limit,
-            command=command)
+            tempdir, log_path, pid_file=args.pid_file, limit=args.limit, command=command
+        )

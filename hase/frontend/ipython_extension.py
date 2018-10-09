@@ -1,6 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
-from IPython.core.magic import (magics_class, line_magic, Magics)
+from IPython.core.magic import magics_class, line_magic, Magics
 from IPython.core.interactiveshell import InteractiveShell
 from IPython import get_ipython
 from PyQt5 import QtWidgets
@@ -43,15 +43,15 @@ def op_eq(actual, given):
 # TODO: is there same way to get line_magic name instead of manually setting?
 def args(*param_names, **kwargs):
     def func_wrapper(func):
-        name = kwargs.pop('name', func.__name__)
-        comp = kwargs.pop('comp', op_eq)
-        info = kwargs.pop('usage', None)
+        name = kwargs.pop("name", func.__name__)
+        comp = kwargs.pop("comp", op_eq)
+        info = kwargs.pop("usage", None)
 
         def recv_args(inst, query):
             param = shsplit(query)
             if not comp(len(param), len(param_names)):
                 if not info:
-                    print("USAGE: {} {}".format(name, ''.join(param_names)))
+                    print("USAGE: {} {}".format(name, "".join(param_names)))
                 else:
                     print("USAGE: {}".format(info))
                 return
@@ -110,7 +110,7 @@ class HaseMagics(Magics):
                 if m.__file__ is not None and m.__file__.startswith(module_path):
                     print("reload %s" % name)
                     try:
-                        imp.reload(m) # type: ignore
+                        imp.reload(m)  # type: ignore
                     except Exception as e:
                         print("error while loading %s" % e)
         self.shell.extension_manager.reload_extension(__name__)
@@ -137,22 +137,24 @@ class HaseMagics(Magics):
                     addr2line.add_addr(obj, instr.ip)
             addr_map = addr2line.compute()
 
-
         self.active_state = states.major_states[-1]
 
         user_ns["addr_map"] = addr_map
         user_ns["states"] = states
-        user_ns['executable'] = executable
-        user_ns['coredump'] = user_ns['tracer'].coredump
-        user_ns['active_state'] = self.active_state
+        user_ns["executable"] = executable
+        user_ns["coredump"] = user_ns["tracer"].coredump
+        user_ns["active_state"] = self.active_state
 
         for k, v in addr_map.items():
             if not Path(v[0]).exists():
                 origin_f = v[0]
                 print("\nCannot resolve filename: {} at {}".format(origin_f, hex(k)))
-                d = input("Try to manually set file path for {}: ".format(
-                    os.path.basename(origin_f)))
-                if d == 'pass-all' or d == '':
+                d = input(
+                    "Try to manually set file path for {}: ".format(
+                        os.path.basename(origin_f)
+                    )
+                )
+                if d == "pass-all" or d == "":
                     break
                 new_f = Path.find_in_path(origin_f, [d])
 
@@ -162,27 +164,27 @@ class HaseMagics(Magics):
                             addr_map[i] = (new_f, p[1])
                 addr_map[k] = (new_f, v[1])
 
-        l.warning('Caching tokens')
+        l.warning("Caching tokens")
         self.window.cache_tokens(addr_map)
-        l.warning('Add states')
-        #self.window.add_states(user_ns["states"], user_ns["tracer"])
+        l.warning("Add states")
+        # self.window.add_states(user_ns["states"], user_ns["tracer"])
         self.window.enable_buttons()
         self.window.set_slider(user_ns["addr_map"], user_ns["states"])
         self.window.set_location(*addr_map[self.active_state.address()])
         self.window.cache_coredump_constraints()
-        self.gdb_init('')
+        self.gdb_init("")
 
     @args(info="USAGE: info")
     @line_magic("info")
     def gdb_information(self, query):
         # type: (str) -> None
-        self.gdb_update('')
+        self.gdb_update("")
         user_ns = self.shell.user_ns
-        addr_map = user_ns['addr_map']
-        active_state = user_ns['active_state']
+        addr_map = user_ns["addr_map"]
+        active_state = user_ns["active_state"]
         self.window.set_regs()
-        if addr_map[active_state.address()][0] != '??':
-            user_ns['gdbs'].write_request('bt')
+        if addr_map[active_state.address()][0] != "??":
+            user_ns["gdbs"].write_request("bt")
             self.window.set_variable()
         else:
             print("Cannot retrieve variables on unresolvable source code")
@@ -192,18 +194,20 @@ class HaseMagics(Magics):
     def gdb_init(self, query):
         # type: (str) -> None
         user_ns = self.shell.user_ns
-        if 'gdbs' in user_ns.keys():
-            user_ns['gdbs'].gdb.exit()
-        states = user_ns['states']
-        active_state = user_ns['active_state']
-        addr_map = user_ns['addr_map']
-        executable = user_ns['executable']
+        if "gdbs" in user_ns.keys():
+            user_ns["gdbs"].gdb.exit()
+        states = user_ns["states"]
+        active_state = user_ns["active_state"]
+        addr_map = user_ns["addr_map"]
+        executable = user_ns["executable"]
         user_ns["gdbs"] = gdb.GdbServer(
-            states, executable,
-            user_ns["tracer"].cdanalyzer, active_state)
-        user_ns["gdbs"].write_request("dir {}".format(
-            ':'.join([os.path.dirname(str(p)) for p, _ in addr_map.values()])
-        ))
+            states, executable, user_ns["tracer"].cdanalyzer, active_state
+        )
+        user_ns["gdbs"].write_request(
+            "dir {}".format(
+                ":".join([os.path.dirname(str(p)) for p, _ in addr_map.values()])
+            )
+        )
         user_ns["gdbs"].write_request("info sharedlibrary")
         user_ns["gdbs"].write_request("info sharedlibrary")
         for lib in user_ns["gdbs"].libs.libs:
@@ -216,8 +220,8 @@ class HaseMagics(Magics):
     def gdb_update(self, query):
         # type: (str) -> None
         user_ns = self.shell.user_ns
-        user_ns['gdbs'].active_state = user_ns['active_state']
-        user_ns['gdbs'].update_active()
+        user_ns["gdbs"].active_state = user_ns["active_state"]
+        user_ns["gdbs"].update_active()
 
     @line_magic("p")
     def print_value(self, query):
@@ -240,11 +244,10 @@ class HaseMagics(Magics):
     def gdb_angr(self, query):
         # type: (str) -> None
         try:
-            resp = self.shell.user_ns['gdbs'].write_request(query)
+            resp = self.shell.user_ns["gdbs"].write_request(query)
             for r in resp:
-                if r['payload']:
-                    print(r['payload'].replace('\\n', '\n').replace(
-                        '\\t', '\t'))
+                if r["payload"]:
+                    print(r["payload"].replace("\\n", "\n").replace("\\t", "\t"))
         except Exception:
             pass
 
@@ -253,11 +256,10 @@ class HaseMagics(Magics):
     def gdb_core(self, query):
         # type: (str) -> None
         try:
-            resp = self.shell.user_ns['tracer'].cdanalyzer.gdb.write_request(query)
+            resp = self.shell.user_ns["tracer"].cdanalyzer.gdb.write_request(query)
             for r in resp:
-                if r['payload']:
-                    print(r['payload'].replace('\\n', '\n').replace(
-                        '\\t', '\t'))
+                if r["payload"]:
+                    print(r["payload"].replace("\\n", "\n").replace("\\t", "\t"))
         except Exception:
             pass
 

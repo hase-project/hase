@@ -29,9 +29,30 @@ class GdbRegSpace(object):
         # type: (State) -> None
         # https://github.com/radare/radare2/blob/fe6372339da335bd08a8b568d95bb0bd29f24406/shlr/gdb/src/arch.c#L5
         self.names = [
-            "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp", "r8", "r9",
-            "r10", "r11", "r12", "r13", "r14", "r15", "rip", "eflags", "cs",
-            "ss", "ds", "es", "fs", "gs"
+            "rax",
+            "rbx",
+            "rcx",
+            "rdx",
+            "rsi",
+            "rdi",
+            "rbp",
+            "rsp",
+            "r8",
+            "r9",
+            "r10",
+            "r11",
+            "r12",
+            "r13",
+            "r14",
+            "r15",
+            "rip",
+            "eflags",
+            "cs",
+            "ss",
+            "ds",
+            "es",
+            "fs",
+            "gs",
         ]
         self.active_state = active_state
 
@@ -48,7 +69,7 @@ class GdbRegSpace(object):
             else:
                 raise HaseError("Unsupported bit width %d" % reg.size)
             packed = struct.pack(fmt, reg.value)
-            return binascii.hexlify(packed).decode('ascii')
+            return binascii.hexlify(packed).decode("ascii")
         except Exception:
             return "xx" * 8
 
@@ -80,8 +101,7 @@ class GdbMemSpace(object):
         value = self.active_state.memory[addr]
         if value is None:
             try:
-                value = ord(
-                    self.active_state.simstate.project.loader.memory[addr])
+                value = ord(self.active_state.simstate.project.loader.memory[addr])
             except Exception:
                 value = None
             if value is None:
@@ -131,16 +151,16 @@ class GdbSharedLibrary(object):
         if not update and self.xml:
             return self.xml
         header = '<?xml version="1.0"?>'
-        root = ET.Element('library-list-svr4', {'version': '1.0'})
+        root = ET.Element("library-list-svr4", {"version": "1.0"})
         for lib in self.libs:
             h_ld = 0  # value of memory address of PT_DYNAMIC for current lib
             # TODO: Find a way to solve linked_map address. Maybe some solutions below
             # REF: https://reverseengineering.stackexchange.com/questions/6525/elf-link-map-when-linked-as-relro
             #    : https://code.woboq.org/userspace/glibc/elf/link.h.html
-            a_lm = 0 # address of linked_map
+            a_lm = 0  # address of linked_map
 
             for sec in lib.sections:
-                if sec.name == '.dynamic':
+                if sec.name == ".dynamic":
                     h_ld = sec.vaddr
 
             # h_lm = active_state.simstate.memory.load(a_lm + 8, 0x8) # header address of link_map chain
@@ -149,12 +169,15 @@ class GdbSharedLibrary(object):
             h_addr = 0
 
             ET.SubElement(
-                root, 'library', {
-                    'name': '/' + '/'.join(lib.binary.split('/')[4:]),
-                    'lm': hex(h_lm),
-                    'l_addr': hex(h_addr),
-                    'l_ld': hex(h_ld),
-                })
+                root,
+                "library",
+                {
+                    "name": "/" + "/".join(lib.binary.split("/")[4:]),
+                    "lm": hex(h_lm),
+                    "l_addr": hex(h_addr),
+                    "l_ld": hex(h_ld),
+                },
+            )
         body = ET.tostring(root)
         assert body is not None
         self.xml = header + str(body)
@@ -163,22 +186,23 @@ class GdbSharedLibrary(object):
     def validate_xml(self, xml):
         # type: (str) -> Tuple[bool, str]
         from lxml import etree
+
         root = etree.XML(xml)
         dtd = etree.DTD(open("./library-list-svr4.dtd"))
         return dtd.validate(root), dtd.error_log.filter_from_errors()
 
     def read_xml(self, offset, size):
         # type: (int, int) -> str
-        prefix = 'm'
+        prefix = "m"
         xml = self.make_xml()
         if offset > len(xml):
-            return ''
+            return ""
         if size > self.pksize - 4:
             size = self.pksize - 4
         if size > len(xml) - offset:
-            prefix = 'l'
+            prefix = "l"
             size = len(xml) - offset
-        return prefix + xml[offset:offset + size]
+        return prefix + xml[offset : offset + size]
 
 
 def create_pty():
@@ -208,20 +232,20 @@ class GdbServer(object):
         master, ptsname = create_pty()
         self.master = master
         self.COMMANDS = {
-            'q': self.handle_query,
-            'g': self.read_register_all,
-            'G': self.write_register_all,
-            'H': self.set_thread,
-            'm': self.read_memory,
-            'M': self.write_memory,
-            'p': self.read_register,
-            'P': self.write_register,
-            'v': self.handle_long_commands,
-            'X': self.write_memory_bin,
-            'Z': self.insert_breakpoint,
-            'z': self.remove_breakpoint,
-            '?': self.stop_reason,
-            '!': self.extend_mode,
+            "q": self.handle_query,
+            "g": self.read_register_all,
+            "G": self.write_register_all,
+            "H": self.set_thread,
+            "m": self.read_memory,
+            "M": self.write_memory,
+            "p": self.read_register,
+            "P": self.write_register,
+            "v": self.handle_long_commands,
+            "X": self.write_memory_bin,
+            "Z": self.insert_breakpoint,
+            "z": self.remove_breakpoint,
+            "?": self.stop_reason,
+            "!": self.extend_mode,
         }
         self.states = states
         self.active_state = active_state if active_state else states.get_major(-1)
@@ -229,68 +253,71 @@ class GdbServer(object):
         self.mem = GdbMemSpace(self.active_state, cda)
         self.packet_size = PAGESIZE
         self.libs = GdbSharedLibrary(self.active_state, self.packet_size)
-        self.gdb = GdbController(gdb_args=['--quiet', '--nx', '--interpreter=mi2'])
+        self.gdb = GdbController(gdb_args=["--quiet", "--nx", "--interpreter=mi2"])
         self.gdb.write("-target-select remote %s" % ptsname, timeout_sec=10)
         self.thread = threading.Thread(target=self.run)
         self.thread.start()
 
         self.gdb.write("-file-exec-and-symbols %s" % binary, timeout_sec=100)
-        self.gdb.write('set stack-cache off', timeout_sec=100)
+        self.gdb.write("set stack-cache off", timeout_sec=100)
 
     def update_active(self):
         # type: () -> None
         self.regs.active_state = self.active_state
         self.mem.active_state = self.active_state
         self.libs.active_state = self.active_state
-        self.write_request('c')
+        self.write_request("c")
 
     def read_variables(self):
         # type: () -> List[Dict[str, Any]]
         py_file = APP_ROOT.join("gdb/gdb_get_locals.py")
-        resp = self.write_request('python execfile (\"{}\")'.format(py_file))
+        resp = self.write_request('python execfile ("{}")'.format(py_file))
         res = []
         for r in resp:
-            if 'payload' in r.keys() and \
-                isinstance(r['payload'], str) and \
-                r['payload'].startswith('ARGS:'):
-                l = r['payload'].split(' ')
+            if (
+                "payload" in r.keys()
+                and isinstance(r["payload"], str)
+                and r["payload"].startswith("ARGS:")
+            ):
+                l = r["payload"].split(" ")
                 name = l[1]
-                tystr = l[2].replace('%', ' ')
+                tystr = l[2].replace("%", " ")
                 idr = int(l[3])
-                addr_comment = l[4].strip().replace('\\n', '')
-                if '&' in addr_comment:
+                addr_comment = l[4].strip().replace("\\n", "")
+                if "&" in addr_comment:
                     if idr == 1:
-                        ll = addr_comment.partition('&')
-                        addr : Union[str, int] = int(ll[0], 16)
+                        ll = addr_comment.partition("&")
+                        addr: Union[str, int] = int(ll[0], 16)
                         comment = ll[2]
                 else:
                     if idr == 1:
                         addr = int(addr_comment, 16)
-                        comment = ''
+                        comment = ""
                     else:
                         addr = addr_comment
-                        comment = ''
-                size = int(l[5].strip().replace('\\n', ''))
-                res.append({
-                    'name': name,
-                    'type': tystr,
-                    'loc': idr,
-                    'addr': addr,
-                    'size': size,
-                    'comment': comment,
-                })
+                        comment = ""
+                size = int(l[5].strip().replace("\\n", ""))
+                res.append(
+                    {
+                        "name": name,
+                        "type": tystr,
+                        "loc": idr,
+                        "addr": addr,
+                        "size": size,
+                        "comment": comment,
+                    }
+                )
         return res
 
     def eval_expression(self, expr):
         # type: (str) -> None
-        res = self.gdb.write(
-            "-data-evaluate-expression %s" % expr, timeout_sec=99999)
+        res = self.gdb.write("-data-evaluate-expression %s" % expr, timeout_sec=99999)
         print(res)
 
     def write_request(self, req, **kwargs):
         # type: (str, **Any) -> List[Dict[str, Any]]
-        timeout_sec = kwargs.pop('timeout_sec', 10)
-        kwargs['read_response'] = False
+        timeout_sec = kwargs.pop("timeout_sec", 10)
+        kwargs["read_response"] = False
         self.gdb.write(req, timeout_sec=timeout_sec, **kwargs)
         resp = []  # type: List[Dict[str, Any]]
         while True:
@@ -303,7 +330,7 @@ class GdbServer(object):
     def run(self):
         # type: () -> None
         l.info("start server gdb server")
-        buf = ''
+        buf = ""
         while True:
             try:
                 data = os.read(self.master.fileno(), PAGESIZE)
@@ -313,7 +340,7 @@ class GdbServer(object):
 
             if len(data) == 0:
                 l.debug("gdb connection was closed")
-            buf += data.decode('utf-8')
+            buf += data.decode("utf-8")
             buf = self.process_data(buf)
 
     def process_data(self, buf):
@@ -323,7 +350,7 @@ class GdbServer(object):
                 buf = buf[1:]
                 if len(buf) == 0:
                     return buf
-            if '$' not in buf:
+            if "$" not in buf:
                 return buf
             begin = buf.index("$") + 1
             end = buf.index("#")
@@ -334,7 +361,7 @@ class GdbServer(object):
                 assert checksum == compute_checksum(packet)
 
                 self.process_packet(packet)
-                buf = buf[end + 3:]
+                buf = buf[end + 3 :]
         return buf
 
     def write_ack(self):
@@ -402,7 +429,7 @@ class GdbServer(object):
         """
         P n...=r...
         """
-        n_, r_ = packet.split('=')
+        n_, r_ = packet.split("=")
         n = int(n_, 16)
         r = int(r_, 16)
         if n < len(self.regs.names):
@@ -414,14 +441,14 @@ class GdbServer(object):
         """
         H op thread-id
         """
-        return 'OK'
+        return "OK"
 
     def read_memory(self, packet):
         # type: (str) -> str
         """
         m addr,length
         """
-        addr_, length_ = packet.split(',')
+        addr_, length_ = packet.split(",")
         addr = int(addr_, 16)
         length = int(length_, 16)
         return self.mem.read(addr, length)
@@ -431,9 +458,9 @@ class GdbServer(object):
         """
         M addr,length:XX
         """
-        l = packet.split(',')
+        l = packet.split(",")
         addr_ = l[0]
-        length_, value = l[1].split(':')
+        length_, value = l[1].split(":")
         addr = int(addr_, 16)
         length = int(length_, 16)
         self.mem.write(addr, length, value)
@@ -478,23 +505,22 @@ class GdbServer(object):
             self.write_response("T05library:r;")
             return "S05"
 
-        if packet.startswith('Cont'):
-            supported_action = ['', 'c', 's',
-                                't']  # TODO: C sig/S sig/r start,end
+        if packet.startswith("Cont"):
+            supported_action = ["", "c", "s", "t"]  # TODO: C sig/S sig/r start,end
             packet = packet[4:]
-            if packet == '?':
-                return ';'.join(supported_action)
-            action = packet.split(';')[1]
-            action = action.split(':')[0]
+            if packet == "?":
+                return ";".join(supported_action)
+            action = packet.split(";")[1]
+            action = action.split(":")[0]
             if action in supported_action:
                 return handle_cont(action)
-            l.warning("unknown command: v%s", 'Cont' + packet)
+            l.warning("unknown command: v%s", "Cont" + packet)
             return ""
 
-        if packet.startswith('CtrlC'):
+        if packet.startswith("CtrlC"):
             return "OK"
 
-        if packet.startswith('MustReplyEmpty'):
+        if packet.startswith("MustReplyEmpty"):
             return ""
         else:
             l.warning("unknown command: v%s", packet)
@@ -507,25 +533,25 @@ class GdbServer(object):
         qXfer:...:read:annex:offset,size
         """
 
-        if packet.startswith('Supported'):
+        if packet.startswith("Supported"):
             features = [
-                'qXfer:libraries-svr4:read+',
+                "qXfer:libraries-svr4:read+",
                 # 'qXfer:memory-map:read+'
             ]
-            features.append('PacketSize=%x' % self.packet_size)
-            return ';'.join(features)
-        elif packet.startswith('Xfer'):
-            reqs = packet.split(':')
+            features.append("PacketSize=%x" % self.packet_size)
+            return ";".join(features)
+        elif packet.startswith("Xfer"):
+            reqs = packet.split(":")
             # FIXME: not working now
-            if reqs[1] == 'libraries-svr4' and reqs[2] == 'read':
-                data = reqs[4].split(',')
+            if reqs[1] == "libraries-svr4" and reqs[2] == "read":
+                data = reqs[4].split(",")
                 return self.libs.read_xml(int(data[0], 16), int(data[1], 16))
-            if reqs[1] == 'memory-map' and reqs[2] == 'read':
+            if reqs[1] == "memory-map" and reqs[2] == "read":
                 # TODO: add memory-map, (do we really need it now?)
                 return ""
-            return ''
-        elif packet.startswith('Attached'):
-            return '1'
+            return ""
+        elif packet.startswith("Attached"):
+            return "1"
         elif packet.startswith("C"):
             # FIXME real thread id
             return ""  # empty means no threads
@@ -536,10 +562,10 @@ class GdbServer(object):
         elif packet.startswith("TStatus"):
             # catch all for all commands we know and don't want to implement
             return ""
-        elif packet.startswith('Symbol'):
-            if packet == 'Symbol::':
+        elif packet.startswith("Symbol"):
+            if packet == "Symbol::":
                 return "OK"
-            _, sym_value, sym_name = packet.split(':')
+            _, sym_value, sym_name = packet.split(":")
             return "OK"
         else:
             l.warning("unknown query: %s", packet)

@@ -57,17 +57,20 @@ def cpus_online():
         cores = f.read().strip()
 
     result = set()
-    sequences = cores.split(',')
+    sequences = cores.split(",")
     for seq in sequences:
-        if '-' not in seq:
+        if "-" not in seq:
             if not seq.isdigit():
-                raise ValueError('%s is not digital' % seq)
+                raise ValueError("%s is not digital" % seq)
             result.add(int(seq))
         else:
-            core_range = seq.split('-')
-            if len(core_range) != 2 or not core_range[0].isdigit() \
-                    or not core_range[1].isdigit():
-                raise ValueError('Core Range Error')
+            core_range = seq.split("-")
+            if (
+                len(core_range) != 2
+                or not core_range[0].isdigit()
+                or not core_range[1].isdigit()
+            ):
+                raise ValueError("Core Range Error")
             result.update(range(int(core_range[0]), int(core_range[1]) + 1))
     return list(result)
 
@@ -81,8 +84,9 @@ def intel_pt_type():
 class PMU(object):
     def __init__(self, perf_attr, cpu, pid):
         # type: (perf_event_attr, int, int) -> None
-        self.fd = Libc.syscall(SYS_perf_event_open, ct.byref(perf_attr), pid,
-                               cpu, -1, PERF_FLAG_FD_CLOEXEC)
+        self.fd = Libc.syscall(
+            SYS_perf_event_open, ct.byref(perf_attr), pid, cpu, -1, PERF_FLAG_FD_CLOEXEC
+        )
         assert self.fd != -1
         fcntl.fcntl(self.fd, fcntl.F_SETFL, os.O_RDONLY | os.O_NONBLOCK)
 
@@ -137,11 +141,13 @@ def open_pt_event(cpu, pid):
     attr.sample_type = SampleFlags.PERF_SAMPLE_MASK
     attr.sample_period = 1
     attr.clockid = 1
-    attr.flags = AttrFlags.DISABLED | \
-        AttrFlags.EXCLUDE_KERNEL | \
-        AttrFlags.EXCLUDE_HV | \
-        AttrFlags.SAMPLE_ID_ALL | \
-        AttrFlags.WRITE_BACKWARD
+    attr.flags = (
+        AttrFlags.DISABLED
+        | AttrFlags.EXCLUDE_KERNEL
+        | AttrFlags.EXCLUDE_HV
+        | AttrFlags.SAMPLE_ID_ALL
+        | AttrFlags.WRITE_BACKWARD
+    )
 
     return PMU(attr, cpu, pid)
 
@@ -156,13 +162,15 @@ def open_dummy_event(cpu, pid):
     attr.sample_period = 1
     attr.clockid = 1
 
-    attr.flags = AttrFlags.EXCLUDE_KERNEL | \
-        AttrFlags.EXCLUDE_HV | \
-        AttrFlags.SAMPLE_ID_ALL | \
-        AttrFlags.CONTEXT_SWITCH | \
-        AttrFlags.WRITE_BACKWARD
+    attr.flags = (
+        AttrFlags.EXCLUDE_KERNEL
+        | AttrFlags.EXCLUDE_HV
+        | AttrFlags.SAMPLE_ID_ALL
+        | AttrFlags.CONTEXT_SWITCH
+        | AttrFlags.WRITE_BACKWARD
+    )
 
-    #attr.flags = AttrFlags.EXCLUDE_KERNEL | \
+    # attr.flags = AttrFlags.EXCLUDE_KERNEL | \
     #    AttrFlags.EXCLUDE_HV | \
     #    AttrFlags.SAMPLE_ID_ALL | \
     #    AttrFlags.MMAP | \
@@ -183,9 +191,9 @@ class TscConversion(object):
         self.time_shift = time_shift
         self.time_zero = time_zero
 
+
 class CpuId(object):
-    def __init__(self, family, model, stepping, cpuid_0x15_eax,
-                 cpuid_0x15_ebx):
+    def __init__(self, family, model, stepping, cpuid_0x15_eax, cpuid_0x15_ebx):
         # type: (int, int, int, int, int) -> None
         self.family = family
         self.model = model
@@ -255,8 +263,8 @@ class MmapHeader(object):
                 length = self.data_addr + data_size - begin
                 ct.memmove(c_buf, begin, length)
                 ct.memmove(
-                    ct.addressof(c_buf) + length, self.data_addr,
-                    ev.size - length)
+                    ct.addressof(c_buf) + length, self.data_addr, ev.size - length
+                )
             else:
                 ct.memmove(c_buf, begin, ct.sizeof(c_buf))
             struct_factory = EVENTS.get(ev.type)
@@ -274,9 +282,9 @@ class MmapHeader(object):
         i = 0
         while True:
             seq = self._header.lock
-            conversion = TscConversion(self._header.time_mult,
-                                       self._header.time_shift,
-                                       self._header.time_zero)
+            conversion = TscConversion(
+                self._header.time_mult, self._header.time_shift, self._header.time_zero
+            )
 
             cap_user_time_zero = self._header.capabilities & 1 << CAP_USER_TIME_ZERO
             if self._header.lock == seq and (seq & 1) == 0:
@@ -316,10 +324,11 @@ class BackwardRingbuffer(object):
         # data and aux area must be a multiply of two
         self.pmu = open_dummy_event(cpu, pid)
         header_size = Libc.PAGESIZE
-        data_size = (2**9) * Libc.PAGESIZE  # == 2097152
+        data_size = (2 ** 9) * Libc.PAGESIZE  # == 2097152
 
-        self.buf = MMap(self.pmu.fd, header_size + data_size, mmap.PROT_READ,
-                        mmap.MAP_SHARED)
+        self.buf = MMap(
+            self.pmu.fd, header_size + data_size, mmap.PROT_READ, mmap.MAP_SHARED
+        )
 
         self.header = MmapHeader(self.buf.addr, data_size)
 
@@ -346,23 +355,28 @@ class AuxRingbuffer(object):
     def __init__(self, cpu, pid=-1):
         # type: (int, int) -> None
         # data area must be a multiply of two
-        data_size = (2**9) * Libc.PAGESIZE  # == 2097152
+        data_size = (2 ** 9) * Libc.PAGESIZE  # == 2097152
         self.pmu = open_pt_event(cpu, pid)
         header_size = Libc.PAGESIZE
 
-        self.buf = MMap(self.pmu.fd, header_size + data_size,
-                        mmap.PROT_READ | mmap.PROT_WRITE, mmap.MAP_SHARED)
+        self.buf = MMap(
+            self.pmu.fd,
+            header_size + data_size,
+            mmap.PROT_READ | mmap.PROT_WRITE,
+            mmap.MAP_SHARED,
+        )
 
         self.header = MmapHeader(self.buf.addr, data_size)
 
         # aux area must be a multiply of two
-        self.header.aux_size = Libc.PAGESIZE * (2**14)  # == 67108864
+        self.header.aux_size = Libc.PAGESIZE * (2 ** 14)  # == 67108864
         self.aux_buf = MMap(
             self.pmu.fd,
             self.header.aux_size,
             mmap.PROT_READ,
             mmap.MAP_SHARED,
-            offset=self.header.aux_offset)
+            offset=self.header.aux_offset,
+        )
 
         self.pmu.enable()
 
@@ -401,7 +415,7 @@ class Cpu(object):
         self.event_buffer = event_buffer
         self.pt_buffer = pt_buffer
 
-        self._itrace_start_event = None # type: Optional[ct.Structure]
+        self._itrace_start_event = None  # type: Optional[ct.Structure]
 
     def events(self):
         # type: () -> Iterator[ct.Structure]
@@ -439,8 +453,8 @@ class Cpu(object):
                 length = aux_end - begin
                 ct.memmove(c_buf, begin, length)
                 ct.memmove(
-                    ct.addressof(c_buf) + length, aux_begin,
-                    ev.aux_size - length)
+                    ct.addressof(c_buf) + length, aux_begin, ev.aux_size - length
+                )
             else:
                 ct.memmove(c_buf, aux_begin, ct.sizeof(c_buf))
 

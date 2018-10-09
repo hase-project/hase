@@ -36,20 +36,21 @@ class Addr2line(object):
                 relative_addrs.append("0x%x" % self._relative_addr(dso, addr))
 
             subproc = subprocess.Popen(
-                ["addr2line", '-e', dso.binary],
+                ["addr2line", "-e", dso.binary],
                 stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE)
-            (stdoutdata, _) = subproc.communicate('\n'.join(relative_addrs))
-            lines = stdoutdata.strip().split('\n')
+                stdout=subprocess.PIPE,
+            )
+            (stdoutdata, _) = subproc.communicate("\n".join(relative_addrs))
+            lines = stdoutdata.strip().split("\n")
             if len(lines) < len(addresses):
                 raise HaseError("addr2line didn't output enough lines")
 
-            relative_root = os.environ['HASESRC'].split(':')
+            relative_root = os.environ["HASESRC"].split(":")
 
             for addr, line in zip(addresses, lines):
                 if line:
                     file, line = line.split(":")
-                    if file != '??':
+                    if file != "??":
                         relative_root.append(os.path.dirname(file))
 
             for addr, line in zip(addresses, lines):
@@ -62,7 +63,7 @@ class Addr2line(object):
                         new_file = Path.find_in_path(file, relative_root)
                         # print("Redirect: {} -> {}".format(file, new_file))
                         file = new_file
-                    if line == '?':
+                    if line == "?":
                         line = 0
                     addr_map[addr] = (file, int(line))
         return addr_map

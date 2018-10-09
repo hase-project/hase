@@ -11,7 +11,14 @@ import bisect
 from ..pwn_wrapper import Mapping
 from .. import _pt  # type: ignore
 from ..path import Path
-from .events import Instruction, InstructionClass, TraceEvent, EnableEvent, DisableEvent, AsyncDisableEvent
+from .events import (
+    Instruction,
+    InstructionClass,
+    TraceEvent,
+    EnableEvent,
+    DisableEvent,
+    AsyncDisableEvent,
+)
 from ..perf.reader import perf_events
 from ..perf.consts import PerfRecord
 
@@ -51,8 +58,12 @@ class ScheduleEntry(object):
             stop = ""
         else:
             stop = "%x" % self.stop
-        return '<%s core#%d time: %s..%s>' % (self.__class__.__name__,
-                                              self.core, start, stop)
+        return "<%s core#%d time: %s..%s>" % (
+            self.__class__.__name__,
+            self.core,
+            start,
+            stop,
+        )
 
 
 def copy_struct(struct):
@@ -76,24 +87,30 @@ def get_thread_schedule(perf_event_paths, start_thread_ids, start_times):
 
             if ev.is_switch_out():
                 if first_event:
-                    assert start_thread_ids[core] == ev.tid, \
-                            "the thread from pt does not match with the thread de-scheduled by the OS"
+                    assert (
+                        start_thread_ids[core] == ev.tid
+                    ), "the thread from pt does not match with the thread de-scheduled by the OS"
                     start_time = start_times[core]
                 else:
-                    assert schedule_in_event, "we saw two continuous schedule-out events"
-                    assert schedule_in_event.sample_id.tid == ev.sample_id.tid, \
-                            "thread id of schedule-in does not match schedule-out"
+                    assert (
+                        schedule_in_event
+                    ), "we saw two continuous schedule-out events"
+                    assert (
+                        schedule_in_event.sample_id.tid == ev.sample_id.tid
+                    ), "thread id of schedule-in does not match schedule-out"
                     start_time = schedule_in_event.sample_id.time
 
                 end_time = ev.sample_id.time
 
-                entry = ScheduleEntry(core, ev.sample_id.pid, ev.sample_id.tid,
-                                      start_time, end_time)
+                entry = ScheduleEntry(
+                    core, ev.sample_id.pid, ev.sample_id.tid, start_time, end_time
+                )
                 bisect.insort(schedule, entry)
                 schedule_in_event = None
             else:
-                assert schedule_in_event is None or first_event, \
-                        "we saw a two schedule-in events without a schedule-out event"
+                assert (
+                    schedule_in_event is None or first_event
+                ), "we saw a two schedule-in events without a schedule-out event"
                 # we use schedule_in_event beyond the MMAP allocation of `perf_events()`
                 schedule_in_event = copy_struct(ev)
 
@@ -101,9 +118,10 @@ def get_thread_schedule(perf_event_paths, start_thread_ids, start_times):
 
         if schedule_in_event is not None:
             sample_id = schedule_in_event.sample_id
-            bisect.insort(schedule,
-                          ScheduleEntry(core, sample_id.pid, sample_id.tid,
-                                        sample_id.time, None))
+            bisect.insort(
+                schedule,
+                ScheduleEntry(core, sample_id.pid, sample_id.tid, sample_id.time, None),
+            )
             schedule_in_event = None
 
     return schedule
@@ -124,7 +142,10 @@ def sanity_check_order(instructions):
                 if len(stack) != 0:
                     return_ip = stack.pop()
                     assert return_ip == instruction.ip
-            elif previous.iclass in (InstructionClass.ptic_far_call, InstructionClass.ptic_other):
+            elif previous.iclass in (
+                InstructionClass.ptic_far_call,
+                InstructionClass.ptic_other,
+            ):
                 assert instruction.ip == previous.ip + previous.size
 
         if instruction.iclass == InstructionClass.ptic_call:
@@ -161,8 +182,11 @@ def correlate_traces(traces, schedule, pid, tid):
             i = 0
             for chunk in trace:
                 # TODO: timer is not accurate between kernel and hardware?
-                if entry.stop is None or next_entry is None or \
-                        abs(chunk.stop - entry.stop) < abs(chunk.stop - next_entry.start):
+                if (
+                    entry.stop is None
+                    or next_entry is None
+                    or abs(chunk.stop - entry.stop) < abs(chunk.stop - next_entry.start)
+                ):
 
                     entry.chunks.append(chunk)
                     i += 1
@@ -171,7 +195,9 @@ def correlate_traces(traces, schedule, pid, tid):
             trace = trace[i:]
 
             if len(entry.chunks) == 0:
-                raise Exception("no instructions could be correlated with this hardware bug ?")
+                raise Exception(
+                    "no instructions could be correlated with this hardware bug ?"
+                )
             assert len(entry.chunks) > 0
         assert len(trace) == 0
     instructions = []
@@ -192,8 +218,7 @@ def merge_same_core_switches(schedule):
     new_schedule = [schedule[0]]
 
     for (i, entry) in enumerate(schedule[1:]):
-        if new_schedule[-1].core == entry.core \
-                and new_schedule[-1].tid == entry.tid:
+        if new_schedule[-1].core == entry.core and new_schedule[-1].tid == entry.tid:
             new_schedule[-1].stop = entry.stop
             new_schedule[-1].count += 1
         else:
@@ -215,12 +240,15 @@ class Chunk(object):
 
     def __repr__(self):
         # type: () -> str
-        return '<%s time: 0x%x..0x%x [%d instructions]>' % (
-            self.__class__.__name__, self.start, self.stop,
-            len(self.instructions))
+        return "<%s time: 0x%x..0x%x [%d instructions]>" % (
+            self.__class__.__name__,
+            self.start,
+            self.stop,
+            len(self.instructions),
+        )
 
 
-#def is_context_switch(event, instruction):
+# def is_context_switch(event, instruction):
 #    # type: (TraceEvent, Instruction) -> bool
 #    if isinstance(event, DisableEvent) and \
 #            instruction.iclass == InstructionClass.ptic_far_call:
@@ -239,24 +267,23 @@ def chunk_trace(core, trace):
     chunks = []  # type: List[Chunk]
 
     enable_event = None
-    #switch_detected = False
+    # switch_detected = False
     instructions = []  # type: List[Instruction]
     for (idx, ev) in enumerate(trace):
         if isinstance(ev, TraceEvent):
             latest_time = ev.time
             if isinstance(ev, EnableEvent):
                 enable_event = ev
-                #switch_detected = False
-            elif isinstance(ev, DisableEvent) or isinstance(
-                    ev, AsyncDisableEvent):
+                # switch_detected = False
+            elif isinstance(ev, DisableEvent) or isinstance(ev, AsyncDisableEvent):
                 assert enable_event is not None
 
                 if len(instructions) == 0:
                     enable_event = None
-                    #switch_detected = False
+                    # switch_detected = False
                     continue
 
-                #if len(chunks) != 0:
+                # if len(chunks) != 0:
                 #    last_instruction = chunks[-1].instructions[-1]
                 #    switch_detected = is_context_switch(ev, last_instruction)
 
@@ -265,7 +292,7 @@ def chunk_trace(core, trace):
                     instruction.core = core
                     instruction.chunk = idx
 
-                #chunk = Chunk(enable_event.time, ev.time, switch_detected,
+                # chunk = Chunk(enable_event.time, ev.time, switch_detected,
                 #              instructions)
                 chunk = Chunk(enable_event.time, ev.time, instructions)
                 chunks.append(chunk)
@@ -282,24 +309,24 @@ def chunk_trace(core, trace):
 
 # TODO multiple threads
 def decode(
-        trace_paths,  # type: List[str]
-        perf_event_paths,  # type: List[str]
-        start_thread_ids,  # type: List[int]
-        start_times,  # type: List[int]
-        pid,  # type: int
-        tid,  # type: int
-        mappings,  # type: List[Mapping]
-        cpu_family,  # type: int
-        cpu_model,  # type: int
-        cpu_stepping,  # type: int
-        cpuid_0x15_eax,  # type: int
-        cpuid_0x15_ebx,  # type: int
-        sample_type,  # type: int
-        time_zero,  # type: int
-        time_shift,  # type: int
-        time_mult,  # type: int
-        sysroot,  # type: str
-        vdso_x64  # type: str
+    trace_paths,  # type: List[str]
+    perf_event_paths,  # type: List[str]
+    start_thread_ids,  # type: List[int]
+    start_times,  # type: List[int]
+    pid,  # type: int
+    tid,  # type: int
+    mappings,  # type: List[Mapping]
+    cpu_family,  # type: int
+    cpu_model,  # type: int
+    cpu_stepping,  # type: int
+    cpuid_0x15_eax,  # type: int
+    cpuid_0x15_ebx,  # type: int
+    sample_type,  # type: int
+    time_zero,  # type: int
+    time_shift,  # type: int
+    time_mult,  # type: int
+    sysroot,  # type: str
+    vdso_x64,  # type: str
 ):
     # type: (...) -> List[Instruction]
 
@@ -316,8 +343,9 @@ def decode(
         if m.path.startswith("/"):
             path = str(root.join(m.path[1:]))
             page_size = 4096
-            shared_objects.append((path, m.page_offset * page_size,
-                                   m.stop - m.start, m.start))
+            shared_objects.append(
+                (path, m.page_offset * page_size, m.stop - m.start, m.start)
+            )
 
     for (core, trace_path) in enumerate(trace_paths):
         trace = _pt.decode(
@@ -330,12 +358,12 @@ def decode(
             time_zero=time_zero,
             time_mult=time_mult,
             time_shift=time_shift,
-            shared_objects=shared_objects)
+            shared_objects=shared_objects,
+        )
         raw_trace.append(trace)
         traces.append(chunk_trace(core, trace))
 
-    schedule = get_thread_schedule(perf_event_paths, start_thread_ids,
-                                   start_times)
+    schedule = get_thread_schedule(perf_event_paths, start_thread_ids, start_times)
 
     schedule = merge_same_core_switches(schedule)
 

@@ -1,15 +1,17 @@
 from __future__ import absolute_import, division, print_function
 
 from PyQt5.QtWidgets import (
-    QGraphicsItem, QGraphicsRectItem,
-    QGraphicsTextItem, QGraphicsPathItem,
+    QGraphicsItem,
+    QGraphicsRectItem,
+    QGraphicsTextItem,
+    QGraphicsPathItem,
     QGraphicsLineItem,
-    QGraphicsScene, QGraphicsView,
+    QGraphicsScene,
+    QGraphicsView,
 )
 from PyQt5.QtCore import QPointF, QLineF, QRectF, Qt
-from PyQt5.QtGui import (
-    QPainter, QPainterPath, QPen, QBrush, QColor
-)
+from PyQt5.QtGui import QPainter, QPainterPath, QPen, QBrush, QColor
+
 # NOTE: requires matplotlib, scipy
 from networkx import Graph, kamada_kawai_layout
 from math import hypot
@@ -19,6 +21,7 @@ from typing import Tuple, Any, List, Union, Optional
 from ..errors import HaseError
 from ..symbex.state import State
 from ..symbex.tracer import Tracer
+
 
 class StateEdgeArrow(QGraphicsLineItem):
     def __init__(self, line):
@@ -37,14 +40,14 @@ class StateEdgeText(QGraphicsTextItem):
         # type: (List[int], int, int, int, CallGraphManager) -> None
         # text = '{} -> {}'.format(hex(from_addr), hex(to_addr))
         self.times = times
-        text = '[{} times]'.format(self.times)
+        text = "[{} times]".format(self.times)
         super(StateEdgeText, self).__init__(text)
         self.state_index = state_index
         self.manager = manager
         self.setFlag(QGraphicsItem.ItemIsSelectable)
 
     def update_text(self, times):
-        text = '[{} times]'.format(times)
+        text = "[{} times]".format(times)
         self.setPlainText(text)
 
     def update_pos(self, midpoint):
@@ -91,17 +94,15 @@ class StateEdge(QGraphicsLineItem):
     def midpoint(self):
         # type: () -> QPointF
         line = self.line()
-        return QPointF(
-            (line.x1() + line.x2()) / 2,
-            (line.y1() + line.y2()) / 2)
+        return QPointF((line.x1() + line.x2()) / 2, (line.y1() + line.y2()) / 2)
 
     def update_pos(self):
         # type: () -> None
         addr_node = self.from_t[0]
         ip_node = self.to_t[0]
         edge_dir = CallGraphManager.edge_direction(addr_node, ip_node)
-        self.from_t = list((addr_node,) +  edge_dir[0] + (addr_node.addr,))
-        self.to_t = list((ip_node,) +  edge_dir[1] + (ip_node.addr,))
+        self.from_t = list((addr_node,) + edge_dir[0] + (addr_node.addr,))
+        self.to_t = list((ip_node,) + edge_dir[1] + (ip_node.addr,))
         self.setLine(QLineF(self.from_t[1], self.to_t[1]))
         self.text.update_pos(self.midpoint())
         up_line, down_line = self.arrow_line()
@@ -128,7 +129,9 @@ class StateNode(QGraphicsRectItem):
         self.name = name
         self.index = index
         self.addr = addr
-        self.text.setPos(rect.topLeft() + QPointF((rect.width() - self.text_width) / 2, 0))
+        self.text.setPos(
+            rect.topLeft() + QPointF((rect.width() - self.text_width) / 2, 0)
+        )
         self.manager = manager
         self.setZValue(1)
         self.setFlag(QGraphicsItem.ItemIsMovable)
@@ -136,14 +139,14 @@ class StateNode(QGraphicsRectItem):
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges)
         self.edges = []  # type: List[StateEdge]
         self.str_to_node = {
-            'right': self.right_node,
-            'top': self.top_node,
-            'left': self.left_node,
-            'down': self.down_node,
-            'top_left': self.tl_node,
-            'top_right': self.tr_node,
-            'down_left': self.dl_node,
-            'down_right': self.dr_node,
+            "right": self.right_node,
+            "top": self.top_node,
+            "left": self.left_node,
+            "down": self.down_node,
+            "top_left": self.tl_node,
+            "top_right": self.tr_node,
+            "down_left": self.dl_node,
+            "down_right": self.dr_node,
         }
 
     def set_text(self, text):
@@ -153,7 +156,9 @@ class StateNode(QGraphicsRectItem):
     def right_node(self):
         # type: () -> QPointF
         rect = self.rect()
-        return QPointF(self.x() + rect.x() + rect.width(), self.y() + rect.y() + rect.height() / 2)
+        return QPointF(
+            self.x() + rect.x() + rect.width(), self.y() + rect.y() + rect.height() / 2
+        )
 
     def top_node(self):
         # type: () -> QPointF
@@ -168,7 +173,9 @@ class StateNode(QGraphicsRectItem):
     def down_node(self):
         # type: () -> QPointF
         rect = self.rect()
-        return QPointF(self.x() + rect.x()  + rect.width() / 2, self.y() + rect.y() + rect.height())
+        return QPointF(
+            self.x() + rect.x() + rect.width() / 2, self.y() + rect.y() + rect.height()
+        )
 
     def tl_node(self):
         # type: () -> QPointF
@@ -188,11 +195,17 @@ class StateNode(QGraphicsRectItem):
     def dr_node(self):
         # type: () -> QPointF
         rect = self.rect()
-        return QPointF(self.x() + rect.x() + rect.width(), self.y() + rect.y() + rect.height())
+        return QPointF(
+            self.x() + rect.x() + rect.width(), self.y() + rect.y() + rect.height()
+        )
 
     def set_text_edge(self, x, y):
         # type: (float, float) -> None
-        self.text.setPos(self.rect().topLeft() + QPointF(x, y) + QPointF((self.rect().width() - self.text_width) / 2, 0))
+        self.text.setPos(
+            self.rect().topLeft()
+            + QPointF(x, y)
+            + QPointF((self.rect().width() - self.text_width) / 2, 0)
+        )
         for edge in self.edges:
             edge.update_pos()
 
@@ -235,17 +248,17 @@ class CallGraphManager(object):
     def edge_direction(addr_node, ip_node):
         # type: (StateNode, StateNode) -> Tuple[Tuple[QPointF, str], Tuple[QPointF, str]]
         edge_selections = [
-            ('top', 'down'),
+            ("top", "down"),
             # ('top_right', 'down_left'),
-            ('right', 'left'),
+            ("right", "left"),
             # ('down_right', 'top_left'),
-            ('down', 'top'),
+            ("down", "top"),
             # ('down_left', 'top_right'),
-            ('left', 'right'),
+            ("left", "right"),
             # ('top_left', 'down_right'),
         ]
         min_dis = 0x7FFFFFFF + 0.1
-        min_select = ('top', 'down')
+        min_select = ("top", "down")
         min_pos = (addr_node.top_node(), ip_node.down_node())
         for select in edge_selections:
             addr_pos = addr_node.str_to_node[select[0]]()
@@ -259,9 +272,7 @@ class CallGraphManager(object):
 
     def create_node(self, fname, text, addr):
         # type: (str, str, int) -> StateNode
-        rect = QRectF(
-            0, 0,
-            self.NODE_WIDTH, self.NODE_HEIGHT)
+        rect = QRectF(0, 0, self.NODE_WIDTH, self.NODE_HEIGHT)
         node = StateNode(fname, self.size, addr, rect, text, self)
         self.nodes.append(node)
         self.graph.add_node(node)
@@ -285,10 +296,10 @@ class CallGraphManager(object):
         edge_dir = CallGraphManager.edge_direction(addr_node, ip_node)
         edge = StateEdge(
             state_index,
-            list((addr_node,) +  edge_dir[0] + (addr_node.addr,)),
-            list((ip_node,) +  edge_dir[1] + (ip_node.addr,)),
+            list((addr_node,) + edge_dir[0] + (addr_node.addr,)),
+            list((ip_node,) + edge_dir[1] + (ip_node.addr,)),
             times,
-            self
+            self,
         )
         addr_node.edges.append(edge)
         ip_node.edges.append(edge)
@@ -298,16 +309,16 @@ class CallGraphManager(object):
         # type: (State) -> bool
         assert state.from_simstate is not None
         insn = state.from_simstate.block().capstone.insns[0]
-        return insn.mnemonic == 'ret'
+        return insn.mnemonic == "ret"
 
     def get_text(self, fname, simstate):
         # type: (str, Any) -> str
         insns = simstate.block().capstone.insns
         text = fname
-        '''
+        """
         for i in range(min(2, len(insns))):
             text += '\n' + str(insns[i])
-        '''
+        """
         return text
 
     def get_func_node(self, state, tracer):
@@ -315,8 +326,11 @@ class CallGraphManager(object):
         addr_sym = tracer.filter.find_function(state.branch.addr)
         ip_sym = tracer.filter.find_function(state.branch.ip)
         if not addr_sym or not ip_sym:
-            raise HaseError("Unable to find symbols for %x and %x",
-                state.branch.addr, state.branch.ip)
+            raise HaseError(
+                "Unable to find symbols for %x and %x",
+                state.branch.addr,
+                state.branch.ip,
+            )
         addr_name = addr_sym.name
         ip_name = ip_sym.name
         addr_node = None

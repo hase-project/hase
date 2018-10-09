@@ -51,7 +51,8 @@ def decode_trace(manifest, mappings, vdso_x64, executable_root):
         time_mult=trace["time_mult"],
         sample_type=trace["sample_type"],
         sysroot=executable_root,
-        vdso_x64=vdso_x64)
+        vdso_x64=vdso_x64,
+    )
 
 
 class Replay(object):
@@ -105,15 +106,13 @@ class Replay(object):
     def unpack(self):
         # type: () -> Dict[str, Any]
         archive_root = self.tempdir
-        subprocess.check_call(
-            ["tar", "-xzf", self.report, "-C",
-             str(archive_root)])
+        subprocess.check_call(["tar", "-xzf", self.report, "-C", str(archive_root)])
 
         manifest_path = archive_root.join("manifest.json")
         with open(str(manifest_path)) as f:
             manifest = json.load(f)
 
-        for cpu in manifest['trace']['cpus']:
+        for cpu in manifest["trace"]["cpus"]:
             cpu["event_path"] = str(archive_root.join(cpu["event_path"]))
             cpu["trace_path"] = str(archive_root.join(cpu["trace_path"]))
 
