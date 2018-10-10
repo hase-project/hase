@@ -28,7 +28,7 @@ def stop_hase():
 
 
 @nose.tools.with_setup(teardown=stop_hase)
-def test_record_command():
+def test_record_command() -> None:
     """
     Full integration test
     """

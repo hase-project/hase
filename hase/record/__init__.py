@@ -6,9 +6,9 @@ import fcntl
 import json
 import logging
 import os
+import resource
 import shutil
 import subprocess
-import resource
 from queue import Queue
 from signal import SIGUSR2
 from tempfile import NamedTemporaryFile
@@ -31,11 +31,20 @@ DEFAULT_LOG_DIR = Path("/var/lib/hase")
 PROT_EXEC = 4
 
 
+class Recording:
+    def __init__(
+        self, coredump: Optional[coredumps.Coredump], trace: Trace, exit_status: int
+    ) -> None:
+        self.coredump = coredump
+        self.trace = trace
+        self.exit_status = exit_status
+
+
 def record_process(
     process: subprocess.Popen,
     record_paths: "RecordPaths",
     timeout: Optional[int] = None,
-) -> Optional[Tuple[coredumps.Coredump, Trace]]:
+) -> Recording:
     handler = coredumps.Handler(
         str(record_paths.coredump),
         str(record_paths.fifo),
@@ -52,19 +61,21 @@ def record_process(
 
     with IncreasePerfBuffer(100 * 1024), Perf(
         process.pid
-    ) as perf, handler as coredump, SignalHandler(SIGUSR2, received_coredump):
+    ) as perf, handler as _coredump, SignalHandler(SIGUSR2, received_coredump):
         write_pid_file(record_paths.pid_file)
 
         ptrace_detach(process.pid)
-        process.wait(timeout)
+        exit_code = process.wait(timeout)
 
         if not got_coredump[0]:
-            return None
+            coredump = None
+        else:
+            coredump = _coredump
 
         record_paths.perf_directory.mkdir_p()
         trace = perf.write(str(record_paths.perf_directory))
 
-        return (coredump, trace)
+        return Recording(coredump, trace, exit_code)
 
 
 def record(
@@ -72,7 +83,7 @@ def record(
     command: Optional[List[str]] = None,
     stdin: Optional[IO[Any]] = None,
     timeout: Optional[int] = None,
-) -> Optional[Tuple[coredumps.Coredump, Trace]]:
+) -> Recording:
 
     if command is None:
         raise HaseError("recording without command is not supported at the moment")
@@ -93,20 +104,20 @@ class ExitEvent(object):
 
 
 class Job(object):
-    def __init__(self, coredump, trace, record_paths):
-        # type: (coredumps.Coredump, Trace, RecordPaths) -> None
-        self.coredump = coredump
-        self.trace = trace
+    def __init__(self, recording: Recording, record_paths: "RecordPaths") -> None:
+        self.recording = recording
         self.record_paths = record_paths
 
-    def core_file(self):
-        # type: () -> str
-        return self.coredump.get()
+    def core_file(self) -> Optional[str]:
+        if self.recording.coredump is None:
+            return None
+        else:
+            return self.recording.coredump.get()
 
-    def remove(self):
-        # type: () -> None
+    def remove(self) -> None:
         try:
-            self.coredump.remove()
+            if self.recording.coredump is not None:
+                self.recording.coredump.remove()
         except OSError:
             pass
 
@@ -204,12 +215,13 @@ def store_report(job):
             binaries.append(str(state_dir.relpath(str(archive_path))))
             append(str(archive_path))
 
-        coredump = manifest["coredump"]
-        coredump["executable"] = os.path.join("binaries", coredump["executable"])
-        coredump["file"] = str(state_dir.relpath(core_file))
-        append(core_file)
+        if core_file is not None:
+            coredump = manifest["coredump"]
+            coredump["executable"] = os.path.join("binaries", coredump["executable"])
+            coredump["file"] = str(state_dir.relpath(core_file))
+            append(core_file)
 
-        trace = serialize_trace(job.trace, state_dir)
+        trace = serialize_trace(job.recording.trace, state_dir)
 
         for cpu in trace["cpus"]:
             append(str(state_dir.join(cpu["event_path"])))
@@ -280,11 +292,10 @@ def record_loop(
             i += 1
             # TODO ratelimit
             record_paths = RecordPaths(record_path, i, log_path, pid_file)
-            result = record(record_paths, command, stdin=stdin, timeout=timeout)
-            if result is None:
+            recording = record(record_paths, command, stdin=stdin, timeout=timeout)
+            if recording.coredump is None:
                 return
-            (coredump, perf_data) = result
-            job_queue.put(Job(coredump, perf_data, record_paths))
+            job_queue.put(Job(recording, record_paths))
             if command is not None:
                 # if we record a single command we do not go into a loop
                 break
@@ -310,10 +321,9 @@ def record_command(args):
         record_loop(
             tempdir, log_path, pid_file=args.pid_file, limit=args.limit, command=command
         )
-    
+
     if args.rusage_file is not None:
         usage = tuple(resource.getrusage(resource.RUSAGE_CHILDREN))
         with open(args.rusage_file, "w") as usage_file:
             usage_file.write(", ".join([str(x) for x in usage]))
             usage_file.write("\n")
-
