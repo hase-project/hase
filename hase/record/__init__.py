@@ -38,6 +38,8 @@ class Recording:
         self.coredump = coredump
         self.trace = trace
         self.exit_status = exit_status
+        # set by the report_worker atm, should be refactored
+        self.report_path: Optional[str] = None
 
 
 def record_process(
@@ -177,8 +179,7 @@ def serialize_trace(trace, state_dir):
     )
 
 
-def store_report(job):
-    # type: (Job) -> None
+def store_report(job: Job) -> str:
     core_file = job.core_file()
     record_paths = job.record_paths
     state_dir = record_paths.state_dir
@@ -253,6 +254,7 @@ def store_report(job):
         )
         l.info("built archive %s", archive_path)
         os.unlink(manifest_path)
+        return archive_path
 
 
 def report_worker(queue):
@@ -264,7 +266,8 @@ def report_worker(queue):
             return
 
         try:
-            store_report(job)
+            report_path = store_report(job)
+            job.recording.report_path = report_path
             l.info("processed job")
         except OSError:
             l.exception("Error while creating report")
