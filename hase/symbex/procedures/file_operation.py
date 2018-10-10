@@ -283,3 +283,10 @@ class getdelim(SimProcedure):
 class getline(SimProcedure):
     def run(self, lineptr, n, stream):
         return self.inline_call(getdelim, lineptr, n, "\n", stream).ret_expr
+
+
+class isatty(SimProcedure):
+    def run(self, fd):
+        return self.state.solver.If(
+            'isatty', 1, 0
+        )
