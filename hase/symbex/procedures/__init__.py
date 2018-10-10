@@ -225,6 +225,7 @@ add_alias_s(alias_symbols, "exit", "exit_group")
 add_alias_s(alias_symbols, "getuid", "geteuid")
 add_alias_s(alias_symbols, "getgid", "getegid")
 add_alias_s(alias_symbols, "vfprintf", "buffered_vfprintf")
+add_alias_s(alias_symbols, "free", "cfree")
 
 
 # TODO: add all sse2 symbols
