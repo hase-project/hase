@@ -35,7 +35,7 @@ Additionally pyqt5 is required and cannot be installed via pip.
 4. Install test dependencies
 
 ```console
-$ pip install -e '.[test]' --process-dependency-links
+$ pip3 install -e '.[test]'
 ```
 
 5. Testing examples
@@ -60,22 +60,24 @@ nosetests -w tests/test_replay.py
 $ sudo ./bin/hase record <some crash program> <args>
 ```
 
-Example crash
+Example crash:
 
 ```console
-$ ./tests/bin/loopy/loopy
+$ sudo ./bin/hase record ./tests/bin/loopy/loopy
 $ ls -la /var/lib/hase
 .rw-rw-rw- 244 root  9 May  3:22 coredump.log
 .rw-r--r--   4 root  9 May  3:22 hase-record.pid
 .rw-r--r-- 41M root  9 May  3:22 loopy-20180509T022227.tar.gz
 ```
 
+No crash:
+
 ```console
-$ sudo ./bin/hase record ls -al
+$ sudo ./bin/hase record -- ls -al
 ```
 
 # Benchmarks
 
-Benchmarks require Pandas, which cannot be installed via pip.
+Benchmarks require Pandas, which cannot be installed via pip3.
 Use https://pandas.pydata.org/pandas-docs/stable/install.html instead or install
 it using your system package manager.
