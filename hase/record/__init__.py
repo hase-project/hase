@@ -272,7 +272,7 @@ def report_worker(queue):
             l.info("remove job")
             job.remove()
 
-
+# XXX since global recording is probably not coming back we can remove this background worker + loop
 def record_loop(
     record_path: Path,
     log_path: Path,
@@ -281,7 +281,7 @@ def record_loop(
     command: Optional[List[str]] = None,
     stdin: Optional[IO[Any]] = None,
     timeout: Optional[int] = None,
-) -> None:
+) -> Optional[Recording]:
     job_queue: Queue[Union[Job, ExitEvent]] = Queue()
     post_process_thread = Thread(target=report_worker, args=(job_queue,))
     post_process_thread.start()
@@ -294,17 +294,19 @@ def record_loop(
             record_paths = RecordPaths(record_path, i, log_path, pid_file)
             recording = record(record_paths, command, stdin=stdin, timeout=timeout)
             if recording.coredump is None:
-                return
+                return recording
             job_queue.put(Job(recording, record_paths))
             if command is not None:
                 # if we record a single command we do not go into a loop
-                break
+                return recording
     except KeyboardInterrupt:
         pass
     finally:
         job_queue.put(ExitEvent())
         l.info("Wait for child")
         post_process_thread.join()
+
+    return None
 
 
 def record_command(args):
