@@ -35,7 +35,7 @@ setup(
     ],
     entry_points={
         "console_scripts":
-        ["hase = hase:main"
+        ["hase = hase:main",
          "hase-gui = hase.frontend:main"],
     }
 )
