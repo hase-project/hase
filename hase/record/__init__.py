@@ -8,6 +8,7 @@ import logging
 import os
 import shutil
 import subprocess
+import resource
 from queue import Queue
 from signal import SIGUSR2
 from tempfile import NamedTemporaryFile
@@ -309,3 +310,10 @@ def record_command(args):
         record_loop(
             tempdir, log_path, pid_file=args.pid_file, limit=args.limit, command=command
         )
+    
+    if args.rusage_file is not None:
+        usage = tuple(resource.getrusage(resource.RUSAGE_CHILDREN))
+        with open(args.rusage_file, "w") as usage_file:
+            usage_file.write(", ".join([str(x) for x in usage]))
+            usage_file.write("\n")
+
