@@ -254,7 +254,7 @@ def store_report(job: Job) -> str:
         )
         l.info("built archive %s", archive_path)
         os.unlink(manifest_path)
-        return archive_path
+        return str(archive_path)
 
 
 def report_worker(queue):
