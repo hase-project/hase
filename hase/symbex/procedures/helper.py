@@ -7,7 +7,6 @@ from ... import errors
 # Need to resymbolize hooks
 
 
-
 def test_concrete_value(proc, sym, value):
     if not proc.state.solver.symbolic(sym):
         if proc.state.solver.eval(sym) == value:

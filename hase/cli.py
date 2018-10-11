@@ -40,7 +40,7 @@ def parse_arguments(argv):
 
     record.add_argument(
         "--rusage-file",
-        help="the file to output resource usage result (for benchmarking)"
+        help="the file to output resource usage result (for benchmarking)",
     )
 
     record.add_argument(

@@ -1,32 +1,29 @@
 from __future__ import absolute_import, division, print_function
 
-from angr.sim_type import SimTypeInt, SimTypeString, SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 from angr import SimProcedure
 from angr.procedures import SIM_PROCEDURES
-
+from angr.sim_type import (SimTypeArray, SimTypeChar, SimTypeFd, SimTypeInt,
+                           SimTypeLength, SimTypeString)
 
 # TODO: getlogin, getpwuid
 
 
 class setlocale(SimProcedure):
     def run(self, category, locale):
-        self.argument_types = {
-            0: SimTypeInt(32, True),
-            1: self.ty_ptr(SimTypeString())
-        }
+        self.argument_types = {0: SimTypeInt(32, True), 1: self.ty_ptr(SimTypeString())}
         self.return_type = self.ty_ptr(SimTypeString())
         # FIXME: just symbolic maxlen string
         max_str_len = self.state.libc.max_str_len
-        malloc = SIM_PROCEDURES['libc']['malloc']
+        malloc = SIM_PROCEDURES["libc"]["malloc"]
         str_addr = self.inline_call(malloc, max_str_len).ret_expr
         return self.state.solver.If(
             self.state.solver.BoolS("setlocale_flag"),
             str_addr,
-            self.state.solver.BVV(0, self.state.arch.bits)
+            self.state.solver.BVV(0, self.state.arch.bits),
         )
 
 
-'''
+"""
 # NOTE: getenv relies on __environ and modifies rbp
    0x00007ffff7a46786 <+22>:	mov    r13,rax
    0x00007ffff7a46789 <+25>:	mov    rax,QWORD PTR [rip+0x38a728]        # 0x7ffff7dd0eb8
@@ -34,16 +31,18 @@ class setlocale(SimProcedure):
    0x00007ffff7a46793 <+35>:	test   rbp,rbp
    0x00007ffff7a46796 <+38>:	je     0x7ffff7a46848 <__GI_getenv+216>
 which we cannot repair on unsat path.
-'''
+"""
+
+
 class getenv(SimProcedure):
     def run(self, name):
         max_str_len = self.state.libc.max_str_len
-        malloc = SIM_PROCEDURES['libc']['malloc']
+        malloc = SIM_PROCEDURES["libc"]["malloc"]
         str_addr = self.inline_call(malloc, max_str_len).ret_expr
         return self.state.solver.If(
             self.state.solver.BoolS("getenv_flag"),
             str_addr,
-            self.state.solver.BVV(0, self.state.arch.bits)
+            self.state.solver.BVV(0, self.state.arch.bits),
         )
 
 
@@ -78,7 +77,9 @@ class __cxa_atexit(SimProcedure):
 
 class gethostid(SimProcedure):
     def run(self):
-        return self.state.solver.Unconstrained('hostid', self.state.arch.bits, uninitialized=False)
+        return self.state.solver.Unconstrained(
+            "hostid", self.state.arch.bits, uninitialized=False
+        )
 
 
 class sethostid(SimProcedure):
@@ -89,13 +90,9 @@ class sethostid(SimProcedure):
 
 class gettext(SimProcedure):
     def run(self, msgid):
-        malloc = SIM_PROCEDURES['libc']['malloc']
+        malloc = SIM_PROCEDURES["libc"]["malloc"]
         str_addr = self.inline_call(malloc, self.state.libc.max_str_len).ret_expr
-        return self.state.solver.If(
-            self.state.solver.BoolS('gettext'),
-            str_addr,
-            msgid
-        )
+        return self.state.solver.If(self.state.solver.BoolS("gettext"), str_addr, msgid)
 
 
 class dgettext(SimProcedure):
@@ -110,21 +107,21 @@ class dcgettext(SimProcedure):
 
 class bindtextdomain(SimProcedure):
     def run(self, domainname, dirname):
-        malloc = SIM_PROCEDURES['libc']['malloc']
+        malloc = SIM_PROCEDURES["libc"]["malloc"]
         str_addr = self.inline_call(malloc, self.state.libc.max_str_len).ret_expr
         return self.state.solver.If(
-            self.state.solver.BoolS('bindtextdomain'),
-            str_addr,
-            0
+            self.state.solver.BoolS("bindtextdomain"), str_addr, 0
         )
 
 
 class textdomain(SimProcedure):
     def run(self, domainname):
-        return self.inline_call(bindtextdomain, '', '').ret_expr
+        return self.inline_call(bindtextdomain, "", "").ret_expr
 
 
 # NOTE: this function is not recorded by ltrace? and cannot be resolved by angr
 class __sched_cpucount(SimProcedure):
     def run(self, setsize, setp):
-        return self.state.solver.Unconstrained('__sched_cpucount', 32, uninitialized=False)
+        return self.state.solver.Unconstrained(
+            "__sched_cpucount", 32, uninitialized=False
+        )

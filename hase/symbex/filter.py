@@ -21,6 +21,7 @@ except ImportError:  # make mypy happy
 
 l = logging.getLogger("hase")
 
+
 class FakeSymbol(object):
     def __init__(self, name, addr):
         # type: (str, int) -> None
@@ -168,7 +169,7 @@ class FilterTrace(object):
     def test_hook_name(self, fname):
         for name in self.hooked_symname:
             # _IO_fopen@@xxx
-            if fname == name or (fname.startswith(name + '@')):
+            if fname == name or (fname.startswith(name + "@")):
                 return True
         return False
 
@@ -245,7 +246,7 @@ class FilterTrace(object):
         self.start_funcname = self.find_function(
             self.trace[start_idx].ip
         ).name  # type: ignore
-        return self.trace[self.start_idx:], self.start_idx
+        return self.trace[self.start_idx :], self.start_idx
 
     def analyze_trace(self):
         # type: () -> None
@@ -257,7 +258,7 @@ class FilterTrace(object):
         is_current_hooked = False
         hook_idx = 0
         # FIXME: seems dso object not always this one
-        dso_sym = FakeSymbol('plt-ld', 0)
+        dso_sym = FakeSymbol("plt-ld", 0)
         plt_sym = None
         previous_instr = None
         for (idx, instruction) in enumerate(cut_trace):
@@ -265,9 +266,11 @@ class FilterTrace(object):
                 previous_instr = cut_trace[idx - 1]
 
             present = True
-            if self.test_plt_vdso(instruction.ip) \
-                or self.test_ld(instruction.ip) \
-                or self.test_omit(instruction.ip):
+            if (
+                self.test_plt_vdso(instruction.ip)
+                or self.test_ld(instruction.ip)
+                or self.test_omit(instruction.ip)
+            ):
                 present = False
             # NOTE: if already in hooked function, leaving to parent
             # FIXME: gcc optimization will lead to main->func1->(set rbp)func2->main
@@ -281,7 +284,7 @@ class FilterTrace(object):
                     recursive_level = 4
                     if sym == hooked_parent:
                         is_current_hooked = False
-                        l.warning(' ->(back) ' + sym.name)
+                        l.warning(" ->(back) " + sym.name)
                         hooked_parent = None
                         present = True
                         self.hook_target[hook_idx] = instruction.ip
@@ -296,7 +299,7 @@ class FilterTrace(object):
                                     hooked_parent = None
                                     self.call_parent[cur_func] = None
                                     self.hook_target[hook_idx] = instruction.ip
-                                    l.warning(' ->(back) ' + sym.name)
+                                    l.warning(" ->(back) " + sym.name)
                                     break
                                 else:
                                     cur_func = parent
@@ -315,7 +318,7 @@ class FilterTrace(object):
                         is_current_hooked = False
                         hooked_parent = None
                         self.hook_target[hook_idx] = instruction.ip
-                        l.warning(' ->(back) main_object')
+                        l.warning(" ->(back) main_object")
 
             else:
                 flg, fname = self.test_function_entry(instruction.ip)
@@ -327,14 +330,13 @@ class FilterTrace(object):
                     if self.test_plt_vdso(instruction.ip):
                         plt_sym = sym
                         self.call_parent[plt_sym] = parent
-                    if self.test_ld(previous_instr.ip) and not self.test_ld(instruction.ip):
+                    if self.test_ld(previous_instr.ip) and not self.test_ld(
+                        instruction.ip
+                    ):
                         self.call_parent[parent] = plt_sym
                     self.call_parent[sym] = parent
-                    if (
-                        self.test_hook_name(fname)
-                        and not self.test_ld(instruction.ip)
-                    ):
-                        l.warning(parent.name + ' ->(hook) ' + sym.name)
+                    if self.test_hook_name(fname) and not self.test_ld(instruction.ip):
+                        l.warning(parent.name + " ->(hook) " + sym.name)
                         is_current_hooked = True
                         hooked_parent = parent
                         hook_idx = idx + self.start_idx

@@ -275,6 +275,7 @@ def report_worker(queue):
             l.info("remove job")
             job.remove()
 
+
 # XXX since global recording is probably not coming back we can remove this background worker + loop
 def record_loop(
     record_path: Path,
