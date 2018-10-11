@@ -714,6 +714,13 @@ class Tracer(object):
             if c.uuid not in sat_uuid:
                 self.constraints_index[c] = index
 
+    def repair_ip_at_syscall(self, old_state, new_state):
+        capstone = old_state.block().capstone
+        first_ins = capstone.insns[0].insn
+        ins_repr = first_ins.mnemonic
+        if ins_repr.startswith('syscall'):
+            new_state.regs.ip_at_syscall = new_state.ip
+
     def execute(self, state, previous_instruction, instruction, index):
         # type: (SimState, Instruction, Instruction, int) -> Tuple[SimState, SimState]
         CNT_LIMIT = 20
@@ -821,6 +828,7 @@ class Tracer(object):
                 if self.jump_match(
                     old_state, choice, previous_instruction, instruction
                 ):
+                    self.repair_ip_at_syscall(old_state, choice)
                     return old_state, choice
             # NOTE: need to consider repz here, if repz repeats for less than N times,
             # then, it should still be on sat path
@@ -828,7 +836,7 @@ class Tracer(object):
                 rep_cnt += 1
                 if rep_cnt < REP_LIMIT and len(all_choices["sat"]) == 1:
                     state = all_choices["sat"][0]
-                    self.record_constraints_index(old_state, choice, index)
+                    self.repair_ip_at_syscall(old_state, state)
                     continue
             else:
                 rep_cnt = 0
@@ -844,6 +852,7 @@ class Tracer(object):
                 else:
                     raise HaseError("Unable to continue")
             self.repair_satness(old_state, state)
+            self.repair_ip_at_syscall(old_state, state)
             self.record_constraints_index(old_state, state, index)
             for c in choices:
                 if c != state:
@@ -913,9 +922,13 @@ class Tracer(object):
             assert self.valid_address(previous_instruction.ip) and self.valid_address(
                 instruction.ip
             )
-            old_simstate, new_simstate = self.execute(
-                simstate, previous_instruction, instruction, cnt
-            )
+            try:
+                old_simstate, new_simstate = self.execute(
+                    simstate, previous_instruction, instruction, cnt
+                )
+            except Exception as e:
+                import ipdb
+                ipdb.set_trace()
             simstate = new_simstate
             if cnt % interval == 0 or length - cnt < 15:
                 states.add_major(
