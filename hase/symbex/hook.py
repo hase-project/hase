@@ -84,7 +84,7 @@ def hook_alias_procedures(dct):
         while sym in alias_sym.keys():
             candidates.append(alias_sym[sym])
             sym = alias_sym[sym]
-        for sym in candidates:            
+        for sym in candidates:
             if sym in dct.keys():
                 dct[decr_sym] = dct[sym]
                 obj = dct[sym]

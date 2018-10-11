@@ -394,15 +394,15 @@ class Tracer(object):
             rsp, rbp = self.cdanalyzer.stack_base("main")
             # TODO: or just stop?
             if not rbp:
-                rbp = 0x7ffffffcf00
+                rbp = 0x7FFFFFFCF00
             if not rsp:
-                rsp = 0x7ffffffcf00
+                rsp = 0x7FFFFFFCF00
         else:
             rsp, rbp = self.cdanalyzer.stack_base(self.filter.start_funcname)
             if not rbp:
-                rbp = 0x7ffffffcf00
+                rbp = 0x7FFFFFFCF00
             if not rsp:
-                rsp = 0x7ffffffcf00
+                rsp = 0x7FFFFFFCF00
             self.start_state = self.project.factory.blank_state(
                 addr=start_address,
                 add_options=add_options,

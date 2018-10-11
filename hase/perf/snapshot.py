@@ -126,7 +126,7 @@ def open_pt_event(cpu, pid):
     attr.type = intel_pt_type()
     # FIXME: find out how config works,
     # currenty copied from strace output
-    attr.config = 0x300e601
+    attr.config = 0x300E601
     attr.sample_type = SampleFlags.PERF_SAMPLE_MASK
     attr.sample_period = 1
     attr.clockid = 1
@@ -511,13 +511,13 @@ class Snapshot(object):
         # type: () -> CpuId
         cpuid = CPUID()
         eax, _, _, _ = cpuid(0x1)
-        family = (eax >> 8) & 0xf
-        if family == 0xf:
-            family += (eax >> 20) & 0xf
-        model = (eax >> 4) & 0xf
-        if family == 0x6 or family == 0xf:
-            model += (eax >> 12) & 0xf0
-        stepping = (eax >> 0) & 0xf
+        family = (eax >> 8) & 0xF
+        if family == 0xF:
+            family += (eax >> 20) & 0xF
+        model = (eax >> 4) & 0xF
+        if family == 0x6 or family == 0xF:
+            model += (eax >> 12) & 0xF0
+        stepping = (eax >> 0) & 0xF
         cpuid_0x15_eax, cpuid_0x15_ebx, _, _ = cpuid(0x15)
 
         return CpuId(family, model, stepping, cpuid_0x15_eax, cpuid_0x15_ebx)
