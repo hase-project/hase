@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import bisect
 import ctypes as ct
+import logging
 import os
 import shutil
 from io import BytesIO
@@ -15,6 +16,8 @@ from ..perf.reader import perf_events
 from ..pwn_wrapper import Mapping
 from .events import (AsyncDisableEvent, DisableEvent, EnableEvent, Instruction,
                      InstructionClass, TraceEvent)
+
+l = logging.getLogger(__name__)
 
 
 class ScheduleEntry(object):
@@ -294,9 +297,20 @@ def chunk_trace(core, trace):
                 enable_event = None
         else:
             assert enable_event is not None
+            latest_time = enable_event.time
             instructions.append(ev)
 
-    assert len(instructions) == 0
+    if len(instructions) != 0:
+        assert (
+            enable_event is not None
+            and enable_event.time is not None
+            and latest_time is not None
+        )
+        l.warning(
+            "no final disable pt event found in stream, was the stream truncated?"
+        )
+        chunk = Chunk(enable_event.time, latest_time, instructions)
+        chunks.append(chunk)
 
     return chunks
 
