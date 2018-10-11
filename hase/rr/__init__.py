@@ -8,7 +8,7 @@ from pygdbmi.gdbcontroller import GdbController
 from ..path import APP_ROOT
 from ..pt.events import Instruction
 
-DEFAULT_RR_PATH = APP_ROOT.join("/bin/rr")
+DEFAULT_RR_PATH = APP_ROOT.joinpath("/bin/rr")
 
 
 def rr_record(binary_path, *args):

@@ -6,6 +6,7 @@ import os
 import os.path
 import sys
 from shlex import split as shsplit
+from pathlib import Path
 from types import ModuleType
 
 from IPython import get_ipython
@@ -15,7 +16,7 @@ from PyQt5 import QtWidgets
 
 from . import MainWindow
 from .. import annotate, gdb
-from ..path import Path
+from ..path import find_in_path
 from ..record import DEFAULT_LOG_DIR
 from ..replay import replay_trace
 
@@ -116,12 +117,11 @@ class HaseMagics(Magics):
 
     @args("<report_archive>")
     @line_magic("load")
-    def load(self, query):
-        # type: (str) -> None
+    def load(self, query: str) -> None:
         self.window.clear_cache()
         user_ns = self.shell.user_ns
         if not Path(query).exists():
-            query = str(DEFAULT_LOG_DIR.join(query))
+            query = str(DEFAULT_LOG_DIR.joinpath(query))
         if not Path(query).exists():
             raise HaseFrontEndException("Report archive not exist")
         with replay_trace(query) as rep:
@@ -155,7 +155,7 @@ class HaseMagics(Magics):
                 )
                 if d == "pass-all" or d == "":
                     break
-                new_f = Path.find_in_path(origin_f, [d])
+                new_f = find_in_path(origin_f, [d])
 
                 for i, p in addr_map.items():
                     if not Path(p[0]).exists():

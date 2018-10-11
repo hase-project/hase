@@ -8,7 +8,7 @@ from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 from cle import ELF
 
 from .errors import HaseError
-from .path import Path
+from .path import find_in_path
 
 
 class Addr2line(object):
@@ -57,7 +57,7 @@ class Addr2line(object):
                     # TODO: file:?
                     line = line.split(" ")[0]
                     if not os.path.exists(file):
-                        new_file = Path.find_in_path(file, relative_root)
+                        new_file = find_in_path(file, relative_root)
                         # print("Redirect: {} -> {}".format(file, new_file))
                         file = new_file
                     if line == "?":

@@ -27,7 +27,7 @@ def parse_arguments(argv):
 
     record.add_argument(
         "--pid-file",
-        default=str(DEFAULT_LOG_DIR.join("hase-record.pid")),
+        default=str(DEFAULT_LOG_DIR.joinpath("hase-record.pid")),
         help="pid file to be created when recording is started",
     )
 

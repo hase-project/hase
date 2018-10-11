@@ -270,7 +270,7 @@ class GdbServer(object):
 
     def read_variables(self):
         # type: () -> List[Dict[str, Any]]
-        py_file = APP_ROOT.join("gdb/gdb_get_locals.py")
+        py_file = APP_ROOT.joinpath("gdb/gdb_get_locals.py")
         resp = self.write_request('python execfile ("{}")'.format(py_file))
         res = []
         for r in resp:

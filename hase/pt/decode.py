@@ -6,11 +6,11 @@ import logging
 import os
 import shutil
 from io import BytesIO
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, DefaultDict, List, Optional, Union
 
 from .. import _pt  # type: ignore
-from ..path import Path
 from ..perf.consts import PerfRecord
 from ..perf.reader import perf_events
 from ..pwn_wrapper import Mapping
@@ -348,7 +348,7 @@ def decode(
 
     for m in mappings:
         if m.path.startswith("/"):
-            path = str(root.join(m.path[1:]))
+            path = str(root.joinpath(m.path[1:]))
             page_size = 4096
             shared_objects.append(
                 (path, m.page_offset * page_size, m.stop - m.start, m.start)
