@@ -192,10 +192,9 @@ def correlate_traces(traces, schedule, pid, tid):
             trace = trace[i:]
 
             if len(entry.chunks) == 0:
-                raise Exception(
-                    "no instructions could be correlated with this hardware bug ?"
+                l.warning(
+                    f"no instructions could be correlated with this event {entry.start} -> {entry.stop} on {entry.core}?"
                 )
-            assert len(entry.chunks) > 0
         assert len(trace) == 0
     instructions = []
 
