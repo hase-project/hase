@@ -62,7 +62,7 @@ def add_alias_s(dct, sym, *args):
         dct[decr_sym] = sym
 
 
-alias_symbols = OrderedDict()  # type: OrderedDict[str, str]
+alias_symbols: OrderedDict[str, str] = OrderedDict()
 
 
 unlocked_IO_symbols = [

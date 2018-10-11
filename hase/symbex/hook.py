@@ -31,9 +31,9 @@ addr_symbols = [
 ]
 
 
-unsupported_symbols = []  # type: List[Tuple[str]]
+unsupported_symbols: List[Tuple[str]] = []
 
-skip_hook = []  # type: List[str]
+skip_hook: List[str] = []
 
 
 def hook_angr_procedures(dct, libs, skip_hook, hook_IO=True):
@@ -105,7 +105,7 @@ def hook_fallback_procedures(dct):
     pass
 
 
-all_hookable_symbols = {}  # type: Dict[str, Any]
+all_hookable_symbols: Dict[str, Any] = {}
 
 libs = ["libc", "glibc", "linux_kernel", "posix", "linux_loader"]
 

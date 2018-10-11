@@ -123,10 +123,10 @@ class StateManager(object):
     def __init__(self, tracer, length):
         # type: (Any, int) -> None
         self.tracer = tracer
-        self.index_to_state = [None] * length  # type: List[Optional[State]]
+        self.index_to_state: List[Optional[State]] = [None] * length
         # Better have something like skip-table
-        self.ordered_index = []  # type: List[int]
-        self.major_index = []  # type: List[int]
+        self.ordered_index: List[int] = []
+        self.major_index: List[int] = []
 
     def add(self, state):
         # type: (State) -> None

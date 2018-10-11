@@ -29,7 +29,7 @@ class ScheduleEntry(object):
         self.start = start
         # Can be none at the end of a trace
         self.stop = stop
-        self.chunks = []  # type: List[Chunk]
+        self.chunks: List[Chunk] = []
         self.count = 1
 
     def is_main_thread(self):
@@ -72,11 +72,11 @@ def copy_struct(struct):
 
 def get_thread_schedule(perf_event_paths, start_thread_ids, start_times):
     # type: (List[str], List[int], List[int]) -> List[ScheduleEntry]
-    schedule = []  # type: List[ScheduleEntry]
+    schedule: List[ScheduleEntry] = []
 
     for (core, cpu_events) in enumerate(perf_event_paths):
         first_event = True
-        schedule_in_event = None  # type: Optional[ct.Structure]
+        schedule_in_event: Optional[ct.Structure] = None
 
         for ev in perf_events(cpu_events):
             if ev.type != PerfRecord.PERF_RECORD_SWITCH:
@@ -131,7 +131,7 @@ def sanity_check_order(instructions):
     """
     Check that calls matches returns and that syscalls and non-jumps do not change the control flow.
     """
-    stack = []  # type: List[int]
+    stack: List[int] = []
     for (i, instruction) in enumerate(instructions):
         if i > 0:
             previous = instructions[i - 1]
@@ -153,7 +153,7 @@ def sanity_check_order(instructions):
 def correlate_traces(traces, schedule, pid, tid):
     # type: (List[List[Chunk]], List[ScheduleEntry], int, int) -> List[Instruction]
 
-    schedule_per_core = []  # type: List[List[ScheduleEntry]]
+    schedule_per_core: List[List[ScheduleEntry]] = []
     for _ in range(len(traces)):
         schedule_per_core.append([])
 
@@ -172,7 +172,7 @@ def correlate_traces(traces, schedule, pid, tid):
 
         for (idx, entry) in enumerate(per_core):
             if (idx + 1) < len(per_core):
-                next_entry = per_core[idx + 1]  # type: Optional[ScheduleEntry]
+                next_entry: Optional[ScheduleEntry] = per_core[idx + 1]
             else:
                 next_entry = None
 
@@ -260,11 +260,11 @@ class Chunk(object):
 
 def chunk_trace(core, trace):
     # type: (int, List[Union[TraceEvent, Instruction]]) -> List[Chunk]
-    chunks = []  # type: List[Chunk]
+    chunks: List[Chunk] = []
 
     enable_event = None
     # switch_detected = False
-    instructions = []  # type: List[Instruction]
+    instructions: List[Instruction] = []
     for (idx, ev) in enumerate(trace):
         if isinstance(ev, TraceEvent):
             latest_time = ev.time
@@ -339,7 +339,7 @@ def decode(
 
     assert len(trace_paths) > 0
 
-    traces = []  # type: List[List[Chunk]]
+    traces: List[List[Chunk]] = []
     raw_trace = []
 
     shared_objects = []

@@ -23,7 +23,7 @@ def traces_to_file(traces, filename):
 
 def instructions_to_file(instructions, filename):
     # type: (List[Instruction], str) -> pd.DataFrame
-    data = defaultdict(list)  # type: DefaultDict[str, List[Any]]
+    data: DefaultDict[str, List[Any]] = defaultdict(list)
 
     for instruction in instructions:
         data["core"].append(instruction.core)
@@ -34,7 +34,7 @@ def instructions_to_file(instructions, filename):
 
 def chunks_to_file(traces, filename):
     # type: (List[List[Chunk]], str) -> pd.DataFrame
-    data = defaultdict(list)  # type: DefaultDict[str, List[Any]]
+    data: DefaultDict[str, List[Any]] = defaultdict(list)
 
     for (i, chunks) in enumerate(traces):
         for chunk in chunks:
@@ -49,7 +49,7 @@ def chunks_to_file(traces, filename):
 
 def schedule_to_file(schedule, filename):
     # type: (List[ScheduleEntry], str) -> pd.DataFrame
-    data = defaultdict(list)  # type: DefaultDict[str, List[Any]]
+    data: DefaultDict[str, List[Any]] = defaultdict(list)
 
     for entry in schedule:
         data["core"].append(entry.core)
@@ -66,7 +66,7 @@ def schedule_to_file(schedule, filename):
 
 def trace_to_dataframe(traces):
     # type: (List[List[Union[TraceEvent, Instruction]]]) -> Any
-    data = defaultdict(list)  # type: DefaultDict[str, List[Any]]
+    data: DefaultDict[str, List[Any]] = defaultdict(list)
 
     for (i, trace) in enumerate(traces):
         time = None

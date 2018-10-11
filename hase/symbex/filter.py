@@ -50,8 +50,8 @@ class FilterBase(object):
         self.trace = trace
         self.hooked_symbol = hooked_symbol
         self.gdb = gdb
-        self.new_trace = []  # type: List[Instruction]
-        self.omitted_section = []  # type: List[List[int]]
+        self.new_trace: List[Instruction] = []
+        self.omitted_section: List[List[int]] = []
         self.analyze_unsupported()
 
     def analyze_unsupported(self):
@@ -97,11 +97,11 @@ class FilterTrace(object):
         self.main_object = project.loader.main_object
         self.trace = trace
         self.hooked_symbol = hooked_symbol
-        self.new_trace = []  # type: List[Instruction]
-        self.trace_idx = []  # type: List[int]
-        self.hook_target = {}  # type: Dict[int, int]
+        self.new_trace: List[Instruction] = []
+        self.trace_idx: List[int] = []
+        self.hook_target: Dict[int, int] = {}
         self.gdb = gdb
-        self.omitted_section = omitted_section  # type: List[List[int]]
+        self.omitted_section: List[List[int]] = omitted_section
         self.analyze_unsupported()
         self.from_initial = from_initial
         self.static_link = static_link
@@ -124,9 +124,9 @@ class FilterTrace(object):
             if name in self.hooked_symname:
                 self.hooked_symname.append(sub)
 
-        self.syms = {}  # type: Dict[Any, List[int]]
+        self.syms: Dict[Any, List[int]] = {}
         # NOTE: just copy the dict, or it would be slow to access by lib property
-        self.syms_dict = {}  # type: Dict[Any, Dict[int, Any]]
+        self.syms_dict: Dict[Any, Dict[int, Any]] = {}
         for lib in self.project.loader.all_elf_objects:
             self.syms_dict[lib] = lib.symbols_by_addr.copy()
             self.syms[lib] = list(self.syms_dict[lib].keys())
@@ -251,7 +251,7 @@ class FilterTrace(object):
         # type: () -> None
         # NOTE: assume the hooked function should have return
         self.new_trace = []
-        self.call_parent = defaultdict(lambda: None)  # type: defaultdict
+        self.call_parent: defaultdict = defaultdict(lambda: None)
         cut_trace, _ = self.analyze_start()
         hooked_parent = None
         is_current_hooked = False

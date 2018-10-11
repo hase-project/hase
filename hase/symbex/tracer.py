@@ -74,7 +74,7 @@ class CoredumpGDB(object):
 
     def get_response(self):
         # type: () -> List[Dict[str, Any]]
-        resp = []  # type: List[Dict[str, Any]]
+        resp: List[Dict[str, Any]] = []
         while True:
             try:
                 resp += self.gdb.get_gdb_response()
@@ -90,7 +90,7 @@ class CoredumpGDB(object):
 
     def parse_frame(self, r):
         # type: (str) -> Dict[str, Any]
-        attrs = {}  # type: Dict[str, Any]
+        attrs: Dict[str, Any] = {}
         # NOTE: #n  addr in func (args=args[ <name>][@entry=v]) at source_code[:line]\n
         r = r.replace('\\n', '')
         attrs['index'] = r.partition(' ')[0][1:]
@@ -245,7 +245,7 @@ class CoredumpAnalyzer(object):
         # type: (str) -> Optional[List[Optional[int]]]
         for bt in self.backtrace:
             if bt['func'] == name:
-                args = []  # type: List[Optional[int]]
+                args: List[Optional[int]] = []
                 for _, value, entry in bt['args']:
                     if entry:
                         args.append(int(entry, 16))
@@ -274,7 +274,7 @@ def build_load_options(mappings):
     # simulation path different? need re-record if original
     # executable is recompiled
     main = mappings[0]
-    lib_opts = {}  # type: dict
+    lib_opts: Dict[str, Dict[str,int]] = {}
     force_load_libs = []
     for m in mappings[1:]:
         if not m.path.startswith("/") or m.path in lib_opts:
@@ -305,7 +305,7 @@ class Tracer(object):
         self.project = angr.Project(executable, **options)
 
         self.coredump = coredump
-        self.debug_unsat = None  # type: Optional[SimState]
+        self.debug_unsat: Optional[SimState] = None
 
         self.trace = trace
 
@@ -344,7 +344,7 @@ class Tracer(object):
         )
 
         self.use_hook = True
-        self.omitted_section = [] # type: List[List[int]]
+        self.omitted_section: List[List[int]] = []
 
         if self.use_hook:
             self.hooked_symbols = all_hookable_symbols.copy()
@@ -423,7 +423,7 @@ class Tracer(object):
 
         # For debugging
         # self.project.pt = self
-        self.constraints_index = {} # type: Dict[int, int]
+        self.constraints_index: Dict[int, int] = {}
 
     def setup_argv(self):
         # type: () -> None
@@ -862,9 +862,9 @@ class Tracer(object):
         simstate = self.simgr.active[0]
         states = StateManager(self, len(self.trace))
         states.add_major(State(0, None, self.trace[0], None, simstate))
-        self.debug_unsat = None  # type: Optional[SimState]
-        self.debug_state = deque(maxlen=5)  # type: deque
-        self.skip_addr = {}  # type: Dict[int, int]
+        self.debug_unsat: Optional[SimState] = None
+        self.debug_state: deque = deque(maxlen=5)
+        self.skip_addr: Dict[int, int] = {}
         cnt = 0
         interval = max(1, len(self.trace) // 200)
         length = len(self.trace) - 1

@@ -137,14 +137,14 @@ class GdbSharedLibrary(object):
     def __init__(self, active_state, pksize):
         # type: (State, int) -> None
         self.active_state = active_state
-        self.libs = []  # type: List[ELF]
+        self.libs: List[ELF] = []
         self.pksize = pksize
         self.tls_object = self.active_state.simstate.project.loader.tls_object
         loader = self.active_state.simstate.project.loader
         for lib in loader.shared_objects.values():
             if lib != loader.main_object:
                 self.libs.append(lib)
-        self.xml = None  # type: Optional[str]
+        self.xml: Optional[str] = None
 
     def make_xml(self, update=False):
         # type: (Optional[bool]) -> str
@@ -319,7 +319,7 @@ class GdbServer(object):
         timeout_sec = kwargs.pop("timeout_sec", 10)
         kwargs["read_response"] = False
         self.gdb.write(req, timeout_sec=timeout_sec, **kwargs)
-        resp = []  # type: List[Dict[str, Any]]
+        resp: List[Dict[str, Any]] = []
         while True:
             try:
                 resp += self.gdb.get_gdb_response()

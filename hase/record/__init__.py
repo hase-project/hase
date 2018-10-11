@@ -261,7 +261,7 @@ def report_worker(queue):
     # type: (Queue) -> None
     l.info("start worker")
     while True:
-        job = queue.get()  # type: Union[Job, ExitEvent]
+        job: Union[Job, ExitEvent] = queue.get()
         if isinstance(job, ExitEvent):
             return
 

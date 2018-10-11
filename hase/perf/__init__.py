@@ -41,7 +41,7 @@ class Trace(object):
 class Perf(object):
     def __init__(self, pid=-1):
         # type: (int) -> None
-        self.snapshot = Snapshot(pid)  # type: Snapshot
+        self.snapshot: Snapshot = Snapshot(pid)
 
     def __enter__(self):
         # type: () -> Perf
@@ -102,7 +102,7 @@ class IncreasePerfBuffer(object):
     def __init__(self, size):
         # type: (int) -> None
         self.new_size = size
-        self.old_size = None  # type: Union[None, int]
+        self.old_size: Union[None, int] = None
 
     def update(self, value):
         # type: (int) -> None
