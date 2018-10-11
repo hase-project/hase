@@ -307,8 +307,6 @@ class Tracer(object):
         self.coredump = coredump
         self.debug_unsat = None  # type: Optional[SimState]
 
-        command = os.path.basename(self.coredump.string(self.coredump.argv[0]))
-
         self.trace = trace
 
         assert self.project.loader.main_object.os.startswith('UNIX')
