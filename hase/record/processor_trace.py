@@ -1,4 +1,4 @@
-from ..path import Path
+from pathlib import Path
 
 PT_ROOT = Path("/sys/bus/event_source/devices/intel_pt")
 
@@ -21,6 +21,6 @@ def check_features():
     if not PT_ROOT.exists():
         return PtFeatures()
 
-    with open(str(PT_ROOT.join("caps", "ip_filtering"))) as f:
+    with open(PT_ROOT.joinpath("caps", "ip_filtering")) as f:
         ip_filtering = int(f.read()) != 0
         return PtFeatures(supported=True, ip_filtering=ip_filtering)

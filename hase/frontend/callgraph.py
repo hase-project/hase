@@ -130,7 +130,7 @@ class StateNode(QGraphicsRectItem):
         self.setFlag(QGraphicsItem.ItemIsMovable)
         self.setFlag(QGraphicsItem.ItemIsSelectable)
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges)
-        self.edges = []  # type: List[StateEdge]
+        self.edges: List[StateEdge] = []
         self.str_to_node = {
             "right": self.right_node,
             "top": self.top_node,

@@ -9,10 +9,10 @@ from hase import main
 from .helper import TEST_TRACES
 
 
-def test_loopy():
+def test_loopy() -> None:
     state = main([
         "hase", "replay",
-        str(TEST_TRACES.join("loopy-20181009T182008.tar.gz"))
+        str(TEST_TRACES.joinpath("loopy-20181009T182008.tar.gz"))
     ])
     last_state = state[-1]
     # We called loopy with 6 arguments:
@@ -24,8 +24,8 @@ def test_loopy():
     nose.tools.eq_(argc, 6)
 
 
-def test_control_flow():
+def test_control_flow() -> None:
     state = main([
         "hase", "replay",
-        str(TEST_TRACES.join("control_flow-20181003T145029.tar.gz"))
+        str(TEST_TRACES.joinpath("control_flow-20181003T145029.tar.gz"))
     ])

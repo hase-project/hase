@@ -110,7 +110,7 @@ class PerfRecord(object):
 
 def sample_id_struct(sample_flags):
     # type: (int) -> Type[Any]
-    fields = []  # type: List[Tuple[str, Any]]
+    fields: List[Tuple[str, Any]] = []
     if sample_flags & SampleFlags.PERF_SAMPLE_TID != 0:
         fields.append(("pid", ct.c_uint))
         fields.append(("tid", ct.c_uint))
@@ -165,7 +165,7 @@ def compute_string_size(fn):
 class EventStructs(object):
     def __init__(self, sample_flags):
         # type: (int) -> None
-        self.sample_id = sample_id_struct(sample_flags)  # type: Type[Any]
+        self.sample_id: Type[Any] = sample_id_struct(sample_flags)
 
     def _event_header(self, event_fields):
         # type: (List[Tuple[str, Any]]) -> Type[ct.Structure]
@@ -280,7 +280,7 @@ class EventStructs(object):
     @compute_string_size
     def record_switch_event(self, size):
         # type: (int) -> Type[ct.Structure]
-        base = self._event_header([])  # type: Any
+        base: Any = self._event_header([])
 
         class RecordSwitch(base):
             def is_switch_out(self):

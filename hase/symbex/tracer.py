@@ -78,7 +78,7 @@ class CoredumpGDB(object):
 
     def get_response(self):
         # type: () -> List[Dict[str, Any]]
-        resp = []  # type: List[Dict[str, Any]]
+        resp: List[Dict[str, Any]] = []
         while True:
             try:
                 resp += self.gdb.get_gdb_response()
@@ -94,7 +94,7 @@ class CoredumpGDB(object):
 
     def parse_frame(self, r):
         # type: (str) -> Dict[str, Any]
-        attrs = {}  # type: Dict[str, Any]
+        attrs: Dict[str, Any] = {}
         # NOTE: #n  addr in func (args=args[ <name>][@entry=v]) at source_code[:line]\n
         r = r.replace("\\n", "")
         attrs["index"] = r.partition(" ")[0][1:]
@@ -249,7 +249,7 @@ class CoredumpAnalyzer(object):
         # type: (str) -> Optional[List[Optional[int]]]
         for bt in self.backtrace:
             if bt["func"] == name:
-                args = []  # type: List[Optional[int]]
+                args: List[Optional[int]] = []
                 for _, value, entry in bt["args"]:
                     if entry:
                         args.append(int(entry, 16))
@@ -278,7 +278,7 @@ def build_load_options(mappings):
     # simulation path different? need re-record if original
     # executable is recompiled
     main = mappings[0]
-    lib_opts = {}  # type: dict
+    lib_opts: Dict[str, Dict[str, int]] = {}
     force_load_libs = []
     for m in mappings[1:]:
         if not m.path.startswith("/") or m.path in lib_opts:
@@ -307,9 +307,7 @@ class Tracer(object):
         self.project = angr.Project(executable, **options)
 
         self.coredump = coredump
-        self.debug_unsat = None  # type: Optional[SimState]
-
-        command = os.path.basename(self.coredump.string(self.coredump.argv[0]))
+        self.debug_unsat: Optional[SimState] = None
 
         self.trace = trace
 
@@ -346,7 +344,7 @@ class Tracer(object):
         self.cfg = self.project.analyses.CFGFast(show_progressbar=True)
 
         self.use_hook = True
-        self.omitted_section = []  # type: List[List[int]]
+        self.omitted_section: List[List[int]] = []
 
         if self.use_hook:
             self.hooked_symbols = all_hookable_symbols.copy()
@@ -355,7 +353,7 @@ class Tracer(object):
             self.hooked_symbols = {}
             self.project._sim_procedures = {}
 
-        self.from_initial = False
+        self.from_initial = True
 
         self.filter = FilterTrace(
             self.project,
@@ -396,15 +394,15 @@ class Tracer(object):
             rsp, rbp = self.cdanalyzer.stack_base("main")
             # TODO: or just stop?
             if not rbp:
-                rbp = 0x7ffffffcf00
+                rbp = 0x7FFFFFFCF00
             if not rsp:
-                rsp = 0x7ffffffcf00
+                rsp = 0x7FFFFFFCF00
         else:
             rsp, rbp = self.cdanalyzer.stack_base(self.filter.start_funcname)
             if not rbp:
-                rbp = 0x7ffffffcf00
+                rbp = 0x7FFFFFFCF00
             if not rsp:
-                rsp = 0x7ffffffcf00
+                rsp = 0x7FFFFFFCF00
             self.start_state = self.project.factory.blank_state(
                 addr=start_address,
                 add_options=add_options,
@@ -426,7 +424,7 @@ class Tracer(object):
 
         # For debugging
         # self.project.pt = self
-        self.constraints_index = {}  # type: Dict[int, int]
+        self.constraints_index: Dict[int, int] = {}
 
     def setup_argv(self):
         # type: () -> None
@@ -678,8 +676,8 @@ class Tracer(object):
 
     def jump_match(self, old_state, choice, previous_instruction, instruction):
         # type: (SimState, SimState, Instruction, Instruction) -> bool
-        if old_state.addr == previous_instruction.ip and choice.addr == instruction.ip:
-            l.debug("jump 0%x -> 0%x", old_state.addr, choice.addr)
+        if choice.addr == instruction.ip:
+            l.debug("jump 0%x -> 0%x", previous_instruction.ip, choice.addr)
             return True
         return False
 
@@ -716,9 +714,16 @@ class Tracer(object):
             if c.uuid not in sat_uuid:
                 self.constraints_index[c] = index
 
+    def repair_ip_at_syscall(self, old_state, new_state):
+        capstone = old_state.block().capstone
+        first_ins = capstone.insns[0].insn
+        ins_repr = first_ins.mnemonic
+        if ins_repr.startswith('syscall'):
+            new_state.regs.ip_at_syscall = new_state.ip
+
     def execute(self, state, previous_instruction, instruction, index):
         # type: (SimState, Instruction, Instruction, int) -> Tuple[SimState, SimState]
-        CNT_LIMIT = 200
+        CNT_LIMIT = 20
         REP_LIMIT = 128
         cnt = 0
         rep_cnt = 0
@@ -776,6 +781,14 @@ class Tracer(object):
                 new_state.regs.ip = instruction.ip
                 all_choices = {"sat": [new_state], "unsat": [], "unconstrained": []}
                 choices = [new_state]
+                """
+                step.add_successor(
+                    new_state,
+                    instruction.ip,
+                    state.se.true,
+                    jumpkind
+                )
+                """
             elif force_ret:
                 all_choices = {"sat": [force_state], "unsat": [], "unconstrained": []}
                 choices = [force_state]
@@ -812,18 +825,18 @@ class Tracer(object):
             for choice in choices:
                 if self.last_match(choice, instruction):
                     return choice, choice
-                if old_state.addr == previous_instruction.ip:
-                    if self.jump_match(
-                        old_state, choice, previous_instruction, instruction
-                    ):
-                        return old_state, choice
+                if self.jump_match(
+                    old_state, choice, previous_instruction, instruction
+                ):
+                    self.repair_ip_at_syscall(old_state, choice)
+                    return old_state, choice
             # NOTE: need to consider repz here, if repz repeats for less than N times,
             # then, it should still be on sat path
             if self.test_rep_ins(state):
                 rep_cnt += 1
                 if rep_cnt < REP_LIMIT and len(all_choices["sat"]) == 1:
                     state = all_choices["sat"][0]
-                    self.record_constraints_index(old_state, choice, index)
+                    self.repair_ip_at_syscall(old_state, state)
                     continue
             else:
                 rep_cnt = 0
@@ -839,6 +852,7 @@ class Tracer(object):
                 else:
                     raise HaseError("Unable to continue")
             self.repair_satness(old_state, state)
+            self.repair_ip_at_syscall(old_state, state)
             self.record_constraints_index(old_state, state, index)
             for c in choices:
                 if c != state:
@@ -887,9 +901,9 @@ class Tracer(object):
         simstate = self.simgr.active[0]
         states = StateManager(self, len(self.trace))
         states.add_major(State(0, None, self.trace[0], None, simstate))
-        self.debug_unsat = None  # type: Optional[SimState]
-        self.debug_state = deque(maxlen=5)  # type: deque
-        self.skip_addr = {}  # type: Dict[int, int]
+        self.debug_unsat: Optional[SimState] = None
+        self.debug_state: deque = deque(maxlen=5)
+        self.skip_addr: Dict[int, int] = {}
         cnt = 0
         interval = max(1, len(self.trace) // 200)
         length = len(self.trace) - 1
@@ -908,10 +922,13 @@ class Tracer(object):
             assert self.valid_address(previous_instruction.ip) and self.valid_address(
                 instruction.ip
             )
-
-            old_simstate, new_simstate = self.execute(
-                simstate, previous_instruction, instruction, cnt
-            )
+            try:
+                old_simstate, new_simstate = self.execute(
+                    simstate, previous_instruction, instruction, cnt
+                )
+            except Exception as e:
+                import ipdb
+                ipdb.set_trace()
             simstate = new_simstate
             if cnt % interval == 0 or length - cnt < 15:
                 states.add_major(

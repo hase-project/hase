@@ -9,7 +9,7 @@ except ImportError as e:
 
 frame = gdb.selected_frame()
 blk = frame.block()
-res = []  # type: List[Any]
+res: List[Any] = []
 names = set()
 while not blk.is_global and not blk.is_static:
     for s in blk:

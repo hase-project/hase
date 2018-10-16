@@ -5,10 +5,11 @@ import json
 import shutil
 import subprocess
 import sys
+from tempfile import TemporaryDirectory
+from pathlib import Path
 from typing import Any, Dict, List
 
 from . import pt
-from .path import Path, Tempdir
 from .pwn_wrapper import Coredump, Mapping
 from .symbex.tracer import State, StateManager, Tracer
 
@@ -59,7 +60,8 @@ class Replay(object):
     def __init__(self, report):
         # type: (str) -> None
         self.report = report
-        self.tempdir = Tempdir()
+        self._tempdir = TemporaryDirectory()
+        self.tempdir = Path(self._tempdir.name)
 
     def __enter__(self):
         # type: () -> Replay
@@ -74,18 +76,18 @@ class Replay(object):
         manifest = self.unpack()
 
         coredump = Coredump(manifest["coredump"]["file"])
-        vdso_x64 = self.tempdir.join("vdso")
+        vdso_x64 = self.tempdir.joinpath("vdso")
 
         with open(str(vdso_x64), "wb+") as f:
             f.write(coredump.vdso.data)
 
-        binaries = self.tempdir.join("binaries")
+        binaries = self.tempdir.joinpath("binaries")
         trace = decode_trace(manifest, coredump.mappings, str(vdso_x64), str(binaries))
 
         for obj in coredump.mappings:
             if not obj.path.startswith("/"):
                 continue
-            binary = binaries.join(str(obj.path)[1:])
+            binary = binaries.joinpath(str(obj.path)[1:])
             if not binary.exists():
                 continue
             obj.name = str(binary)
@@ -101,24 +103,24 @@ class Replay(object):
 
     def cleanup(self):
         # type: () -> None
-        shutil.rmtree(str(self.tempdir))
+        self._tempdir.cleanup()
 
     def unpack(self):
         # type: () -> Dict[str, Any]
         archive_root = self.tempdir
         subprocess.check_call(["tar", "-xzf", self.report, "-C", str(archive_root)])
 
-        manifest_path = archive_root.join("manifest.json")
+        manifest_path = archive_root.joinpath("manifest.json")
         with open(str(manifest_path)) as f:
             manifest = json.load(f)
 
         for cpu in manifest["trace"]["cpus"]:
-            cpu["event_path"] = str(archive_root.join(cpu["event_path"]))
-            cpu["trace_path"] = str(archive_root.join(cpu["trace_path"]))
+            cpu["event_path"] = str(archive_root.joinpath(cpu["event_path"]))
+            cpu["trace_path"] = str(archive_root.joinpath(cpu["trace_path"]))
 
         coredump = manifest["coredump"]
-        coredump["executable"] = str(archive_root.join(coredump["executable"]))
-        coredump["file"] = str(archive_root.join(coredump["file"]))
+        coredump["executable"] = str(archive_root.joinpath(coredump["executable"]))
+        coredump["file"] = str(archive_root.joinpath(coredump["file"]))
 
         return manifest
 

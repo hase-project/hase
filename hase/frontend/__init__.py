@@ -1,20 +1,22 @@
 from __future__ import absolute_import, division, print_function
 
-import sys
 import logging
-from PyQt5 import QtWidgets
-from PyQt5.uic import loadUiType
-from PyQt5.QtCore import QSize
-from PyQt5.QtGui import QTextCursor, QIcon, QPixmap, QPainter, QTextCharFormat
-import pygments
-import pygments.lexers
-import pygments.formatters
-from qtconsole.inprocess import QtInProcessKernelManager
-from typing import Tuple, Any, List, Union
+import os
+import sys
+from typing import Any, List, Tuple, Union
 
-from .callgraph import CallGraphManager, CallGraphView
+import pygments
+import pygments.formatters
+import pygments.lexers
+from PyQt5 import QtWidgets
+from PyQt5.QtCore import QSize
+from PyQt5.QtGui import QIcon, QPainter, QPixmap, QTextCharFormat, QTextCursor
+from PyQt5.uic import loadUiType
+from qtconsole.inprocess import QtInProcessKernelManager
+
 from ..path import APP_ROOT
 from ..record import DEFAULT_LOG_DIR
+from .callgraph import CallGraphManager, CallGraphView
 
 EXIT_NORMAL = 0
 EXIT_REBOOT = 1
@@ -22,7 +24,7 @@ l = logging.getLogger("hase")
 
 
 form_class, base_class = loadUiType(
-    str(APP_ROOT.join("frontend", "mainwindow.ui"))
+    str(APP_ROOT.joinpath("frontend", "mainwindow.ui"))
 )  # type: Tuple[Any, Any]
 
 code_template = """
@@ -466,26 +468,21 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                     else:
                         self.file_cache[filename][line] = (None, None)
 
-    def add_states(self, states, tracer):
-        # type: (Any, Any) -> None
+    def add_states(self, states: Any, tracer: Any) -> None:
         for s in states.major_states[1:]:
             self.callgraph.add_node(s, tracer)
 
-    def clear_viewer(self):
-        # type: () -> None
+    def clear_viewer(self) -> None:
         self.code_view.clear()
 
-    def append_archive(self):
-        # type: () -> None
-        files = DEFAULT_LOG_DIR.listdir()
+    def append_archive(self) -> None:
+        files = list(DEFAULT_LOG_DIR.glob("*.tar.gz"))
         files.sort()
         self.code_view.append("\nAvailable files:")
         for f in files:
-            if str(f.basename()).endswith(".tar.gz"):
-                self.code_view.append(str(f.basename()))
+            self.code_view.append(os.path.basename(f))
 
-    def enable_buttons(self):
-        # type: () -> None
+    def enable_buttons(self) -> None:
         # TODO: maintain a button list
         self.up_button.setEnabled(True)
         self.upto_button.setEnabled(True)

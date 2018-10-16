@@ -59,7 +59,7 @@ class VarTableWidget(QTableWidget):
         if value_type == "hex":
             value_item.core_value = int(value, 16)
         elif value_type == "array":
-            arr = []  # type: List[int]
+            arr: List[int] = []
             for v in value.split(" "):
                 if v != "**" and v != "Er":
                     arr[i] = int(v, 16)
@@ -145,7 +145,7 @@ class VarTableWidget(QTableWidget):
         # type: (int, int) -> None
         item = self.item(row, col)
         vtype = item.value_type
-        arr = []  # type: List[str]
+        arr: List[str] = []
         comment = ""
         if vtype == "array":
             arr = [str(i) for i in item.value]

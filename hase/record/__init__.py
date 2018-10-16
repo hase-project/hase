@@ -6,12 +6,13 @@ import fcntl
 import json
 import logging
 import os
+import resource
 import shutil
 import subprocess
-import resource
 from queue import Queue
+from pathlib import Path
 from signal import SIGUSR2
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from threading import Condition, Thread
 from types import FrameType
 from typing import IO, Any, Dict, List, Optional, Tuple, Union
@@ -19,7 +20,7 @@ from typing import IO, Any, Dict, List, Optional, Tuple, Union
 from . import coredumps
 from .. import pwn_wrapper
 from ..errors import HaseError
-from ..path import APP_ROOT, Path, Tempdir
+from ..path import APP_ROOT
 from ..perf import IncreasePerfBuffer, Perf, Trace
 from .ptrace import ptrace_detach, ptrace_me
 from .signal_handler import SignalHandler
@@ -31,16 +32,27 @@ DEFAULT_LOG_DIR = Path("/var/lib/hase")
 PROT_EXEC = 4
 
 
+class Recording:
+    def __init__(
+        self, coredump: Optional[coredumps.Coredump], trace: Trace, exit_status: int
+    ) -> None:
+        self.coredump = coredump
+        self.trace = trace
+        self.exit_status = exit_status
+        # set by the report_worker atm, should be refactored
+        self.report_path: Optional[str] = None
+
+
 def record_process(
     process: subprocess.Popen,
     record_paths: "RecordPaths",
     timeout: Optional[int] = None,
-) -> Optional[Tuple[coredumps.Coredump, Trace]]:
+) -> Recording:
     handler = coredumps.Handler(
         str(record_paths.coredump),
         str(record_paths.fifo),
         str(record_paths.manifest),
-        log_path=str(record_paths.log_path.join("coredump.log")),
+        log_path=str(record_paths.log_path.joinpath("coredump.log")),
     )
 
     # work around missing nonlocal keyword in python2 with a list
@@ -52,19 +64,21 @@ def record_process(
 
     with IncreasePerfBuffer(100 * 1024), Perf(
         process.pid
-    ) as perf, handler as coredump, SignalHandler(SIGUSR2, received_coredump):
+    ) as perf, handler as _coredump, SignalHandler(SIGUSR2, received_coredump):
         write_pid_file(record_paths.pid_file)
 
         ptrace_detach(process.pid)
-        process.wait(timeout)
+        exit_code = process.wait(timeout)
 
         if not got_coredump[0]:
-            return None
+            coredump = None
+        else:
+            coredump = _coredump
 
-        record_paths.perf_directory.mkdir_p()
+        record_paths.perf_directory.mkdir(parents=True)
         trace = perf.write(str(record_paths.perf_directory))
 
-        return (coredump, trace)
+        return Recording(coredump, trace, exit_code)
 
 
 def record(
@@ -72,7 +86,7 @@ def record(
     command: Optional[List[str]] = None,
     stdin: Optional[IO[Any]] = None,
     timeout: Optional[int] = None,
-) -> Optional[Tuple[coredumps.Coredump, Trace]]:
+) -> Recording:
 
     if command is None:
         raise HaseError("recording without command is not supported at the moment")
@@ -93,20 +107,20 @@ class ExitEvent(object):
 
 
 class Job(object):
-    def __init__(self, coredump, trace, record_paths):
-        # type: (coredumps.Coredump, Trace, RecordPaths) -> None
-        self.coredump = coredump
-        self.trace = trace
+    def __init__(self, recording: Recording, record_paths: "RecordPaths") -> None:
+        self.recording = recording
         self.record_paths = record_paths
 
-    def core_file(self):
-        # type: () -> str
-        return self.coredump.get()
+    def core_file(self) -> Optional[str]:
+        if self.recording.coredump is None:
+            return None
+        else:
+            return self.recording.coredump.get()
 
-    def remove(self):
-        # type: () -> None
+    def remove(self) -> None:
         try:
-            self.coredump.remove()
+            if self.recording.coredump is not None:
+                self.recording.coredump.remove()
         except OSError:
             pass
 
@@ -122,15 +136,15 @@ class RecordPaths(object):
         self.id = id
 
         self.state_dir = self.path
-        self.perf_directory = self.path.join("traces-%d" % self.id)
-        self.coredump = self.path.join("core.%d" % self.id)
+        self.perf_directory = self.path.joinpath("traces-%d" % self.id)
+        self.coredump = self.path.joinpath("core.%d" % self.id)
 
-        self.fifo = self.path.join("fifo.%d" % self.id)
-        self.manifest = self.path.join("manifest.json")
+        self.fifo = self.path.joinpath("fifo.%d" % self.id)
+        self.manifest = self.path.joinpath("manifest.json")
 
     def report_archive(self, executable, timestamp):
         # type: (str, str) -> Path
-        return self.log_path.join(
+        return self.log_path.joinpath(
             "%s-%s.tar.gz" % (os.path.basename(executable), timestamp)
         )
 
@@ -139,8 +153,8 @@ def serialize_trace(trace, state_dir):
     # type: (Trace, Path) -> Dict[str, Any]
     cpus = []
     for cpu in trace.cpus:
-        event_path = str(state_dir.relpath(cpu.event_path))
-        trace_path = str(state_dir.relpath(cpu.trace_path))
+        event_path = str(state_dir.relative_to(cpu.event_path))
+        trace_path = str(state_dir.relative_to(cpu.trace_path))
 
         c = dict(
             idx=cpu.idx,
@@ -166,8 +180,7 @@ def serialize_trace(trace, state_dir):
     )
 
 
-def store_report(job):
-    # type: (Job) -> None
+def store_report(job: Job) -> str:
     core_file = job.core_file()
     record_paths = job.record_paths
     state_dir = record_paths.state_dir
@@ -177,7 +190,7 @@ def store_report(job):
 
         def append(path):
             # type: (str) -> None
-            template.write(str(state_dir.relpath(path)).encode("utf-8"))
+            template.write(str(state_dir.relative_to(path)).encode("utf-8"))
             template.write(b"\0")
 
         append(manifest_path)
@@ -196,24 +209,25 @@ def store_report(job):
 
         for path in paths:
             # FIXME check if elf, only create parent directory once
-            archive_path = state_dir.join("binaries", path[1:])
-            archive_path.dirname().mkdir_p()
+            archive_path = state_dir.joinpath("binaries", path[1:])
+            archive_path.parent.mkdir(parents=True)
 
             shutil.copyfile(path, str(archive_path))
 
-            binaries.append(str(state_dir.relpath(str(archive_path))))
+            binaries.append(str(state_dir.relative_to(str(archive_path))))
             append(str(archive_path))
 
-        coredump = manifest["coredump"]
-        coredump["executable"] = os.path.join("binaries", coredump["executable"])
-        coredump["file"] = str(state_dir.relpath(core_file))
-        append(core_file)
+        if core_file is not None:
+            coredump = manifest["coredump"]
+            coredump["executable"] = os.path.join("binaries", coredump["executable"])
+            coredump["file"] = str(state_dir.relative_to(core_file))
+            append(core_file)
 
-        trace = serialize_trace(job.trace, state_dir)
+        trace = serialize_trace(job.recording.trace, state_dir)
 
         for cpu in trace["cpus"]:
-            append(str(state_dir.join(cpu["event_path"])))
-            append(str(state_dir.join(cpu["trace_path"])))
+            append(str(state_dir.joinpath(cpu["event_path"])))
+            append(str(state_dir.joinpath(cpu["trace_path"])))
 
         manifest["trace"] = trace
 
@@ -241,18 +255,20 @@ def store_report(job):
         )
         l.info("built archive %s", archive_path)
         os.unlink(manifest_path)
+        return str(archive_path)
 
 
 def report_worker(queue):
     # type: (Queue) -> None
     l.info("start worker")
     while True:
-        job = queue.get()  # type: Union[Job, ExitEvent]
+        job: Union[Job, ExitEvent] = queue.get()
         if isinstance(job, ExitEvent):
             return
 
         try:
-            store_report(job)
+            report_path = store_report(job)
+            job.recording.report_path = report_path
             l.info("processed job")
         except OSError:
             l.exception("Error while creating report")
@@ -261,6 +277,7 @@ def report_worker(queue):
             job.remove()
 
 
+# XXX since global recording is probably not coming back we can remove this background worker + loop
 def record_loop(
     record_path: Path,
     log_path: Path,
@@ -269,7 +286,7 @@ def record_loop(
     command: Optional[List[str]] = None,
     stdin: Optional[IO[Any]] = None,
     timeout: Optional[int] = None,
-) -> None:
+) -> Optional[Recording]:
     job_queue: Queue[Union[Job, ExitEvent]] = Queue()
     post_process_thread = Thread(target=report_worker, args=(job_queue,))
     post_process_thread.start()
@@ -280,14 +297,13 @@ def record_loop(
             i += 1
             # TODO ratelimit
             record_paths = RecordPaths(record_path, i, log_path, pid_file)
-            result = record(record_paths, command, stdin=stdin, timeout=timeout)
-            if result is None:
-                return
-            (coredump, perf_data) = result
-            job_queue.put(Job(coredump, perf_data, record_paths))
+            recording = record(record_paths, command, stdin=stdin, timeout=timeout)
+            if recording.coredump is None:
+                return recording
+            job_queue.put(Job(recording, record_paths))
             if command is not None:
                 # if we record a single command we do not go into a loop
-                break
+                return recording
     except KeyboardInterrupt:
         pass
     finally:
@@ -295,25 +311,26 @@ def record_loop(
         l.info("Wait for child")
         post_process_thread.join()
 
+    return None
+
 
 def record_command(args):
     # type: (argparse.Namespace) -> None
 
     log_path = Path(args.log_dir)
-    log_path.mkdir_p()
+    log_path.mkdir(parents=True)
 
-    logging.basicConfig(filename=str(log_path.join("hase.log")), level=logging.INFO)
+    logging.basicConfig(filename=str(log_path.joinpath("hase.log")), level=logging.INFO)
 
     command = None if len(args.args) == 0 else args.args
 
-    with Tempdir() as tempdir:
+    with TemporaryDirectory() as tempdir:
         record_loop(
-            tempdir, log_path, pid_file=args.pid_file, limit=args.limit, command=command
+            Path(tempdir), log_path, pid_file=args.pid_file, limit=args.limit, command=command
         )
-    
+
     if args.rusage_file is not None:
         usage = tuple(resource.getrusage(resource.RUSAGE_CHILDREN))
         with open(args.rusage_file, "w") as usage_file:
             usage_file.write(", ".join([str(x) for x in usage]))
             usage_file.write("\n")
-

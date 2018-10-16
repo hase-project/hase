@@ -31,9 +31,9 @@ addr_symbols = [
 ]
 
 
-unsupported_symbols = []  # type: List[Tuple[str]]
+unsupported_symbols: List[Tuple[str]] = []
 
-skip_hook = []  # type: List[str]
+skip_hook: List[str] = []
 
 
 def hook_angr_procedures(dct, libs, skip_hook, hook_IO=True):
@@ -80,16 +80,22 @@ def hook_alias_procedures(dct):
     # type: (Dict[str, Any]) -> None
     alias_sym = alias_symbols
     for decr_sym, sym in alias_sym.items():
-        if sym in dct.keys():
-            dct[decr_sym] = dct[sym]
-            obj = dct[sym]
-            if getattr(obj, "IS_SYSCALL", False):
-                ins = obj(display_name=decr_sym)
-                ins.cc = None
-                ins.is_syscall = True
-                ins.NO_RET = False
-                ins.ADDS_EXITS = False
-                SIM_LIBRARIES["linux"].procedures[decr_sym] = ins
+        candidates = [sym]
+        while sym in alias_sym.keys():
+            candidates.append(alias_sym[sym])
+            sym = alias_sym[sym]
+        for sym in candidates:
+            if sym in dct.keys():
+                dct[decr_sym] = dct[sym]
+                obj = dct[sym]
+                if getattr(obj, "IS_SYSCALL", False):
+                    ins = obj(display_name=decr_sym)
+                    ins.cc = None
+                    ins.is_syscall = True
+                    ins.NO_RET = False
+                    ins.ADDS_EXITS = False
+                    SIM_LIBRARIES["linux"].procedures[decr_sym] = ins
+                break
 
 
 # FIXME: it would be too hack to use inspect or something to generate
@@ -99,7 +105,7 @@ def hook_fallback_procedures(dct):
     pass
 
 
-all_hookable_symbols = {}  # type: Dict[str, Any]
+all_hookable_symbols: Dict[str, Any] = {}
 
 libs = ["libc", "glibc", "linux_kernel", "posix", "linux_loader"]
 

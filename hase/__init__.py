@@ -1,12 +1,12 @@
 from __future__ import absolute_import, division, print_function
-from .cli import parse_arguments
+
 import sys
+from typing import Any, List
 
-from typing import List
+from .cli import parse_arguments
 
 
-def main(argv=sys.argv):
-    # type: (List[str]) -> None
+def main(argv: List[str] = sys.argv) -> Any:
     args = parse_arguments(argv)
     if args.debug:
         import pry

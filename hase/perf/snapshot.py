@@ -126,7 +126,7 @@ def open_pt_event(cpu, pid):
     attr.type = intel_pt_type()
     # FIXME: find out how config works,
     # currenty copied from strace output
-    attr.config = 0x300e601
+    attr.config = 0x300E601
     attr.sample_type = SampleFlags.PERF_SAMPLE_MASK
     attr.sample_period = 1
     attr.clockid = 1
@@ -225,7 +225,7 @@ class MmapHeader(object):
     def events(self):
         # type: () -> Iterator[ct.Structure]
         data_head = self._header.data_head
-        events = []  # type: List[ct.Structure]
+        events: List[ct.Structure] = []
 
         data_size = self.data_size
         offset = data_head + data_size
@@ -404,7 +404,7 @@ class Cpu(object):
         self.event_buffer = event_buffer
         self.pt_buffer = pt_buffer
 
-        self._itrace_start_event = None  # type: Optional[ct.Structure]
+        self._itrace_start_event: Optional[ct.Structure] = None
 
     def events(self):
         # type: () -> Iterator[ct.Structure]
@@ -417,7 +417,7 @@ class Cpu(object):
 
     def traces(self):
         # type: () -> Generator[bytearray, None, None]
-        seen = {}  # type: Dict[int, int]
+        seen: Dict[int, int] = {}
         for ev in self.pt_buffer.events():
             if ev.type == PerfRecord.PERF_RECORD_ITRACE_START:
                 self._itrace_start_event = ev
@@ -465,7 +465,7 @@ class Snapshot(object):
     def __init__(self, pid=-1):
         # type: (int) -> None
         self.stopped = False
-        self.cpus = []  # type: List[Cpu]
+        self.cpus: List[Cpu] = []
 
         try:
             self.start(pid)
@@ -476,8 +476,8 @@ class Snapshot(object):
     def start(self, pid):
         # type: (int) -> None
         assert not self.stopped
-        event_buffers = []  # type: List[BackwardRingbuffer]
-        pt_buffers = []  # type: List[AuxRingbuffer]
+        event_buffers: List[BackwardRingbuffer] = []
+        pt_buffers: List[AuxRingbuffer] = []
 
         cpu_idx = cpus_online()
         for idx in cpu_idx:
@@ -511,13 +511,13 @@ class Snapshot(object):
         # type: () -> CpuId
         cpuid = CPUID()
         eax, _, _, _ = cpuid(0x1)
-        family = (eax >> 8) & 0xf
-        if family == 0xf:
-            family += (eax >> 20) & 0xf
-        model = (eax >> 4) & 0xf
-        if family == 0x6 or family == 0xf:
-            model += (eax >> 12) & 0xf0
-        stepping = (eax >> 0) & 0xf
+        family = (eax >> 8) & 0xF
+        if family == 0xF:
+            family += (eax >> 20) & 0xF
+        model = (eax >> 4) & 0xF
+        if family == 0x6 or family == 0xF:
+            model += (eax >> 12) & 0xF0
+        stepping = (eax >> 0) & 0xF
         cpuid_0x15_eax, cpuid_0x15_ebx, _, _ = cpuid(0x15)
 
         return CpuId(family, model, stepping, cpuid_0x15_eax, cpuid_0x15_ebx)

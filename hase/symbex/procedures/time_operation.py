@@ -39,11 +39,11 @@ class localtime_r(SimProcedure):
         store(0x00, "tm_sec", 32)
         store(0x04, "tm_min", 32)
         store(0x08, "tm_hour", 32)
-        store(0x0c, "tm_mday", 32)
+        store(0x0C, "tm_mday", 32)
         store(0x10, "tm_mon", 32)
         store(0x14, "tm_year", 32)
         store(0x18, "tm_wday", 32)
-        store(0x1c, "tm_yday", 32)
+        store(0x1C, "tm_yday", 32)
         store(0x20, "tm_isdst", 32)
 
 

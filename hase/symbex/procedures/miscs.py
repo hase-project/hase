@@ -105,6 +105,20 @@ class dcgettext(SimProcedure):
         return self.inline_call(gettext, msgid).ret_expr
 
 
+class bindtextdomain(SimProcedure):
+    def run(self, domainname, dirname):
+        malloc = SIM_PROCEDURES["libc"]["malloc"]
+        str_addr = self.inline_call(malloc, self.state.libc.max_str_len).ret_expr
+        return self.state.solver.If(
+            self.state.solver.BoolS("bindtextdomain"), str_addr, 0
+        )
+
+
+class textdomain(SimProcedure):
+    def run(self, domainname):
+        return self.inline_call(bindtextdomain, "", "").ret_expr
+
+
 # NOTE: this function is not recorded by ltrace? and cannot be resolved by angr
 class __sched_cpucount(SimProcedure):
     def run(self, setsize, setp):

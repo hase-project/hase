@@ -8,28 +8,24 @@ from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 from cle import ELF
 
 from .errors import HaseError
-from .path import Path
+from .path import find_in_path
 
 
 class Addr2line(object):
-    def __init__(self):
-        # type: () -> None
-        self.dsos = DefaultDict(set)  # type: DefaultDict[ELF, Set[int]]
+    def __init__(self) -> None:
+        self.dsos: DefaultDict[ELF, Set[int]] = DefaultDict(set)
 
-    def _relative_addr(self, dso, addr):
-        # type: (ELF, int) -> int
+    def _relative_addr(self, dso: ELF, addr: int) -> int:
         if dso.is_main_bin:
             return addr
         else:
             return dso.addr_to_offset(addr)
 
-    def add_addr(self, dso, absolute_addr):
-        # type: (ELF, int) -> None
+    def add_addr(self, dso: ELF, absolute_addr: int) -> None:
         self.dsos[dso].add(absolute_addr)
 
-    def compute(self):
-        # type: () -> Dict[int, Tuple[str, int]]
-        addr_map = {}  # type: Dict[int, Tuple[str, int]]
+    def compute(self) -> Dict[int, Tuple[str, int]]:
+        addr_map: Dict[int, Tuple[str, int]] = {}
         for dso, addresses in self.dsos.items():
             relative_addrs = []
 
@@ -61,7 +57,7 @@ class Addr2line(object):
                     # TODO: file:?
                     line = line.split(" ")[0]
                     if not os.path.exists(file):
-                        new_file = Path.find_in_path(file, relative_root)
+                        new_file = find_in_path(file, relative_root)
                         # print("Redirect: {} -> {}".format(file, new_file))
                         file = new_file
                     if line == "?":
