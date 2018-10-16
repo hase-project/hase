@@ -707,22 +707,27 @@ class Tracer(object):
                 self.debug_sat = old_state
                 self.debug_unsat = new_state
 
-    def record_constraints_index(self, old_state, new_state, index):
+    def record_constraints_index(self, old_state: SimState, new_state: SimState, index: int) -> None:
         sat_uuid = map(lambda c: c.uuid, old_state.se.constraints)
         unsat_constraints = list(new_state.se.constraints)
         for c in unsat_constraints:
             if c.uuid not in sat_uuid:
                 self.constraints_index[c] = index
 
-    def repair_ip_at_syscall(self, old_state, new_state):
+    def repair_ip_at_syscall(self, old_state: SimState, new_state: SimState) -> None:
         capstone = old_state.block().capstone
         first_ins = capstone.insns[0].insn
         ins_repr = first_ins.mnemonic
-        if ins_repr.startswith('syscall'):
+        if ins_repr.startswith("syscall"):
             new_state.regs.ip_at_syscall = new_state.ip
 
-    def execute(self, state, previous_instruction, instruction, index):
-        # type: (SimState, Instruction, Instruction, int) -> Tuple[SimState, SimState]
+    def execute(
+        self,
+        state: SimState,
+        previous_instruction: Instruction,
+        instruction: Instruction,
+        index: int,
+    ) -> Tuple[SimState, SimState]:
         CNT_LIMIT = 20
         REP_LIMIT = 128
         cnt = 0
@@ -928,6 +933,7 @@ class Tracer(object):
                 )
             except Exception as e:
                 import ipdb
+
                 ipdb.set_trace()
             simstate = new_simstate
             if cnt % interval == 0 or length - cnt < 15:
