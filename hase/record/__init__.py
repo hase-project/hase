@@ -75,7 +75,7 @@ def record_process(
         else:
             coredump = _coredump
 
-        record_paths.perf_directory.mkdir(parents=True)
+        record_paths.perf_directory.mkdir(parents=True, exist_ok=True)
         trace = perf.write(str(record_paths.perf_directory))
 
         return Recording(coredump, trace, exit_code)
@@ -156,8 +156,8 @@ def serialize_trace(trace, state_dir):
     # type: (Trace, Path) -> Dict[str, Any]
     cpus = []
     for cpu in trace.cpus:
-        event_path = str(state_dir.relative_to(cpu.event_path))
-        trace_path = str(state_dir.relative_to(cpu.trace_path))
+        event_path = str(Path(cpu.event_path).relative_to(state_dir))
+        trace_path = str(Path(cpu.trace_path).relative_to(state_dir))
 
         c = dict(
             idx=cpu.idx,
@@ -193,7 +193,7 @@ def store_report(job: Job) -> str:
 
         def append(path):
             # type: (str) -> None
-            template.write(str(state_dir.relative_to(path)).encode("utf-8"))
+            template.write(str(Path(path).relative_to(state_dir)).encode("utf-8"))
             template.write(b"\0")
 
         append(manifest_path)
@@ -213,17 +213,17 @@ def store_report(job: Job) -> str:
         for path in paths:
             # FIXME check if elf, only create parent directory once
             archive_path = state_dir.joinpath("binaries", path[1:])
-            archive_path.parent.mkdir(parents=True)
+            archive_path.parent.mkdir(parents=True, exist_ok=True)
 
             shutil.copyfile(path, str(archive_path))
 
-            binaries.append(str(state_dir.relative_to(str(archive_path))))
+            binaries.append(str(archive_path.relative_to(state_dir)))
             append(str(archive_path))
 
         if core_file is not None:
             coredump = manifest["coredump"]
             coredump["executable"] = os.path.join("binaries", coredump["executable"])
-            coredump["file"] = str(state_dir.relative_to(core_file))
+            coredump["file"] = str(Path(core_file).relative_to(state_dir))
             append(core_file)
 
         trace = serialize_trace(job.recording.trace, state_dir)
@@ -328,7 +328,7 @@ def record_command(args):
     # type: (argparse.Namespace) -> None
 
     log_path = Path(args.log_dir)
-    log_path.mkdir(parents=True)
+    log_path.mkdir(parents=True, exist_ok=True)
 
     logging.basicConfig(filename=str(log_path.joinpath("hase.log")), level=logging.INFO)
 
