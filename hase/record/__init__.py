@@ -87,13 +87,19 @@ def record(
     stdin: Optional[IO[Any]] = None,
     working_directory: Optional[Path] = None,
     timeout: Optional[int] = None,
+    extra_env: Optional[Dict[str, str]] = None,
 ) -> Recording:
 
     if command is None:
         raise HaseError("recording without command is not supported at the moment")
 
+    env = None
+    if extra_env is not None:
+        env = os.environ.copy()
+        env.update(extra_env)
+
     proc = subprocess.Popen(
-        command, preexec_fn=ptrace_me, stdin=stdin, cwd=working_directory
+        command, preexec_fn=ptrace_me, stdin=stdin, cwd=working_directory, env=extra_env
     )
     return record_process(proc, record_paths, timeout)
 
@@ -290,6 +296,7 @@ def record_loop(
     stdin: Optional[IO[Any]] = None,
     working_directory: Optional[Path] = None,
     timeout: Optional[int] = None,
+    extra_env: Optional[Dict[str, str]] = None
 ) -> Optional[Recording]:
     job_queue: Queue[Union[Job, ExitEvent]] = Queue()
     post_process_thread = Thread(target=report_worker, args=(job_queue,))
@@ -307,6 +314,7 @@ def record_loop(
                 stdin=stdin,
                 working_directory=working_directory,
                 timeout=timeout,
+                extra_env=extra_env
             )
             if recording.coredump is None:
                 return recording
