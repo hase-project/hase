@@ -9,8 +9,8 @@ import os
 import resource
 import shutil
 import subprocess
-from queue import Queue
 from pathlib import Path
+from queue import Queue
 from signal import SIGUSR2
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from threading import Condition, Thread
@@ -85,13 +85,16 @@ def record(
     record_paths: "RecordPaths",
     command: Optional[List[str]] = None,
     stdin: Optional[IO[Any]] = None,
+    working_directory: Optional[Path] = None,
     timeout: Optional[int] = None,
 ) -> Recording:
 
     if command is None:
         raise HaseError("recording without command is not supported at the moment")
 
-    proc = subprocess.Popen(command, preexec_fn=ptrace_me, stdin=stdin)
+    proc = subprocess.Popen(
+        command, preexec_fn=ptrace_me, stdin=stdin, cwd=working_directory
+    )
     return record_process(proc, record_paths, timeout)
 
 
@@ -285,6 +288,7 @@ def record_loop(
     limit: int = 0,
     command: Optional[List[str]] = None,
     stdin: Optional[IO[Any]] = None,
+    working_directory: Optional[Path] = None,
     timeout: Optional[int] = None,
 ) -> Optional[Recording]:
     job_queue: Queue[Union[Job, ExitEvent]] = Queue()
@@ -297,7 +301,13 @@ def record_loop(
             i += 1
             # TODO ratelimit
             record_paths = RecordPaths(record_path, i, log_path, pid_file)
-            recording = record(record_paths, command, stdin=stdin, timeout=timeout)
+            recording = record(
+                record_paths,
+                command,
+                stdin=stdin,
+                working_directory=working_directory,
+                timeout=timeout,
+            )
             if recording.coredump is None:
                 return recording
             job_queue.put(Job(recording, record_paths))
@@ -326,7 +336,11 @@ def record_command(args):
 
     with TemporaryDirectory() as tempdir:
         record_loop(
-            Path(tempdir), log_path, pid_file=args.pid_file, limit=args.limit, command=command
+            Path(tempdir),
+            log_path,
+            pid_file=args.pid_file,
+            limit=args.limit,
+            command=command,
         )
 
     if args.rusage_file is not None:
