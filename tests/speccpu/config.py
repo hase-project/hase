@@ -2,13 +2,16 @@ HOME_DIR = '/home/harveylu/'
 
 SUITE_PATH = HOME_DIR + 'cpu2017/benchspec/CPU/'
 
-RUN_PATH = '/run/run_base_test_mytest-m64.0000/'
+RUN_PATH = '/run/run_base_refspeed_mytest-m64.0000/'
 
 HASE_BIN = HOME_DIR + 'hase/bin/hase'
 
 RECORD_PY = HOME_DIR + 'hase/tests/speccpu/record_benchmark.py'
 
 USAGE = HOME_DIR + 'rusage.csv'
+
+INT_SPEED = ['600', '602', '605', '620', '623', '625', '631', '641', '648', '657']
+FLOAT_SPEED = ['603', '607', '619', '621', '627', '628', '638', '644', '649', '654']
 
 SUITE = {'600': {'commands': ['../run_base_test_mytest-m64.0000/perlbench_s_base.mytest-m64 '
                               '-I. -I./lib makerand.pl > makerand.out 2>> makerand.err',

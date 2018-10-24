@@ -57,9 +57,9 @@ def main():
 
     print('ben\toriginal\thase\tratio')
     for i, benchmark in enumerate(data):
-        print(f'{benchmark}\t{result[0, i]:8f}\t{result[1, i]:8f}\t{ratio[i]:.4f}')
+        print(f'{benchmark}\t{result[0, i]:8.4f}\t{result[1, i]:8.4f}\t{ratio[i]:8.4f}')
 
-    print(f'000\t\t\t\t\t{gmean(filtered_ratio):.4f}')
+    print(f'000\t{result[0].sum():8.4f}\t{result[1].sum():8.4f}\t{gmean(filtered_ratio):.4f}')
 
 
 if __name__ == '__main__':
