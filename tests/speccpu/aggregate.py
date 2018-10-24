@@ -5,6 +5,8 @@
 import argparse
 import json
 
+from pprint import pprint
+
 import numpy as np
 from scipy.stats import gmean
 
@@ -39,9 +41,21 @@ def filter(ratio, data):
 
     return ratio
 
+def merge(data, new_data):
+    for benchmark in data:
+        data[benchmark]['original'].extend(new_data[benchmark]['original'])
+        data[benchmark]['hase'].extend(new_data[benchmark]['hase'])
+
 def main():
     with open(args.data) as file:
         data = json.load(file)
+
+    if args.merge is not None:
+        files = args.merge.split(', ')
+        for file in files:
+            with open(file) as f:
+                new_data = json.load(f)
+                merge(data, new_data)
 
     result = np.zeros((2, len(data)))
     for i, group in enumerate(['original', 'hase']):
@@ -89,6 +103,12 @@ if __name__ == '__main__':
         '--filter',
         type=str,
         help='Abnormal suites'
+    )
+    parser.add_argument(
+        '-m',
+        '--merge',
+        type=str,
+        help='Different results to merge together'
     )
     args = parser.parse_args()
     main()
