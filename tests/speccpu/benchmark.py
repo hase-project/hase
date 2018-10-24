@@ -48,9 +48,12 @@ def measure(benchmark, result):
     output = subprocess.getoutput(
         'specinvoke -n compare.cmd | grep specdiff')
     for line in output.split('\n'):
-        redirect_index = line.find(' > ')
-        if redirect_index != -1:
-            validate_commands.append(line[:redirect_index])
+        if 'specdiff' not in line:
+            validate_commands.append(line)
+        else:
+            redirect_index = line.find(' > ')
+            if redirect_index != -1:
+                validate_commands.append(line[:redirect_index])
 
     for run in range(args.run):
         result[benchmark]['hase'].append(
