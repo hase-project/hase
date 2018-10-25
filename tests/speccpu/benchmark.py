@@ -46,14 +46,17 @@ def measure(benchmark, result):
     # Get validate commands
     validate_commands = []
     output = subprocess.getoutput(
-        'specinvoke -n compare.cmd | grep specdiff')
+        'specinvoke -n compare.cmd')
     for line in output.split('\n'):
+        if line.startswith('#') or line.startswith('specinvoke'):
+            continue
         if 'specdiff' not in line:
             validate_commands.append(line)
         else:
             redirect_index = line.find(' > ')
             if redirect_index != -1:
                 validate_commands.append(line[:redirect_index])
+    # print(validate_commands)
 
     for run in range(args.run):
         result[benchmark]['hase'].append(
@@ -75,9 +78,12 @@ def measure(benchmark, result):
 
             for command in validate_commands:
                 validation = subprocess.getoutput(command).split('\n')
+                LOGGER.debug(f'Validation command:{command}')
+                LOGGER.debug(f'Results:\n{validation}')
                 if len(validation) != 1 or not 'specdiff run completed' in validation[0]:
                     LOGGER.error(f'Wrong result!')
                     result[benchmark]['hase'][run]['valid'] = False
+                    break
 
         result[benchmark]['original'].append(
             {'run': run, 'result': [], 'valid': True})
@@ -95,9 +101,12 @@ def measure(benchmark, result):
 
             for command in validate_commands:
                 validation = subprocess.getoutput(command).split('\n')
-                if len(validation) != 1 or not 'specdiff run completed' in validation[0]:
+                LOGGER.debug(f'Validation command:{command}')
+                LOGGER.debug(f'Results:\n{validation}')
+                if len(validation) != 1 or not (validation[0] == '' or 'specdiff run completed' in validation[0]):
                     LOGGER.error(f'Wrong result!')
                     result[benchmark]['original'][run]['valid'] = False
+                    break
 
     os.chdir(HOME_DIR)
     with open(args.record_path + 'result.json', 'w') as file:
