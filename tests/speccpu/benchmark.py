@@ -80,7 +80,7 @@ def measure(benchmark, result):
                 validation = subprocess.getoutput(command).split('\n')
                 LOGGER.debug(f'Validation command:{command}')
                 LOGGER.debug(f'Results:\n{validation}')
-                if len(validation) != 1 or not 'specdiff run completed' in validation[0]:
+                if len(validation) != 1 or not (validation[0] == '' or 'specdiff run completed' in validation[0]):
                     LOGGER.error(f'Wrong result!')
                     result[benchmark]['hase'][run]['valid'] = False
                     break
