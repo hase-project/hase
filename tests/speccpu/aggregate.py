@@ -47,14 +47,19 @@ def filter(ratio, data):
 
 
 def merge(data, new_data):
-    for benchmark in data:
-        data[benchmark]['original'].extend(new_data[benchmark]['original'])
-        data[benchmark]['hase'].extend(new_data[benchmark]['hase'])
+    for benchmark in new_data:
+        if benchmark in data:
+            data[benchmark]['original'].extend(new_data[benchmark]['original'])
+            data[benchmark]['hase'].extend(new_data[benchmark]['hase'])
+        else:
+            data[benchmark] = new_data[benchmark]
 
 
 def main():
     with open(args.data) as file:
         data = json.load(file)
+        print('Input file(s):')
+        print(args.data)
 
     if args.merge is not None:
         files = args.merge.split(', ')
@@ -62,6 +67,7 @@ def main():
             with open(file) as f:
                 new_data = json.load(f)
                 merge(data, new_data)
+                print(file)
 
     result = np.zeros((2, len(data)))
     std = np.zeros((2, len(data)))
