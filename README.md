@@ -9,6 +9,8 @@ little overhead.
 On top of that data it performs [symbolic execution](https://github.com/angr/angr)
 to recover states prior to the crash.
 
+[System design figure](https://dl.thalheim.io/o-SUOvpks1NlMsggEjCfOQ/complete-design.html)
+
 [Workshop presentation on Klee Workshop 2018](https://docs.google.com/presentation/d/1QeJtKAtLsBbpX9U-llUe_zOLeJpCCq-p8frFMmj9cd4/edit?usp=sharing)
 
 # INSTALL
