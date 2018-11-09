@@ -729,6 +729,15 @@ class Tracer(object):
         self.repair_satness(old_state, state)
         self.repair_ip_at_syscall(old_state, state)
 
+    def repair_syscall_jump(self, old_state, step):
+        capstone = old_state.block().capstone
+        first_ins = capstone.insns[0].insn
+        ins_repr = first_ins.mnemonic
+        # manually syscall will have no entry and just execute it.
+        if ins_repr.startswith("syscall") and \
+            0x3000000 <= step.successors[0].reg_concrete('rip') < 0x3002000:
+            return step.successors[0].step(num_inst=1)
+        return step
 
     def execute(
         self,
@@ -748,6 +757,7 @@ class Tracer(object):
             step = self.project.factory.successors(
                 state, num_inst=1 # , force_addr=addr
             )
+            step = self.repair_syscall_jump(state, step)
         except Exception as e:
             l.warning(repr(e))
             new_state = state.copy()
