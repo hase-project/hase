@@ -143,7 +143,7 @@ class getcwd(SimProcedure):
 # NOTE: if allow-read
 class __freadable(SimProcedure):
     def run(self, file_ptr):
-        return self.state.se.If(
+        return self.state.solver.If(
             self.state.solver.BoolS("file_readable"), self.state.solver.BVV(1, 32), 0
         )
 
@@ -151,7 +151,7 @@ class __freadable(SimProcedure):
 # NOTE: if allow-write
 class __fwritable(SimProcedure):
     def run(self, file_ptr):
-        return self.state.se.If(
+        return self.state.solver.If(
             self.state.solver.BoolS("file_writable"), self.state.solver.BVV(1, 32), 0
         )
 
@@ -159,7 +159,7 @@ class __fwritable(SimProcedure):
 # NOTE: if read-only or last operation read
 class __freading(SimProcedure):
     def run(self, file_ptr):
-        return self.state.se.If(
+        return self.state.solver.If(
             self.state.solver.BoolS("file_reading"), self.state.solver.BVV(1, 32), 0
         )
 
@@ -167,7 +167,7 @@ class __freading(SimProcedure):
 # NOTE: if write-only or last operation write
 class __fwriting(SimProcedure):
     def run(self, file_ptr):
-        return self.state.se.If(
+        return self.state.solver.If(
             self.state.solver.BoolS("file_writing"), self.state.solver.BVV(1, 32), 0
         )
 
@@ -213,11 +213,11 @@ class __snprintf_chk(FormatParser):
             out_str = fmt_str.replace(5, self.arg)
             self.state.memory.store(dst_ptr, out_str)
             self.state.memory.store(
-                dst_ptr + (out_str.size() / 8), self.state.se.BVV(0, 8)
+                dst_ptr + (out_str.size() / 8), self.state.solver.BVV(0, 8)
             )
             return self.state.solver.BVV(out_str.size() / 8, self.state.arch.bits)
         except SimUnsatError:
-            if self.state.se.symbolic(maxlen):
+            if self.state.solver.symbolic(maxlen):
                 l = minmax(self, maxlen, self.state.libc.max_buffer_size)
             else:
                 l = self.state.solver.eval(maxlen)
@@ -238,8 +238,8 @@ class __sprintf_chk(FormatParser):
         fmt_str = self._parse(3)
         out_str = fmt_str.replace(4, self.arg)
         self.state.memory.store(dst_ptr, out_str)
-        self.state.memory.store(dst_ptr + (out_str.size() / 8), self.state.se.BVV(0, 8))
-        return self.state.se.BVV(out_str.size() / 8, self.state.arch.bits)
+        self.state.memory.store(dst_ptr + (out_str.size() / 8), self.state.solver.BVV(0, 8))
+        return self.state.solver.BVV(out_str.size() / 8, self.state.arch.bits)
         """
         return self.inline_call(
             __snprintf_chk, dst_ptr, self.state.libc.max_buffer_size, flag, strlen
@@ -264,7 +264,7 @@ class getdelim(SimProcedure):
         a_addr = self.inline_call(malloc, self.state.libc.max_buffer_size).ret_expr
         self.state.memory.store(
             a_addr,
-            self.state.se.Unconstrained(
+            self.state.solver.Unconstrained(
                 "getdelim", self.state.libc.max_buffer_size * 8, uninitialized=False
             ),
         )

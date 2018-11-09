@@ -481,7 +481,7 @@ class Tracer(object):
     @staticmethod
     def inspect_mem_write(state):
         length = state.inspect.mem_write_length
-        if not state.se.symbolic(length) and state.se.eval(length) > 0x1000:
+        if not state.solver.symbolic(length) and state.solver.eval(length) > 0x1000:
             l.warning(
                 hex(state.addr)
                 + ": write "
@@ -550,7 +550,7 @@ class Tracer(object):
             ):
                 reg_name = first_ins.reg_name(first_ins.operands[1].reg)
                 reg_v = getattr(state.regs, reg_name)
-                if state.se.symbolic(reg_v):
+                if state.solver.symbolic(reg_v):
                     setattr(state.regs, reg_name, state.libc.max_str_len)
 
     def repair_jump_ins(self, state, previous_instruction, instruction):
@@ -569,11 +569,11 @@ class Tracer(object):
         ins_repr = first_ins.mnemonic
 
         if ins_repr.startswith("ret"):
-            if not state.se.symbolic(state.regs.rsp):
+            if not state.solver.symbolic(state.regs.rsp):
                 mem = state.memory.load(state.regs.rsp, 8)
                 jump_target = 0
-                if not state.se.symbolic(mem):
-                    jump_target = state.se.eval(mem)
+                if not state.solver.symbolic(mem):
+                    jump_target = state.solver.eval(mem)
                 if jump_target != instruction.ip:
                     return True, "ret"
                 else:
@@ -588,8 +588,8 @@ class Tracer(object):
                     reg_name = first_ins.op_str
                     reg_v = getattr(state.regs, reg_name)
                     if (
-                        state.se.symbolic(reg_v)
-                        or state.se.eval(reg_v) != instruction.ip
+                        state.solver.symbolic(reg_v)
+                        or state.solver.eval(reg_v) != instruction.ip
                     ):
                         setattr(state.regs, reg_name, instruction.ip)
                         return True, ins
@@ -606,20 +606,20 @@ class Tracer(object):
                     if mem.index:
                         reg_index_name = first_ins.reg_name(mem.index)
                         reg_index = getattr(state.regs, reg_index_name)
-                        if state.se.symbolic(reg_index):
+                        if state.solver.symbolic(reg_index):
                             return True, ins
                         else:
-                            target += state.se.eval(reg_index) * mem.scale
+                            target += state.solver.eval(reg_index) * mem.scale
                     if mem.base:
                         reg_base_name = first_ins.reg_name(mem.base)
                         reg_base = getattr(state.regs, reg_base_name)
-                        if state.se.symbolic(reg_base):
+                        if state.solver.symbolic(reg_base):
                             return True, ins
                         else:
-                            target += state.se.eval(reg_base)
+                            target += state.solver.eval(reg_base)
                     ip_mem = state.memory.load(target, 8, endness="Iend_LE")
-                    if not state.se.symbolic(ip_mem):
-                        jump_target = state.se.eval(ip_mem)
+                    if not state.solver.symbolic(ip_mem):
+                        jump_target = state.solver.eval(ip_mem)
                         if jump_target != instruction.ip:
                             return True, ins
                         else:
@@ -631,7 +631,7 @@ class Tracer(object):
     def repair_ip(self, state):
         # type: (SimState) -> int
         try:
-            addr = state.se.eval(state._ip)
+            addr = state.solver.eval(state._ip)
             # NOTE: repair IFuncResolver
             if (
                 self.project.loader.find_object_containing(addr)
@@ -713,8 +713,8 @@ class Tracer(object):
                 self.debug_unsat = new_state
 
     def record_constraints_index(self, old_state: SimState, new_state: SimState, index: int) -> None:
-        sat_uuid = map(lambda c: c.uuid, old_state.se.constraints)
-        unsat_constraints = list(new_state.se.constraints)
+        sat_uuid = map(lambda c: c.uuid, old_state.solver.constraints)
+        unsat_constraints = list(new_state.solver.constraints)
         for c in unsat_constraints:
             if c.uuid not in sat_uuid:
                 self.constraints_index[c] = index
@@ -754,7 +754,6 @@ class Tracer(object):
             new_state.regs.ip = instruction.ip
             self.post_execute(state, new_state)
             return state, new_state
-
         if force_jump:
             new_state = state.copy()
             if force_type == "call":
@@ -864,14 +863,7 @@ class Tracer(object):
             assert self.valid_address(previous_instruction.ip) and self.valid_address(
                 instruction.ip
             )
-            try:
-                old_simstate, new_simstate = self.execute(
-                    simstate, previous_instruction, instruction, cnt
-                )
-            except Exception as e:
-                print(e)
-                import ipdb
-                ipdb.set_trace()
+            old_simstate, new_simstate = self.execute(simstate, previous_instruction, instruction, cnt)
             simstate = new_simstate
             if cnt % interval == 0 or length - cnt < 15:
                 states.add_major(

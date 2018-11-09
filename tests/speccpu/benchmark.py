@@ -109,7 +109,7 @@ def measure(benchmark, result):
                     break
 
     os.chdir(HOME_DIR)
-    with open(args.record_path + 'result.json', 'w') as file:
+    with open(args.record_path + args.name + '.json', 'w') as file:
         # print(file.name)
         json.dump(result, file)
         file.write('\n')
@@ -136,7 +136,7 @@ def main():
 
     os.chdir(HOME_DIR)
     # print(result)
-    with open(args.record_path + 'result.json', 'w') as file:
+    with open(args.record_path + args.name + '.json', 'w') as file:
         json.dump(result, file)
         file.write('\n')
     return
