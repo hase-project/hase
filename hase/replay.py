@@ -114,11 +114,11 @@ class Replay(object):
         low = active_state.simstate.regs.rsp
         high = start_state.regs.rsp
         try:
-            low_v = active_state.simstate.se.eval(low)
+            low_v = active_state.simstate.solver.eval(low)
         except Exception:
             low_v = coredump.stack.start
         try:
-            high_v = start_state.se.eval(high)
+            high_v = start_state.solver.eval(high)
         except Exception:
             high_v = coredump.stack.stop
         coredump_constraints = []
@@ -172,8 +172,8 @@ def replay_command(args):
             if not getattr(active_state, "had_coredump_constraints", False):
                 for c in constraints:
                     old_solver = active_state.simstate.solver._solver.branch()
-                    active_state.simstate.se.add(c)
-                    if not active_state.simstate.se.satisfiable():
+                    active_state.simstate.solver.add(c)
+                    if not active_state.simstate.solver.satisfiable():
                         print("Unsatisfiable coredump constraints: " + str(c))
                         active_state.simstate.solver._stored_solver = old_solver
                 active_state.had_coredump_constraints = True
