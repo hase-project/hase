@@ -49,7 +49,7 @@ def record_process(
     process: subprocess.Popen,
     record_paths: "RecordPaths",
     timeout: Optional[int] = None,
-    rusage: Optional[str] = None,
+    rusage: bool = False,
 ) -> Recording:
     handler = coredumps.Handler(
         str(record_paths.coredump),
@@ -93,10 +93,12 @@ def record(
     record_paths: "RecordPaths",
     command: Optional[List[str]] = None,
     stdin: Optional[IO[Any]] = None,
+    stdout: Optional[IO[Any]] = None,
+    stderr: Optional[IO[Any]] = None,
     working_directory: Optional[Path] = None,
     timeout: Optional[int] = None,
     extra_env: Optional[Dict[str, str]] = None,
-    rusage: Optional[str] = None,
+    rusage: bool = False,
 ) -> Recording:
 
     if command is None:
@@ -108,7 +110,13 @@ def record(
         env.update(extra_env)
 
     proc = subprocess.Popen(
-        command, preexec_fn=ptrace_me, stdin=stdin, cwd=working_directory, env=extra_env
+        command,
+        preexec_fn=ptrace_me,
+        stdin=stdin,
+        stdout=stdout,
+        stderr=stderr,
+        cwd=working_directory,
+        env=extra_env,
     )
     return record_process(proc, record_paths, timeout, rusage=rusage)
 
@@ -307,10 +315,12 @@ def record_loop(
     limit: int = 0,
     command: Optional[List[str]] = None,
     stdin: Optional[IO[Any]] = None,
+    stdout: Optional[IO[Any]] = None,
+    stderr: Optional[IO[Any]] = None,
     working_directory: Optional[Path] = None,
     timeout: Optional[int] = None,
     extra_env: Optional[Dict[str, str]] = None,
-    rusage: Optional[str] = None,
+    rusage: bool = True,
 ) -> Optional[Recording]:
     job_queue: Queue[Union[Job, ExitEvent]] = Queue()
     post_process_thread = Thread(target=report_worker, args=(job_queue,))
@@ -326,6 +336,8 @@ def record_loop(
                 record_paths,
                 command,
                 stdin=stdin,
+                stdout=stdout,
+                stderr=stderr,
                 working_directory=working_directory,
                 timeout=timeout,
                 extra_env=extra_env,
