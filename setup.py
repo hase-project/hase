@@ -12,7 +12,7 @@ setup(
     packages=find_packages(),
     install_requires=[
       'angr @ https://github.com/hase-project/angr/archive/38730216ad2682f07d696ae24883fc4075559c45.zip',
-      'pwntools @ https://github.com/Mic92/pwntools/archive/d93f557c8004eac3d34821e8eb11059082aed0e3.zip',
+      'pwntools @ https://github.com/Mic92/pwntools/archive/30af7354d199864cf697d0cb9caa2fffd3ee242f.zip',
       'monkeyhex',
       'qtconsole',
       'pry.py',
