@@ -114,11 +114,11 @@ class Replay(object):
         low = active_state.simstate.regs.rsp
         high = start_state.regs.rsp
         try:
-            low_v = active_state.simstate.se.eval(low)
+            low_v = active_state.simstate.solver.eval(low)
         except Exception:
             low_v = coredump.stack.start
         try:
-            high_v = start_state.se.eval(high)
+            high_v = start_state.solver.eval(high)
         except Exception:
             high_v = coredump.stack.stop
         coredump_constraints = []
