@@ -410,9 +410,6 @@ class Tracer(object):
             )
 
         l.warning("{} {}".format(len(self.trace), len(self.old_trace)))
-        import ipdb
-        ipdb.set_trace()
-        return
 
         if self.filter.is_start_entry:
             self.start_state.regs.rsp = rbp + 8
