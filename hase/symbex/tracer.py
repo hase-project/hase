@@ -454,9 +454,11 @@ class Tracer(object):
             stack_addr = self.project.loader.find_symbol(
                 "__stack_chk_fail"
             ).rebased_addr
+            kill_addr = self.project.loader.find_symbol("kill").rebased_addr
             self.project._sim_procedures.pop(abort_addr, None)
             self.project._sim_procedures.pop(assert_addr, None)
             self.project._sim_procedures.pop(stack_addr, None)
+            self.project._sim_procedures.pop(kill_addr, None)
         except:
             pass
 
@@ -744,9 +746,10 @@ class Tracer(object):
 
         try:
             step = self.project.factory.successors(
-                state, num_inst=1, force_addr=addr
+                state, num_inst=1 # , force_addr=addr
             )
-        except Exception:
+        except Exception as e:
+            l.warning(repr(e))
             new_state = state.copy()
             new_state.regs.ip = instruction.ip
             self.post_execute(state, new_state)
@@ -837,7 +840,7 @@ class Tracer(object):
     def run(self):
         # type: () -> StateManager
         simstate = self.simgr.active[0]
-        states = StateManager(self, len(self.trace))
+        states = StateManager(self, len(self.trace) + 1)
         states.add_major(State(0, None, self.trace[0], None, simstate))
         self.debug_unsat: Optional[SimState] = None
         self.debug_state: deque = deque(maxlen=5)
@@ -845,9 +848,10 @@ class Tracer(object):
         cnt = 0
         interval = max(1, len(self.trace) // 200)
         length = len(self.trace) - 1
-
-        for previous_idx, instruction in enumerate(self.trace[1:]):
-            previous_instruction = self.trace[previous_idx]
+        trace = self.trace[1:]
+        trace.append(trace[-1])
+        for previous_idx, instruction in enumerate(trace):
+            previous_instruction = trace[previous_idx]
 
             cnt += 1
             if not cnt % 500:

@@ -257,6 +257,8 @@ class FilterTrace(object):
         hooked_parent = None
         is_current_hooked = False
         hook_idx = 0
+        first_meet = False
+        hook_fname = None
         # FIXME: seems dso object not always this one
         dso_sym = FakeSymbol("plt-ld", 0)
         plt_sym = None
@@ -338,13 +340,27 @@ class FilterTrace(object):
                     if self.test_hook_name(fname) and not self.test_ld(instruction.ip):
                         l.warning(parent.name + " ->(hook) " + sym.name)
                         is_current_hooked = True
+                        first_meet = False
                         hooked_parent = parent
+                        hook_fname = fname
                         hook_idx = idx + self.start_idx
                 else:
                     if self.test_omit(instruction.ip):
                         is_current_hooked = True
+                        first_meet = False
                         hooked_parent = self.find_function(previous_instr.ip)
                         hook_idx = idx + self.start_idx
+                        hook_fname = 'omit'
+            flg, fname = self.test_function_entry(instruction.ip)
+            if (is_current_hooked
+                 and not first_meet
+                 and not self.test_plt_vdso(instruction.ip)
+                 and not self.test_ld(instruction.ip)
+                 and not self.test_omit(instruction.ip)
+            ):
+                present = True
+                first_meet = True
+                l.warning("entry: " + fname + " " + hex(instruction.ip))
             if present:
                 self.new_trace.append(instruction)
                 self.trace_idx.append(idx + self.start_idx)
