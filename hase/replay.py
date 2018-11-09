@@ -161,25 +161,26 @@ def replay_trace(report):
     return Replay(report)
 
 
-def replay_command(args):
+def replay_command(args, debug_cli=False):
     # type: (argparse.Namespace) -> StateManager
     with replay_trace(args.report) as rt:
         states, constraints = rt.run()
-        gdbs = GdbServer(states, rt.tracer.executable, rt.tracer.cdanalyzer, states.major_states[-1])
+        if debug_cli:
+            gdbs = GdbServer(states, rt.tracer.executable, rt.tracer.cdanalyzer, states.major_states[-1])
 
-        def add_constraint(state):
-            active_state = state.simstate
-            if not getattr(active_state, "had_coredump_constraints", False):
-                for c in constraints:
-                    old_solver = active_state.simstate.solver._solver.branch()
-                    active_state.simstate.se.add(c)
-                    if not active_state.simstate.se.satisfiable():
-                        print("Unsatisfiable coredump constraints: " + str(c))
-                        active_state.simstate.solver._stored_solver = old_solver
-                active_state.had_coredump_constraints = True
-
-        import ipdb
-        ipdb.set_trace()
+            def add_constraint(state):
+                active_state = state.simstate
+                if not getattr(active_state, "had_coredump_constraints", False):
+                    for c in constraints:
+                        old_solver = active_state.simstate.solver._solver.branch()
+                        active_state.simstate.se.add(c)
+                        if not active_state.simstate.se.satisfiable():
+                            print("Unsatisfiable coredump constraints: " + str(c))
+                            active_state.simstate.solver._stored_solver = old_solver
+                    active_state.had_coredump_constraints = True
+            import ipdb
+            ipdb.set_trace()
+        return states
 
 
 def unpack_command(args):
