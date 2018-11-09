@@ -409,6 +409,11 @@ class Tracer(object):
                 remove_options=remove_simplications,
             )
 
+        l.warning("{} {}".format(len(self.trace), len(self.old_trace)))
+        import ipdb
+        ipdb.set_trace()
+        return
+
         if self.filter.is_start_entry:
             self.start_state.regs.rsp = rbp + 8
         else:
@@ -721,6 +726,11 @@ class Tracer(object):
         if ins_repr.startswith("syscall"):
             new_state.regs.ip_at_syscall = new_state.ip
 
+    def post_execute(self, old_state, state):
+        self.repair_satness(old_state, state)
+        self.repair_ip_at_syscall(old_state, state)
+
+
     def execute(
         self,
         state: SimState,
@@ -728,144 +738,69 @@ class Tracer(object):
         instruction: Instruction,
         index: int,
     ) -> Tuple[SimState, SimState]:
-        CNT_LIMIT = 20
-        REP_LIMIT = 128
-        cnt = 0
-        rep_cnt = 0
-        while cnt < CNT_LIMIT:
-            cnt += 1
-            self.debug_state.append(state)
-            force_ret, force_state = self.repair_hook_return(state, index)
-            force_jump, force_type = self.repair_jump_ins(
-                state, previous_instruction, instruction
+        self.debug_state.append(state)
+        force_jump, force_type = self.repair_jump_ins(
+            state, previous_instruction, instruction
+        )
+        self.repair_alloca_ins(state)
+        addr = previous_instruction.ip
+
+        try:
+            step = self.project.factory.successors(
+                state, num_inst=1, force_addr=addr
             )
-            self.repair_alloca_ins(state)
-            addr = self.repair_ip(state)
-            is_interrupt = False
-            next_addr = None
-            if state.addr in self.skip_addr.keys():
-                state._ip = self.skip_addr[state.addr]
-                continue
-            try:
-                step = self.project.factory.successors(
-                    state, num_inst=1, force_addr=addr
+        except Exception:
+            new_state = state.copy()
+            new_state.regs.ip = instruction.ip
+            self.post_execute(state, new_state)
+            return state, new_state
+
+        if force_jump:
+            new_state = state.copy()
+            if force_type == "call":
+                new_state.regs.rsp -= 8
+                ret_addr = state.addr + state.block().capstone.insns[0].size
+                new_state.memory.store(
+                    new_state.regs.rsp, ret_addr, endness="Iend_LE"
                 )
-            except KeyboardInterrupt:
-                # NOTE: should have a timeout fallback
-                insns = state.block().capstone.insns
-                if state.addr != previous_instruction.ip and len(insns) > 1:
-                    is_interrupt = True
-                    next_addr = insns[1].address
-                    self.skip_addr[state.addr] = next_addr
-                else:
-                    import traceback
+            elif force_type == "ret":
+                new_state.regs.rsp += 8
+            new_state.regs.ip = instruction.ip
+            all_choices = {"sat": [new_state], "unsat": [], "unconstrained": []}
+            choices = [new_state]
+        else:
+            step = self.repair_func_resolver(state, step)
+            step = self.repair_exit_handler(state, step)
 
-                    traceback.print_exc()
-                    raise HaseError("Manually stop")
-            except Exception:
-                # if force_jump, we have a chance (sp symbolic error)
-                if not force_jump and not force_ret:
-                    raise HaseError("Unable to continue")
-            if is_interrupt:
-                state._ip = next_addr
-                continue
+            all_choices = {
+                "sat": step.successors,
+                "unsat": step.unsat_successors,
+                "unconstrained": step.unconstrained_successors,
+            }
+            choices = []
+            choices += all_choices["sat"]
+            choices += all_choices["unsat"]
 
-            if force_jump:
-                # always boring. the rest call stack done by outselves to avoid exception
-                # will cause history to be unusable
-                # jumpkind = 'Ijk_Boring'
-                new_state = state.copy()
-                if force_type == "call":
-                    new_state.regs.rsp -= 8
-                    ret_addr = state.addr + state.block().capstone.insns[0].size
-                    new_state.memory.store(
-                        new_state.regs.rsp, ret_addr, endness="Iend_LE"
-                    )
-                elif force_type == "ret":
-                    new_state.regs.rsp += 8
-                new_state.regs.ip = instruction.ip
-                all_choices = {"sat": [new_state], "unsat": [], "unconstrained": []}
-                choices = [new_state]
-                """
-                step.add_successor(
-                    new_state,
-                    instruction.ip,
-                    state.se.true,
-                    jumpkind
-                )
-                """
-            elif force_ret:
-                all_choices = {"sat": [force_state], "unsat": [], "unconstrained": []}
-                choices = [force_state]
-            else:
-                step = self.repair_func_resolver(state, step)
-                step = self.repair_exit_handler(state, step)
-
-                all_choices = {
-                    "sat": step.successors,
-                    "unsat": step.unsat_successors,
-                    "unconstrained": step.unconstrained_successors,
-                }
-                # lookup sequence: sat, unsat, unconstrained
-                choices = []
-                choices += all_choices["sat"]
-                choices += all_choices["unsat"]
-                # choices += all_choices['unconstrained']
-
-            old_state = state
-            # TODO: add successors with no constraint if match branch.addr
-            l.warning(
-                repr(cnt)
-                + " "
-                + repr(state)
-                + " "
-                +
-                # repr(all_choices) + ' ' +
-                repr(instruction)
-                + "\n"
-            )
-            if choices == []:
-                raise HaseError("Unable to continue")
-
-            for choice in choices:
-                if self.last_match(choice, instruction):
-                    return choice, choice
-                if self.jump_match(
-                    old_state, choice, previous_instruction, instruction
-                ):
-                    self.repair_ip_at_syscall(old_state, choice)
-                    return old_state, choice
-            # NOTE: need to consider repz here, if repz repeats for less than N times,
-            # then, it should still be on sat path
-            if self.test_rep_ins(state):
-                rep_cnt += 1
-                if rep_cnt < REP_LIMIT and len(all_choices["sat"]) == 1:
-                    state = all_choices["sat"][0]
-                    self.repair_ip_at_syscall(old_state, state)
-                    continue
-            else:
-                rep_cnt = 0
-            for choice in choices:
-                if self.jump_was_not_taken(old_state, choice):
-                    state = choice
-                    break
-            else:
-                if len(all_choices["sat"]) == 1:
-                    state = all_choices["sat"][0]
-                elif len(choices) == 1:
-                    state = choices[0]
-                else:
-                    raise HaseError("Unable to continue")
-            self.repair_satness(old_state, state)
-            self.repair_ip_at_syscall(old_state, state)
-            self.record_constraints_index(old_state, state, index)
-            for c in choices:
-                if c != state:
-                    c.downsize()
-                    del c
-
-        print(choices, state, instruction)
-        raise HaseError("Unable to continue")
+        old_state = state
+        l.warning(
+            repr(state)
+            + " "
+            +
+            # repr(all_choices) + ' ' +
+            repr(instruction)
+            + "\n"
+        )
+        for choice in choices:
+            if self.last_match(choice, instruction):
+                return choice, choice
+            if self.jump_match(
+                old_state, choice, previous_instruction, instruction
+            ):
+                self.post_execute(old_state, choice)
+                return old_state, choice
+        new_state = state.copy()
+        new_state.regs.ip = instruction.ip
+        return state, new_state
 
     def valid_address(self, address):
         # type: (int) -> bool
@@ -900,6 +835,8 @@ class Tracer(object):
             ]
             for name in registers:
                 state.registers[name] = self.coredump.registers[name]
+        else:
+            l.warning("RIP mismatch.")
 
     def run(self):
         # type: () -> StateManager
@@ -932,8 +869,8 @@ class Tracer(object):
                     simstate, previous_instruction, instruction, cnt
                 )
             except Exception as e:
+                print(e)
                 import ipdb
-
                 ipdb.set_trace()
             simstate = new_simstate
             if cnt % interval == 0 or length - cnt < 15:

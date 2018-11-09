@@ -12,6 +12,7 @@ from typing import Any, Dict, List
 from . import pt
 from .pwn_wrapper import Coredump, Mapping
 from .symbex.tracer import State, StateManager, Tracer
+from .gdb import GdbServer
 
 
 def decode_trace(manifest, mappings, vdso_x64, executable_root):
@@ -99,7 +100,37 @@ class Replay(object):
         # type: () -> StateManager
         if not self.tracer:
             self.prepare_tracer()
-        return self.tracer.run()
+        states = self.tracer.run()
+        start_state = self.tracer.start_state
+        active_state = states.major_states[-1]
+        coredump = self.tracer.coredump
+        arip = active_state.simstate.regs.rip
+        crip = hex(coredump.registers['rip'])
+        arsp = active_state.simstate.regs.rsp
+        crsp = hex(coredump.registers['rsp'])
+        import logging
+        l = logging.getLogger("hase")
+        l.warning(f"{arip} {crip} {arsp} {crsp}")
+        low = active_state.simstate.regs.rsp
+        high = start_state.regs.rsp
+        try:
+            low_v = active_state.simstate.se.eval(low)
+        except Exception:
+            low_v = coredump.stack.start
+        try:
+            high_v = start_state.se.eval(high)
+        except Exception:
+            high_v = coredump.stack.stop
+        coredump_constraints = []
+        '''
+        for addr in range(low_v, high_v):
+            value = active_state.simstate.memory.load(addr, 1, endness="Iend_LE")
+            if value.variables == frozenset():
+                continue
+            cmem = coredump.stack[addr]
+            coredump_constraints.append(value == cmem)
+        '''
+        return states, coredump_constraints
 
     def cleanup(self):
         # type: () -> None
@@ -133,7 +164,22 @@ def replay_trace(report):
 def replay_command(args):
     # type: (argparse.Namespace) -> StateManager
     with replay_trace(args.report) as rt:
-        return rt.run()
+        states, constraints = rt.run()
+        gdbs = GdbServer(states, rt.tracer.executable, rt.tracer.cdanalyzer, states.major_states[-1])
+
+        def add_constraint(state):
+            active_state = state.simstate
+            if not getattr(active_state, "had_coredump_constraints", False):
+                for c in constraints:
+                    old_solver = active_state.simstate.solver._solver.branch()
+                    active_state.simstate.se.add(c)
+                    if not active_state.simstate.se.satisfiable():
+                        print("Unsatisfiable coredump constraints: " + str(c))
+                        active_state.simstate.solver._stored_solver = old_solver
+                active_state.had_coredump_constraints = True
+
+        import ipdb
+        ipdb.set_trace()
 
 
 def unpack_command(args):

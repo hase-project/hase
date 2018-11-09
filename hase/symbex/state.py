@@ -52,8 +52,11 @@ class Memory(object):
     def __getitem__(self, addr):
         # type: (int) -> Optional[int]
         # good idea?
-        byte = self.state.simstate.mem[addr].byte
-        return self.state.eval(byte)
+        try:
+            byte = self.state.simstate.mem[addr].byte
+            return self.state.eval(byte)
+        except:
+            return None
 
 
 class State(object):

@@ -214,7 +214,7 @@ def create_pty():
     ptsname = os.ttyname(slave_fd)
     os.close(slave_fd)
     # make i/o unbuffered
-    return os.fdopen(master_fd, "rw+", 0), ptsname
+    return os.fdopen(master_fd, "wb+", 0), ptsname
 
 
 PAGESIZE = resource.getpagesize()
@@ -388,7 +388,8 @@ class GdbServer(object):
         # Each packet should be acknowledged with a single character.
         # '+' to indicate satisfactory receipt
         l.warning("--> %s" % response)
-        self.master.write("+$%s#%.2x" % (response, compute_checksum(response)))
+        s = "+$%s#%.2x" % (response, compute_checksum(response))
+        self.master.write(s.encode('utf-8'))
         self.master.flush()
 
     def extend_mode(self, packet):
