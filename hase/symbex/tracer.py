@@ -927,14 +927,7 @@ class Tracer(object):
             assert self.valid_address(previous_instruction.ip) and self.valid_address(
                 instruction.ip
             )
-            try:
-                old_simstate, new_simstate = self.execute(
-                    simstate, previous_instruction, instruction, cnt
-                )
-            except Exception as e:
-                import ipdb
-
-                ipdb.set_trace()
+            old_simstate, new_simstate = self.execute(simstate, previous_instruction, instruction, cnt)
             simstate = new_simstate
             if cnt % interval == 0 or length - cnt < 15:
                 states.add_major(
