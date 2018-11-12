@@ -127,7 +127,7 @@ class HaseMagics(Magics):
         with replay_trace(query) as rep:
             user_ns["tracer"] = rep.tracer
             executable = rep.executable
-            states = rep.run()
+            states, _ = rep.run()
             addr2line = annotate.Addr2line()
             # NOTE: we calculate all trace instead of state
             for instr in rep.tracer.trace:

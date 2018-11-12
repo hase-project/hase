@@ -180,8 +180,8 @@ class FilterTrace:
                 return lib.reverse_plt[addr]
         return ""
 
-    def find_function(self, addr):
-        # type: (int) -> Optional[Any]
+    # FIXME return type should be a union of the actual type and FakeSymbol
+    def find_function(self, addr: int) -> Optional[FakeSymbol]:
         for lib, symx in self.syms.items():
             if lib.contains_addr(addr):
                 # NOTE: angr cannot solve plt symbol name
@@ -203,8 +203,7 @@ class FilterTrace:
             return True, symname
         return False, ""
 
-    def analyze_start(self, least_reserve=2000, most_reserve=1500):
-        # type: (int, int) -> Tuple[List[Instruction], int]
+    def analyze_start(self, least_reserve: int=2000, most_reserve: int=1500) -> Tuple[List[Instruction], int]:
         # FIXME: not working if atexit register a function which is the problem
         # FIXME: this last occurence method will cause rare division from push ebp | mov ebp esp | sub esp XX
         # FIXME: what if A -> B -> A calling chain?
@@ -243,9 +242,9 @@ class FilterTrace:
             raise Exception("Unable to find suitable start instruction")
         self.start_idx = (len(self.trace) + start_idx) % len(self.trace)
         self.is_start_entry, _ = self.test_function_entry(self.trace[start_idx].ip)
-        self.start_funcname = self.find_function(
-            self.trace[start_idx].ip
-        ).name  # type: ignore
+        function = self.find_function(self.trace[start_idx].ip)
+        assert function is not None
+        self.start_funcname = function.name
         return self.trace[self.start_idx :], self.start_idx
 
     def analyze_trace(self):
@@ -338,6 +337,7 @@ class FilterTrace:
                         self.call_parent[parent] = plt_sym
                     self.call_parent[sym] = parent
                     if self.test_hook_name(fname) and not self.test_ld(instruction.ip):
+                        assert parent is not None and sym is not None
                         l.warning(parent.name + " ->(hook) " + sym.name)
                         is_current_hooked = True
                         first_meet = False
@@ -348,6 +348,7 @@ class FilterTrace:
                     if self.test_omit(instruction.ip):
                         is_current_hooked = True
                         first_meet = False
+                        assert previous_instr is not None
                         hooked_parent = self.find_function(previous_instr.ip)
                         hook_idx = idx + self.start_idx
                         hook_fname = 'omit'
