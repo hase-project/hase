@@ -38,7 +38,6 @@ in
 
     processor-trace
 
-    linuxPackages.bcc
     bashInteractive
     unicorn-emu
     git-lfs
