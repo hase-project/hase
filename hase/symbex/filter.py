@@ -22,7 +22,7 @@ except ImportError:  # make mypy happy
 l = logging.getLogger("hase")
 
 
-class FakeSymbol(object):
+class FakeSymbol:
     def __init__(self, name, addr):
         # type: (str, int) -> None
         self.name = name
@@ -42,7 +42,7 @@ class FakeSymbol(object):
         return "FakeSymbol '{}' at {}".format(self.name, hex(self.rebased_addr))
 
 
-class FilterBase(object):
+class FilterBase:
     def __init__(self, project, cfg, trace, hooked_symbol, gdb):
         # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], tracer.CoredumpGDB) -> None
         self.project = project
@@ -79,7 +79,7 @@ class FilterBase(object):
         return False
 
 
-class FilterTrace(object):
+class FilterTrace:
     def __init__(
         self,
         project,
