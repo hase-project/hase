@@ -4,13 +4,14 @@
 """
 import argparse
 import json
+import sys
 import logging
 import os
 import shlex
 import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import List
+from typing import List, Dict, Any
 
 from config import *
 from hase.record import Job, RecordPaths, record_loop, store_report, serialize_trace
@@ -46,9 +47,10 @@ def parse_shell_command(cmdline: str) -> BenchCommand:
     return BenchCommand(args, stdout_file, stderr_file)
 
 
-def measure(benchmark, result):
-    result[benchmark] = {"original": [], "hase": []}
-    os.chdir(SUITE_PATH + SUITE[benchmark]["name"] + RUN_PATH)
+def measure(benchmark: str) -> Dict[str, Any]:
+    result: Dict[str, Any] = dict(original=[], hase=[])
+    bench_path = SUITE_PATH + SUITE[benchmark]["name"] + RUN_PATH # type: ignore
+    os.chdir(bench_path)
 
     # Get run commands
     run_commands = []
@@ -74,7 +76,7 @@ def measure(benchmark, result):
     # print(validate_commands)
 
     for run in range(args.run):
-        result[benchmark]["hase"].append({"run": run, "result": [], "valid": True})
+        result["hase"].append(dict(run= run, result=[], valid=True))
         if args.group in ("both", "hase"):
             for i, command in enumerate(run_commands):
                 LOGGER.info(
@@ -96,75 +98,85 @@ def measure(benchmark, result):
                     )
                     rusage = recording.rusage
                     serialize_trace(recording.trace, temppath)
-                    result[benchmark]["hase"][run]["result"].append(list(rusage))
+                    result["hase"][run]["result"].append(list(rusage))
 
-            for command in validate_commands:
-                validation = subprocess.getoutput(command).split("\n")
-                LOGGER.debug(f"Validation command:{command}")
+            for validate_command in validate_commands:
+                validation = subprocess.getoutput(validate_command).split("\n")
+                LOGGER.debug(f"Validation command:{validate_command}")
                 LOGGER.debug(f"Results:\n{validation}")
                 if len(validation) != 1 or not (
                     validation[0] == "" or "specdiff run completed" in validation[0]
                 ):
                     LOGGER.error(f"Wrong result!")
-                    result[benchmark]["hase"][run]["valid"] = False
+                    result["hase"][run]["valid"] = False
                     break
 
-        result[benchmark]["original"].append({"run": run, "result": [], "valid": True})
+        result["original"].append({"run": run, "result": [], "valid": True})
 
         if args.group in ("both", "original"):
             for i, command in enumerate(run_commands):
                 LOGGER.info(
                     f"Benchmark: {benchmark}, Run: {run}, Command: {i}, without hase"
                 )
-                # subprocess.run('sudo python3 ' + RECORD_PY + ' -- "' + command + '"', shell=True)
-                LOGGER.debug(f"{' '.join(command)}")
+                LOGGER.debug(f"{' '.join(command.args)}")
 
                 with open(command.stdout_file, "w+") as stdout, \
                     open(command.stderr_file, "w+") as stderr:
                     process = subprocess.Popen(command.args, stdout=stdout, stderr=stderr)
                 _, _, rusage = os.wait4(process.pid, 0)
-                result[benchmark]["original"][run]["result"].append(list(rusage))
+                result["original"][run]["result"].append(list(rusage))
 
-            for command in validate_commands:
-                validation = subprocess.getoutput(command).split("\n")
-                LOGGER.debug(f"Validation command:{command}")
+            for validate_command in validate_commands:
+                validation = subprocess.getoutput(validate_command).split("\n")
+                LOGGER.debug(f"Validation command:{validate_command}")
                 LOGGER.debug(f"Results:\n{validation}")
                 if len(validation) != 1 or not (
                     validation[0] == "" or "specdiff run completed" in validation[0]
                 ):
                     LOGGER.error(f"Wrong result!")
-                    result[benchmark]["original"][run]["valid"] = False
+                    result["original"][run]["valid"] = False
                     break
 
-    with open(args.record_path + args.name + ".json", "w") as file:
-        # print(file.name)
-        json.dump(result, file)
-        file.write("\n")
+    return result
 
 
-def main():
-    result = {}
-    print(args.benchmark)
+def main() -> None:
+    benchmarks: List[str] = []
+
     if args.benchmark in SUITE:
-        measure(args.benchmark, result)
+        benchmarks = [args.benchmark]
     elif args.benchmark == "all":
-        for benchmark in SUITE:
-            measure(benchmark, result)
+        benchmarks = list(SUITE.keys())
     elif args.benchmark == "int":
-        for benchmark in INT_SPEED:
-            measure(benchmark, result)
+        benchmarks = INT_SPEED
     elif args.benchmark == "float":
-        for benchmark in FLOAT_SPEED:
-            measure(benchmark, result)
+        benchmarks = FLOAT_SPEED
     else:
-        for benchmark in SUITE:
-            if benchmark in args:
-                measure(benchmark, result)
+        print(f"invalid benchmark '{args.benchmark}' given as argument")
+        sys.exit(1)
 
-    # print(result)
-    with open(args.record_path + args.name + ".json", "w") as file:
-        json.dump(result, file)
-        file.write("\n")
+    results: Dict[str, Any] = {}
+    result_file = Path(args.record_path).joinpath(args.name + ".json")
+    if result_file.exists():
+        with open(result_file, "r") as f:
+            results = json.load(f)
+
+    skip_benchmarks = set(benchmarks) & results.keys()
+    run_benchmarks = set(benchmarks) - results.keys()
+
+    if len(skip_benchmarks) > 0:
+        print(f"skip benchmarks: {' '.join(skip_benchmarks)}")
+
+    if len(run_benchmarks) > 0:
+        print(f"run benchmarks: {' '.join(run_benchmarks)}")
+
+    for benchmark in run_benchmarks:
+        results[benchmark] = measure(benchmark)
+        # write result benchmark after each run in case we have an error
+        result_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(result_file, "w") as file:
+            json.dump(results, file, sort_keys=True, indent=4, separators=(',', ': '))
+            file.write("\n")
     return
 
 
