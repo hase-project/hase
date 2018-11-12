@@ -136,7 +136,6 @@ def measure(benchmark, result):
                     result[benchmark]["original"][run]["valid"] = False
                     break
 
-    os.chdir(HOME_DIR)
     with open(args.record_path + args.name + ".json", "w") as file:
         # print(file.name)
         json.dump(result, file)
@@ -162,7 +161,6 @@ def main():
             if benchmark in args:
                 measure(benchmark, result)
 
-    os.chdir(HOME_DIR)
     # print(result)
     with open(args.record_path + args.name + ".json", "w") as file:
         json.dump(result, file)
@@ -189,7 +187,7 @@ if __name__ == "__main__":
         "--record-path",
         "-p",
         type=str,
-        default=HOME_DIR + "record/",
+        required=True,
         help="The name of the record folder",
     )
     args = parser.parse_args()

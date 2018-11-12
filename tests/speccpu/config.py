@@ -1,15 +1,14 @@
 from pathlib import Path
 
-HOME_DIR = str(Path.home())
+from hase.path import APP_ROOT
 
-SPEC_PATH = Path.home().joinpath("git", "hase", "spec")
+SPEC_PATH = APP_ROOT.joinpath("..", "spec").resolve()
 
 SUITE_PATH = str(SPEC_PATH.joinpath("benchspec", "CPU")) + "/"
 
-RUN_PATH = '/run/run_base_test_mytest-m64.0002/'
+RUN_PATH = '/run/run_base_test_mytest-m64.0000/'
 
-
-USAGE = str(Path.home().joinpath('rusage.csv'))
+USAGE = str(APP_ROOT.joinpath('rusage.csv'))
 
 INT_SPEED = ['600', '602', '605', '620', '623', '625', '631', '641', '648', '657']
 FLOAT_SPEED = ['603', '607', '619', '621', '627', '628', '638', '644', '649', '654']
