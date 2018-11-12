@@ -10,8 +10,7 @@ $ ./install.sh -d /home/joerg/git/hase/spec
 $ cd /home/joerg/git/hase/spec
 $ cp tests/speccpu/default.cfg /home/joerg/git/hase/spec
 $ . shrc
-$ runcpu --size test --action setup intspeed
-$ runcpu --size test --action setup fpspeed
+$ runcpu --size test --action setup all
 ```
 
 # Set up benchmarks
@@ -27,16 +26,27 @@ $ . shrc
 the speed benchmarks with base optimization. If you want to run the benchmark without
 hase, you can drop `--loose`, and `--action setup`. Use `test` for test and ref for
 measurement.
+
 ```console
 $ runcpu [--loose] [--size {test, train, ref}] [--config <config_file>] [--tune {base, peak}] [--threads <N>] [--action setup] <benchmark(s)>
 ```
+
 # Measure overhead
 + Configure `config.py` to edit the paths.
 + Run the benchmark wrapper. Record Path is the path to hold the result.
+
 ```console
 $ sudo python3 benchmark.py [--run <N>] [--record-path <path>] {all, int, float, xxx}
 ```
+
+Example:
+
+```console
+$ sudo python3 benchmark.py --run 1 --group hase --record-path /tmp/record 600 --log debug
+```
+
 + Aggregate the result(s).
+
 ```console
 $ python3 aggregate.py [-m <result_to_merge>] [-f {auto, xxx}]  <result_file>
 ```
