@@ -34,8 +34,11 @@ PROT_EXEC = 4
 
 class Recording:
     def __init__(
-        self, coredump: Optional[coredumps.Coredump], trace: Trace, exit_status: int,
-        rusage: Optional[Tuple[Any, ...]] = None
+        self,
+        coredump: Optional[coredumps.Coredump],
+        trace: Trace,
+        exit_status: int,
+        rusage: Optional[Tuple[Any, ...]] = None,
     ) -> None:
         self.coredump = coredump
         self.trace = trace
@@ -282,7 +285,6 @@ def store_report(recording: Recording, record_paths: "RecordPaths") -> str:
         l.info("built archive %s", archive_path)
         os.unlink(manifest_path)
         return str(archive_path)
-
 
 
 def record(

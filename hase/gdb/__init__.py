@@ -389,7 +389,7 @@ class GdbServer(object):
         # '+' to indicate satisfactory receipt
         l.warning("--> %s" % response)
         s = "+$%s#%.2x" % (response, compute_checksum(response))
-        self.master.write(s.encode('utf-8'))
+        self.master.write(s.encode("utf-8"))
         self.master.flush()
 
     def extend_mode(self, packet):

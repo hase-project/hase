@@ -203,7 +203,9 @@ class FilterTrace:
             return True, symname
         return False, ""
 
-    def analyze_start(self, least_reserve: int=2000, most_reserve: int=1500) -> Tuple[List[Instruction], int]:
+    def analyze_start(
+        self, least_reserve: int = 2000, most_reserve: int = 1500
+    ) -> Tuple[List[Instruction], int]:
         # FIXME: not working if atexit register a function which is the problem
         # FIXME: this last occurence method will cause rare division from push ebp | mov ebp esp | sub esp XX
         # FIXME: what if A -> B -> A calling chain?
@@ -351,13 +353,14 @@ class FilterTrace:
                         assert previous_instr is not None
                         hooked_parent = self.find_function(previous_instr.ip)
                         hook_idx = idx + self.start_idx
-                        hook_fname = 'omit'
+                        hook_fname = "omit"
             flg, fname = self.test_function_entry(instruction.ip)
-            if (is_current_hooked
-                 and not first_meet
-                 and not self.test_plt_vdso(instruction.ip)
-                 and not self.test_ld(instruction.ip)
-                 and not self.test_omit(instruction.ip)
+            if (
+                is_current_hooked
+                and not first_meet
+                and not self.test_plt_vdso(instruction.ip)
+                and not self.test_ld(instruction.ip)
+                and not self.test_omit(instruction.ip)
             ):
                 present = True
                 first_meet = True

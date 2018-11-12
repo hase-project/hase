@@ -104,10 +104,11 @@ class Replay(object):
         active_state = states.major_states[-1]
         coredump = self.tracer.coredump
         arip = active_state.simstate.regs.rip
-        crip = hex(coredump.registers['rip'])
+        crip = hex(coredump.registers["rip"])
         arsp = active_state.simstate.regs.rsp
-        crsp = hex(coredump.registers['rsp'])
+        crsp = hex(coredump.registers["rsp"])
         import logging
+
         l = logging.getLogger("hase")
         l.warning(f"{arip} {crip} {arsp} {crsp}")
         low = active_state.simstate.regs.rsp
@@ -121,14 +122,14 @@ class Replay(object):
         except Exception:
             high_v = coredump.stack.stop
         coredump_constraints: List[Any] = []
-        '''
+        """
         for addr in range(low_v, high_v):
             value = active_state.simstate.memory.load(addr, 1, endness="Iend_LE")
             if value.variables == frozenset():
                 continue
             cmem = coredump.stack[addr]
             coredump_constraints.append(value == cmem)
-        '''
+        """
         return states, coredump_constraints
 
     def cleanup(self):
@@ -159,11 +160,16 @@ def replay_trace(report: str) -> Replay:
     return Replay(report)
 
 
-def replay_command(args: argparse.Namespace, debug_cli: bool=True) -> StateManager:
+def replay_command(args: argparse.Namespace, debug_cli: bool = True) -> StateManager:
     with replay_trace(args.report) as rt:
         states, constraints = rt.run()
         if debug_cli:
-            gdbs = GdbServer(states, rt.tracer.executable, rt.tracer.cdanalyzer, states.major_states[-1])
+            gdbs = GdbServer(
+                states,
+                rt.tracer.executable,
+                rt.tracer.cdanalyzer,
+                states.major_states[-1],
+            )
 
             def add_constraint(state):
                 active_state = state.simstate
@@ -175,7 +181,10 @@ def replay_command(args: argparse.Namespace, debug_cli: bool=True) -> StateManag
                             print("Unsatisfiable coredump constraints: " + str(c))
                             active_state.simstate.solver._stored_solver = old_solver
                     active_state.had_coredump_constraints = True
-            import pry; pry()
+
+            import pry
+
+            pry()
         return states
 
 

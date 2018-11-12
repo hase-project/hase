@@ -16,7 +16,8 @@ from qtconsole.inprocess import QtInProcessKernelManager
 
 from ..path import APP_ROOT
 from ..record import DEFAULT_LOG_DIR
-#from .callgraph import CallGraphManager, CallGraphView
+
+# from .callgraph import CallGraphManager, CallGraphView
 
 EXIT_NORMAL = 0
 EXIT_REBOOT = 1
@@ -96,7 +97,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
         self.file_cache = {}
         self.file_read_cache = {}
-        #self.callgraph = CallGraphManager()
+        # self.callgraph = CallGraphManager()
 
         self.coredump_constraints = []
 
@@ -233,7 +234,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
     def push_callgraph(self) -> None:
         pass
-        #self.view = CallGraphView(self.callgraph, self)
+        # self.view = CallGraphView(self.callgraph, self)
 
     def push_info(self):
         # type: () -> None
@@ -471,7 +472,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
     def add_states(self, states: Any, tracer: Any) -> None:
         for s in states.major_states[1:]:
             pass
-            #self.callgraph.add_node(s, tracer)
+            # self.callgraph.add_node(s, tracer)
 
     def clear_viewer(self) -> None:
         self.code_view.clear()
@@ -489,14 +490,14 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.upto_button.setEnabled(True)
         self.down_button.setEnabled(True)
         self.downto_button.setEnabled(True)
-        #self.cg_button.setEnabled(True)
+        # self.cg_button.setEnabled(True)
         self.info_button.setEnabled(True)
         self.switch_button.setEnabled(True)
 
     def clear_cache(self):
         self.file_cache = {}
         self.coredump_constraints = []
-        #self.callgraph.clear_cache()
+        # self.callgraph.clear_cache()
 
     def shutdown_kernel(self):
         # type: () -> None
