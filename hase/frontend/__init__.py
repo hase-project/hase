@@ -111,12 +111,12 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         high = start_state.regs.rsp + MAX_FUNC_FRAME
 
         try:
-            low_v = active_state.simstate.se.eval(low)
+            low_v = active_state.simstate.solver.eval(low)
         except Exception:
             # very large range
             low_v = coredump.stack.start
         try:
-            high_v = start_state.se.eval(high)
+            high_v = start_state.solver.eval(high)
         except Exception:
             high_v = coredump.stack.stop
 
@@ -133,8 +133,8 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         if not getattr(active_state, "had_coredump_constraints", False):
             for c in self.coredump_constraints:
                 old_solver = active_state.simstate.solver._solver.branch()
-                active_state.simstate.se.add(c)
-                if not active_state.simstate.se.satisfiable():
+                active_state.simstate.solver.add(c)
+                if not active_state.simstate.solver.satisfiable():
                     print("Unsatisfiable coredump constraints: " + str(c))
                     active_state.simstate.solver._stored_solver = old_solver
             active_state.had_coredump_constraints = True
@@ -157,7 +157,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                     result += "** "
                     continue
                 try:
-                    v = hex(active_state.simstate.se.eval(value))[2:]
+                    v = hex(active_state.simstate.solver.eval(value))[2:]
                     if len(v) == 1:
                         v = "0" + v
                 except Exception:
@@ -176,7 +176,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         if value.uninitialized:
             return "uninitialized"
         try:
-            v = hex(active_state.simstate.se.eval(value))
+            v = hex(active_state.simstate.solver.eval(value))
         except Exception:
             v = "symbolic"
         return v

@@ -35,7 +35,7 @@ PROT_EXEC = 4
 class Recording:
     def __init__(
         self, coredump: Optional[coredumps.Coredump], trace: Trace, exit_status: int,
-        rusage: Optional[Tuple[Union[int, float]]] = None
+        rusage: Optional[Tuple[Any, ...]] = None
     ) -> None:
         self.coredump = coredump
         self.trace = trace
@@ -49,7 +49,7 @@ def record_process(
     process: subprocess.Popen,
     record_paths: "RecordPaths",
     timeout: Optional[int] = None,
-    rusage: Optional[str] = None,
+    rusage: bool = False,
 ) -> Recording:
     handler = coredumps.Handler(
         str(record_paths.coredump),
@@ -71,8 +71,10 @@ def record_process(
         write_pid_file(record_paths.pid_file)
 
         ptrace_detach(process.pid)
+        rusage_result = None
         if rusage is not None:
-            _, exit_code, r_usage = os.wait4(process.pid, 0)
+            _, exit_code, _rusage = os.wait4(process.pid, 0)
+            rusage_result = tuple(_rusage)
         else:
             exit_code = process.wait(timeout)
 
@@ -84,17 +86,19 @@ def record_process(
         record_paths.perf_directory.mkdir(parents=True, exist_ok=True)
         trace = perf.write(str(record_paths.perf_directory))
 
-        return Recording(coredump, trace, exit_code, tuple(r_usage))
+        return Recording(coredump, trace, exit_code, rusage_result)
 
 
 def record(
     record_paths: "RecordPaths",
     command: Optional[List[str]] = None,
     stdin: Optional[IO[Any]] = None,
+    stdout: Optional[IO[Any]] = None,
+    stderr: Optional[IO[Any]] = None,
     working_directory: Optional[Path] = None,
     timeout: Optional[int] = None,
     extra_env: Optional[Dict[str, str]] = None,
-    rusage: Optional[str] = None,
+    rusage: bool = False,
 ) -> Recording:
 
     if command is None:
@@ -106,7 +110,13 @@ def record(
         env.update(extra_env)
 
     proc = subprocess.Popen(
-        command, preexec_fn=ptrace_me, stdin=stdin, cwd=working_directory, env=extra_env
+        command,
+        preexec_fn=ptrace_me,
+        stdin=stdin,
+        stdout=stdout,
+        stderr=stderr,
+        cwd=working_directory,
+        env=extra_env,
     )
     return record_process(proc, record_paths, timeout, rusage=rusage)
 
@@ -215,7 +225,7 @@ def store_report(job: Job) -> str:
             manifest = json.load(open(manifest_path))
         else:
             manifest = {}
-            
+
         binaries = manifest["binaries"] = []
 
         paths = set()
@@ -305,10 +315,12 @@ def record_loop(
     limit: int = 0,
     command: Optional[List[str]] = None,
     stdin: Optional[IO[Any]] = None,
+    stdout: Optional[IO[Any]] = None,
+    stderr: Optional[IO[Any]] = None,
     working_directory: Optional[Path] = None,
     timeout: Optional[int] = None,
     extra_env: Optional[Dict[str, str]] = None,
-    rusage: Optional[str] = None,
+    rusage: bool = True,
 ) -> Optional[Recording]:
     job_queue: Queue[Union[Job, ExitEvent]] = Queue()
     post_process_thread = Thread(target=report_worker, args=(job_queue,))
@@ -324,6 +336,8 @@ def record_loop(
                 record_paths,
                 command,
                 stdin=stdin,
+                stdout=stdout,
+                stderr=stderr,
                 working_directory=working_directory,
                 timeout=timeout,
                 extra_env=extra_env,

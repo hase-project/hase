@@ -35,7 +35,7 @@ def test_record_command() -> None:
     """
     if os.geteuid() != 0:
         raise SkipTest("Requires root")
-    with TemporaryDirectory as tempdir:
+    with TemporaryDirectory() as tempdir:
         temppath = Path(tempdir)
         pid_file = str(temppath.joinpath("record.pid"))
         # generate coredump
@@ -76,8 +76,8 @@ def test_record_command() -> None:
 
         process.join()
 
-        archives = glob(str(tempdir.join("*.tar.gz")))
+        archives = list(temppath.glob("*.tar.gz"))
         nose.tools.assert_equal(len(archives), 1)
 
-        states = main(["hase", "replay", archives[0]])
+        states = main(["hase", "replay", str(archives[0])])
         nose.tools.assert_true(len(states) > 10)

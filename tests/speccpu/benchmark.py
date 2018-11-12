@@ -4,190 +4,212 @@
 """
 import argparse
 import json
+import sys
 import logging
 import os
+import shlex
 import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import List, Dict, Any
 
 from config import *
-from hase.record import RecordPaths, Job, record_process, store_report
-from hase.record.ptrace import ptrace_me
+from hase.record import Job, RecordPaths, record_loop, store_report, serialize_trace
 
 
-def record(command):
-    process = subprocess.Popen(command, shell=True, preexec_fn=ptrace_me)
-
-    # record_path = Path(args.record_path)
-    # record_path.mkdir(parents=True, exist_ok=True)
-    with TemporaryDirectory() as tempdir:
-
-        log_path = Path("/var/lib/hase")
-        pid_file = str(Path("/var/lib/hase").joinpath("hase-record.pid"))
-        record_paths = RecordPaths(Path(tempdir), 1, log_path, pid_file)
-
-        recording = record_process(process, record_paths, rusage=True)
-    # job = Job(recording, record_paths)
-    # store_report(job)
-    return recording.rusage
+class BenchCommand:
+    def __init__(self, args: List[str], stdout_file: str, stderr_file: str) -> None:
+        self.args = args
+        self.stdout_file = stdout_file
+        self.stderr_file = stderr_file
 
 
-def measure(benchmark, result):
-    result[benchmark] = {'original': [], 'hase': []}
-    os.chdir(SUITE_PATH + SUITE[benchmark]['name'] + RUN_PATH)
+def parse_shell_command(cmdline: str) -> BenchCommand:
+    args = []
+    parts = shlex.split(cmdline)
+    stdout_file = None
+    stderr_file = None
+    idx = 0
+
+    while idx < len(parts):
+        if parts[idx].startswith(">"):
+            stdout_file = parts[idx + 1]
+            idx += 2
+        elif parts[idx].startswith("2>"):
+            stderr_file = parts[idx + 1]
+            idx += 2
+        else:
+            args.append(parts[idx])
+            idx += 1
+
+    assert stdout_file is not None and stderr_file is not None
+
+    return BenchCommand(args, stdout_file, stderr_file)
+
+
+def measure(benchmark: str) -> Dict[str, Any]:
+    result: Dict[str, Any] = dict(original=[], hase=[])
+    bench_path = SUITE_PATH + SUITE[benchmark]["name"] + RUN_PATH # type: ignore
+    os.chdir(bench_path)
 
     # Get run commands
     run_commands = []
-    output = subprocess.getoutput('specinvoke -n')
-    for line in output.split('\n'):
-        if line.startswith('..'):
-            run_commands.append(line)
+    output = subprocess.getoutput(f"{SPEC_PATH.joinpath('bin')}/specinvoke -n")
+    for line in output.split("\n"):
+        if line.startswith(".."):
+            run_commands.append(parse_shell_command(line))
 
     # Get validate commands
     validate_commands = []
     output = subprocess.getoutput(
-        'specinvoke -n compare.cmd')
-    for line in output.split('\n'):
-        if line.startswith('#') or line.startswith('specinvoke'):
+        f"{SPEC_PATH.joinpath('bin')}/specinvoke -n compare.cmd"
+    )
+    for line in output.split("\n"):
+        if line.startswith("#") or line.startswith("specinvoke"):
             continue
-        if 'specdiff' not in line:
+        if "specdiff" not in line:
             validate_commands.append(line)
         else:
-            redirect_index = line.find(' > ')
+            redirect_index = line.find(" > ")
             if redirect_index != -1:
                 validate_commands.append(line[:redirect_index])
     # print(validate_commands)
 
     for run in range(args.run):
-        result[benchmark]['hase'].append(
-            {'run': run, 'result': [], 'valid': True})
-        if args.group in ('both', 'hase'):
+        result["hase"].append(dict(run= run, result=[], valid=True))
+        if args.group in ("both", "hase"):
             for i, command in enumerate(run_commands):
                 LOGGER.info(
-                    f'Benchmark: {benchmark}, Run: {run}, Command: {i}, with hase')
-                LOGGER.debug(f'{command}')
-                rusage = record(command)
-                result[benchmark]['hase'][run]['result'].append(
-                    list(rusage))
+                    f"Benchmark: {benchmark}, Run: {run}, Command: {i}, with hase"
+                )
+                LOGGER.debug(f"{' '.join(command.args)}")
+                with TemporaryDirectory() as tempdir, \
+                    open(command.stdout_file, "w+") as stdout, \
+                    open(command.stderr_file, "w+") as stderr:
+                    temppath = Path(tempdir)
+                    recording = record_loop(
+                        temppath,
+                        temppath.joinpath("logs"),
+                        limit=1,
+                        command=command.args,
+                        rusage=True,
+                        stdout=stdout,
+                        stderr=stderr
+                    )
+                    rusage = recording.rusage
+                    serialize_trace(recording.trace, temppath)
+                    result["hase"][run]["result"].append(list(rusage))
 
-                # subprocess.run('sudo ' + HASE_BIN + ' record --rusage-file ' +
-                #                USAGE + ' -- ' + command, shell=True)
-                # with open(USAGE) as file:
-                #     result[benchmark]['hase'][run]['result'].append(
-                #         [float(x.strip()) for x in file.read().split(',')])
-
-            for command in validate_commands:
-                validation = subprocess.getoutput(command).split('\n')
-                LOGGER.debug(f'Validation command:{command}')
-                LOGGER.debug(f'Results:\n{validation}')
-                if len(validation) != 1 or not (validation[0] == '' or 'specdiff run completed' in validation[0]):
-                    LOGGER.error(f'Wrong result!')
-                    result[benchmark]['hase'][run]['valid'] = False
+            for validate_command in validate_commands:
+                validation = subprocess.getoutput(validate_command).split("\n")
+                LOGGER.debug(f"Validation command:{validate_command}")
+                LOGGER.debug(f"Results:\n{validation}")
+                if len(validation) != 1 or not (
+                    validation[0] == "" or "specdiff run completed" in validation[0]
+                ):
+                    LOGGER.error(f"Wrong result!")
+                    result["hase"][run]["valid"] = False
                     break
 
-        result[benchmark]['original'].append(
-            {'run': run, 'result': [], 'valid': True})
+        result["original"].append({"run": run, "result": [], "valid": True})
 
-        if args.group in ('both', 'original'):
+        if args.group in ("both", "original"):
             for i, command in enumerate(run_commands):
                 LOGGER.info(
-                    f'Benchmark: {benchmark}, Run: {run}, Command: {i}, without hase')
-                # subprocess.run('sudo python3 ' + RECORD_PY + ' -- "' + command + '"', shell=True)
-                LOGGER.debug(f'{command}')
-                process = subprocess.Popen(command, shell=True)
+                    f"Benchmark: {benchmark}, Run: {run}, Command: {i}, without hase"
+                )
+                LOGGER.debug(f"{' '.join(command.args)}")
+
+                with open(command.stdout_file, "w+") as stdout, \
+                    open(command.stderr_file, "w+") as stderr:
+                    process = subprocess.Popen(command.args, stdout=stdout, stderr=stderr)
                 _, _, rusage = os.wait4(process.pid, 0)
-                result[benchmark]['original'][run]['result'].append(
-                    list(rusage))
+                result["original"][run]["result"].append(list(rusage))
 
-            for command in validate_commands:
-                validation = subprocess.getoutput(command).split('\n')
-                LOGGER.debug(f'Validation command:{command}')
-                LOGGER.debug(f'Results:\n{validation}')
-                if len(validation) != 1 or not (validation[0] == '' or 'specdiff run completed' in validation[0]):
-                    LOGGER.error(f'Wrong result!')
-                    result[benchmark]['original'][run]['valid'] = False
+            for validate_command in validate_commands:
+                validation = subprocess.getoutput(validate_command).split("\n")
+                LOGGER.debug(f"Validation command:{validate_command}")
+                LOGGER.debug(f"Results:\n{validation}")
+                if len(validation) != 1 or not (
+                    validation[0] == "" or "specdiff run completed" in validation[0]
+                ):
+                    LOGGER.error(f"Wrong result!")
+                    result["original"][run]["valid"] = False
                     break
 
-    os.chdir(HOME_DIR)
-    with open(args.record_path + args.name + '.json', 'w') as file:
-        # print(file.name)
-        json.dump(result, file)
-        file.write('\n')
+    return result
 
 
-def main():
-    result = {}
-    print(args.benchmark)
+def main() -> None:
+    benchmarks: List[str] = []
+
     if args.benchmark in SUITE:
-        measure(args.benchmark, result)
-    elif args.benchmark == 'all':
-        for benchmark in SUITE:
-            measure(benchmark, result)
-    elif args.benchmark == 'int':
-        for benchmark in INT_SPEED:
-            measure(benchmark, result)
-    elif args.benchmark == 'float':
-        for benchmark in FLOAT_SPEED:
-            measure(benchmark, result)
+        benchmarks = [args.benchmark]
+    elif args.benchmark == "all":
+        benchmarks = list(SUITE.keys())
+    elif args.benchmark == "int":
+        benchmarks = INT_SPEED
+    elif args.benchmark == "float":
+        benchmarks = FLOAT_SPEED
     else:
-        for benchmark in SUITE:
-            if benchmark in args:
-                measure(benchmark, result)
+        print(f"invalid benchmark '{args.benchmark}' given as argument")
+        sys.exit(1)
 
-    os.chdir(HOME_DIR)
-    # print(result)
-    with open(args.record_path + args.name + '.json', 'w') as file:
-        json.dump(result, file)
-        file.write('\n')
+    results: Dict[str, Any] = {}
+    result_file = Path(args.record_path).joinpath(args.name + ".json")
+    if result_file.exists():
+        with open(result_file, "r") as f:
+            results = json.load(f)
+
+    skip_benchmarks = set(benchmarks) & results.keys()
+    run_benchmarks = set(benchmarks) - results.keys()
+
+    if len(skip_benchmarks) > 0:
+        print(f"skip benchmarks: {' '.join(skip_benchmarks)}")
+
+    if len(run_benchmarks) > 0:
+        print(f"run benchmarks: {' '.join(run_benchmarks)}")
+
+    for benchmark in run_benchmarks:
+        results[benchmark] = measure(benchmark)
+        # write result benchmark after each run in case we have an error
+        result_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(result_file, "w") as file:
+            json.dump(results, file, sort_keys=True, indent=4, separators=(',', ': '))
+            file.write("\n")
     return
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("benchmark", type=str, help="The benchmark (suite) to run")
+    parser.add_argument("--run", type=int, default=3, help="The number of runs")
     parser.add_argument(
-        'benchmark',
+        "--group",
         type=str,
-        help='The benchmark (suite) to run'
+        default="both",
+        choices=["both", "hase", "original", "neither"],
+        help="Select which group to record (hase, original, or both)",
+    )
+    parser.add_argument("--log", type=str, default="INFO", help="Select logging level")
+    parser.add_argument(
+        "--name", type=str, default="result", help="The name of the result file"
     )
     parser.add_argument(
-        '--run',
-        type=int,
-        default=3,
-        help='The number of runs'
-    )
-    parser.add_argument(
-        '--group',
+        "--record-path",
+        "-p",
         type=str,
-        default='both',
-        choices=['both', 'hase', 'original', 'neither'],
-        help='Select which group to record (hase, original, or both)'
-    )
-    parser.add_argument(
-        '--log',
-        type=str,
-        default='INFO',
-        help='Select logging level'
-    )
-    parser.add_argument(
-        '--name',
-        type=str,
-        default='result',
-        help='The name of the result file'
-    )
-    parser.add_argument(
-        '--record-path',
-        '-p',
-        type=str,
-        default=HOME_DIR + 'record/',
-        help='The name of the record folder'
+        required=True,
+        help="The name of the record folder",
     )
     args = parser.parse_args()
     numeric_level = getattr(logging, args.log.upper(), None)
     if not isinstance(numeric_level, int):
-        raise ValueError('Invalid log level: %s' % args.log)
+        raise ValueError("Invalid log level: %s" % args.log)
 
     logging.basicConfig(
-        format='%(asctime)s: %(levelname)s: %(message)s', level=numeric_level)
+        format="%(asctime)s: %(levelname)s: %(message)s", level=numeric_level
+    )
     LOGGER = logging.getLogger(__name__)
 
     main()

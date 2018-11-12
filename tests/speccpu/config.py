@@ -1,14 +1,14 @@
-HOME_DIR = '/home/harveylu/'
+from pathlib import Path
 
-SUITE_PATH = HOME_DIR + 'cpu2017/benchspec/CPU/'
+from hase.path import APP_ROOT
 
-RUN_PATH = '/run/run_base_refspeed_mytest-m64.0000/'
+SPEC_PATH = APP_ROOT.joinpath("..", "spec").resolve()
 
-HASE_BIN = HOME_DIR + 'hase/bin/hase'
+SUITE_PATH = str(SPEC_PATH.joinpath("benchspec", "CPU")) + "/"
 
-RECORD_PY = HOME_DIR + 'hase/tests/speccpu/record_benchmark.py'
+RUN_PATH = '/run/run_base_test_mytest-m64.0000/'
 
-USAGE = HOME_DIR + 'rusage.csv'
+USAGE = str(APP_ROOT.joinpath('rusage.csv'))
 
 INT_SPEED = ['600', '602', '605', '620', '623', '625', '631', '641', '648', '657']
 FLOAT_SPEED = ['603', '607', '619', '621', '627', '628', '638', '644', '649', '654']
