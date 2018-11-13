@@ -11,8 +11,8 @@ setup(
     description="Time-travel failures",
     packages=find_packages(),
     install_requires=[
-      'angr @ https://github.com/hase-project/angr/archive/38730216ad2682f07d696ae24883fc4075559c45.zip',
-      'pwntools @ https://github.com/Mic92/pwntools/archive/30af7354d199864cf697d0cb9caa2fffd3ee242f.zip',
+      'angr @ https://github.com/hase-project/angr/archive/4d6e1129725298d34492e141357f20e2fee05ebc.zip',
+      'pwntools @ https://github.com/hase-project/pwntools/archive/51645530f281930c03936a3a1cd886e0ed481bc3.zip',
       'monkeyhex',
       'qtconsole',
       'pry.py',
