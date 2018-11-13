@@ -802,11 +802,15 @@ class Tracer(object):
             + "\n"
         )
         for choice in choices:
-            if self.last_match(choice, instruction):
-                return choice, choice
-            if self.jump_match(old_state, choice, previous_instruction, instruction):
-                self.post_execute(old_state, choice)
-                return old_state, choice
+            # HACKS: if ip is symbolic
+            try:
+                if self.last_match(choice, instruction):
+                    return choice, choice
+                if self.jump_match(old_state, choice, previous_instruction, instruction):
+                    self.post_execute(old_state, choice)
+                    return old_state, choice
+            except angr.SimUnsatError:
+                pass
         new_state = state.copy()
         new_state.regs.ip = instruction.ip
         return state, new_state
