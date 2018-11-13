@@ -1,5 +1,5 @@
 language: nix
-install:
-  - nix-shell --command "virtualenv venv && . ./venv/bin/activate && pip install --process-dependency-links -e '.[test]' && ./bin/build-mypy-path"
 script:
-  - nix run nixpkgs.python3Packages.mypy -c mypy .
+  - nix run --quiet nixpkgs.python3Packages.mypy -c mypy hase
+  # too slow at the moment, needs caching
+  #  - nix-shell --quiet --command "virtualenv venv && . ./venv/bin/activate && pip install --quiet --process-dependency-links -e '.[test]'"
