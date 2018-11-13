@@ -42,15 +42,17 @@ in
     unicorn-emu
     git-lfs
     openssl
+    # cannot be installed with pip
     python3Packages.pyqt5
     pip_18_1
     musl-gcc
+    # does not find ffi when installed with pip
+    python3Packages.cffi
 
     python3Packages.virtualenv
     python3Packages.pandas
     qt5.qttools
     pkgconfig
-
   ];
   PYTHON="python2";
   SOURCE_DATE_EPOCH="1523278946";
