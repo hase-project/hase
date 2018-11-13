@@ -120,7 +120,7 @@ class CPUID_struct(ctypes.Structure):
     _fields_ = [(r, c_uint32) for r in ("eax", "ebx", "ecx", "edx")]
 
 
-class CPUID(object):
+class CPUID:
     def __init__(self):
         # type: () -> None
         machine = platform.machine()  # type: ignore

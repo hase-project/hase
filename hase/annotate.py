@@ -10,7 +10,7 @@ from .errors import HaseError
 from .path import find_in_path
 
 
-class Addr2line(object):
+class Addr2line:
     def __init__(self) -> None:
         self.dsos: DefaultDict[ELF, Set[int]] = DefaultDict(set)
 

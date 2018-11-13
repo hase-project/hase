@@ -25,7 +25,7 @@ logging.basicConfig()
 l = logging.getLogger(__name__)
 
 
-class GdbRegSpace(object):
+class GdbRegSpace:
     def __init__(self, active_state):
         # type: (State) -> None
         # https://github.com/radare/radare2/blob/fe6372339da335bd08a8b568d95bb0bd29f24406/shlr/gdb/src/arch.c#L5
@@ -90,7 +90,7 @@ class GdbRegSpace(object):
         return
 
 
-class GdbMemSpace(object):
+class GdbMemSpace:
     def __init__(self, active_state, cda):
         # type: (State, CoredumpAnalyzer) -> None
         self.active_state = active_state
@@ -134,7 +134,7 @@ class GdbMemSpace(object):
         return
 
 
-class GdbSharedLibrary(object):
+class GdbSharedLibrary:
     def __init__(self, active_state, pksize):
         # type: (State, int) -> None
         self.active_state = active_state

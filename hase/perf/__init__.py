@@ -9,7 +9,7 @@ from .snapshot import Snapshot, TscConversion, CpuId
 from .consts import PerfRecord
 
 
-class CpuTrace(object):
+class CpuTrace:
     def __init__(self, idx, event_path, trace_path, start_time, start_pid, start_tid):
         # type: (int, str, str, int, int, int) -> None
         self.idx = idx
@@ -20,7 +20,7 @@ class CpuTrace(object):
         self.trace_path = trace_path
 
 
-class Trace(object):
+class Trace:
     def __init__(self, tsc_conversion, cpuid, sample_type, cpus):
         # type: (TscConversion, CpuId, int, List[CpuTrace]) -> None
         self.time_mult = tsc_conversion.time_mult
@@ -38,7 +38,7 @@ class Trace(object):
         self.cpus = cpus
 
 
-class Perf(object):
+class Perf:
     def __init__(self, pid=-1):
         # type: (int) -> None
         self.snapshot: Snapshot = Snapshot(pid)
@@ -96,7 +96,7 @@ class Perf(object):
         self.snapshot.close()
 
 
-class IncreasePerfBuffer(object):
+class IncreasePerfBuffer:
     PATH = "/proc/sys/kernel/perf_event_mlock_kb"
 
     def __init__(self, size):

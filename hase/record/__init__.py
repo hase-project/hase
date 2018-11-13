@@ -128,11 +128,11 @@ def write_pid_file(pid_file):
             f.write(str(os.getpid()))
 
 
-class ExitEvent(object):
+class ExitEvent:
     pass
 
 
-class Job(object):
+class Job:
     def __init__(self, recording: Recording, record_paths: "RecordPaths") -> None:
         self.recording = recording
         self.record_paths = record_paths
@@ -153,7 +153,7 @@ class Job(object):
         shutil.rmtree(str(self.record_paths.perf_directory), ignore_errors=True)
 
 
-class RecordPaths(object):
+class RecordPaths:
     def __init__(self, path, id, log_path, pid_file):
         # type: (Path, int, Path, Optional[str]) -> None
         self.path = path

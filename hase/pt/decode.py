@@ -16,7 +16,7 @@ from .events import (AsyncDisableEvent, DisableEvent, EnableEvent, Instruction,
 l = logging.getLogger(__name__)
 
 
-class ScheduleEntry(object):
+class ScheduleEntry:
     def __init__(self, core, pid, tid, start, stop):
         # type: (int, int, int, int, Optional[int]) -> None
         self.core = core
@@ -219,7 +219,7 @@ def merge_same_core_switches(schedule):
     return new_schedule
 
 
-class Chunk(object):
+class Chunk:
     def __init__(self, start, stop, instructions):
         # type: (int, int, List[Instruction]) -> None
         self.start = start

@@ -36,7 +36,7 @@ COREDUMP_FILTER_PATH = "/proc/self/coredump_filter"
 #        Dump shared DAX pages.
 
 
-class Coredump(object):
+class Coredump:
     def __init__(self, core_file: str, result_path: str) -> None:
         self.core_file = core_file
         self.result_path = result_path

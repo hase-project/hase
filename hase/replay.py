@@ -61,7 +61,7 @@ def decode_trace(
     )
 
 
-class Replay(object):
+class Replay:
     def __init__(self, report):
         # type: (str) -> None
         self.report = report

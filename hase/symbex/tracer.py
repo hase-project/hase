@@ -54,7 +54,7 @@ def timeout(seconds=10):
     return wrapper
 
 
-class CoredumpGDB(object):
+class CoredumpGDB:
     def __init__(self, elf, coredump):
         # type: (ELF, Coredump) -> None
         self.coredump = coredump
@@ -199,7 +199,7 @@ class CoredumpGDB(object):
         return [addr, size + 1]
 
 
-class CoredumpAnalyzer(object):
+class CoredumpAnalyzer:
     def __init__(self, elf, coredump):
         # type: (ELF, Coredump) -> None
         self.coredump = coredump
@@ -292,7 +292,7 @@ def build_load_options(mappings: List[Mapping]) -> Dict[str, Any]:
     )
 
 
-class Tracer(object):
+class Tracer:
     def __init__(self, executable, trace, coredump):
         # type: (str, List[Instruction], Coredump) -> None
         self.executable = executable
