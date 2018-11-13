@@ -2,21 +2,25 @@ from __future__ import absolute_import, division, print_function
 
 import argparse
 import json
-import shutil
 import subprocess
 import sys
-from tempfile import TemporaryDirectory
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, Dict, List, Tuple
 
-from . import pt
+from .gdb import GdbServer
+from .pt import decode
+from .pt.events import Instruction
 from .pwn_wrapper import Coredump, Mapping
 from .symbex.tracer import State, StateManager, Tracer
-from .gdb import GdbServer
 
 
-def decode_trace(manifest, mappings, vdso_x64, executable_root):
-    # type: (Dict[str, Any], List[Mapping], str, str) -> List[pt.events.Instruction]
+def decode_trace(
+    manifest: Dict[str, Any],
+    mappings: List[Mapping],
+    vdso_x64: str,
+    executable_root: str,
+) -> List[Instruction]:
     coredump = manifest["coredump"]
     trace = manifest["trace"]
 
@@ -35,7 +39,7 @@ def decode_trace(manifest, mappings, vdso_x64, executable_root):
         start_thread_ids.append(cpu["start_tid"])
         start_times.append(cpu["start_time"])
 
-    return pt.decode(
+    return decode(
         trace_paths=trace_paths,
         perf_event_paths=perf_event_paths,
         start_thread_ids=start_thread_ids,
@@ -171,7 +175,7 @@ def replay_command(args: argparse.Namespace, debug_cli: bool = False) -> StateMa
                 states.major_states[-1],
             )
 
-            def add_constraint(state):
+            def add_constraint(state: State) -> None:
                 active_state = state.simstate
                 if not getattr(active_state, "had_coredump_constraints", False):
                     for c in constraints:

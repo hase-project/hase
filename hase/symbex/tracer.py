@@ -3,7 +3,6 @@ from __future__ import absolute_import, division, print_function
 import ctypes
 import gc
 import logging
-import os
 import signal
 from bisect import bisect_right
 from collections import deque
@@ -11,7 +10,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import angr
 import archinfo
-import claripy
 from angr import SimState
 from angr import sim_options as so
 from angr.state_plugins.sim_action import SimActionExit
@@ -219,13 +217,11 @@ class CoredumpAnalyzer(object):
         offset = addr - self.coredump.stack.start
         return self.coredump.stack.data[offset : offset + length]
 
-    def read_argv(self, n):
-        # type: (int) -> str
+    def read_argv(self, n: int) -> str:
         assert 0 <= n < self.coredump.argc
         return self.coredump.string(self.coredump.argv[n])
 
-    def read_argv_addr(self, n):
-        # type: (int) -> str
+    def read_argv_addr(self, n: int) -> str:
         assert 0 <= n < self.coredump.argc
         return self.coredump.argv[n]
 
@@ -245,8 +241,7 @@ class CoredumpAnalyzer(object):
     def stack_stop(self):
         return self.coredump.stack.stop
 
-    def call_argv(self, name):
-        # type: (str) -> Optional[List[Optional[int]]]
+    def call_argv(self, name: str) -> Optional[List[Optional[int]]]:
         for bt in self.backtrace:
             if bt["func"] == name:
                 args: List[Optional[int]] = []
@@ -261,16 +256,14 @@ class CoredumpAnalyzer(object):
                 return args
         return None
 
-    def stack_base(self, name):
-        # type: (str) -> Tuple[Optional[int], Optional[int]]
+    def stack_base(self, name: str) -> Tuple[Optional[int], Optional[int]]:
         for bt in self.backtrace:
             if bt["func"] == name:
                 return self.gdb.get_stack_base(int(bt["index"]))
         return (None, None)
 
 
-def build_load_options(mappings):
-    # type: (List[Mapping]) -> dict
+def build_load_options(mappings: List[Mapping]) -> Dict[str, Any]:
     """
     Extract shared object memory mapping from coredump
     """

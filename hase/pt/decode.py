@@ -3,12 +3,8 @@ from __future__ import absolute_import, division, print_function
 import bisect
 import ctypes as ct
 import logging
-import os
-import shutil
-from io import BytesIO
 from pathlib import Path
-from tempfile import NamedTemporaryFile
-from typing import Any, DefaultDict, List, Optional, Union
+from typing import List, Optional, Union
 
 from .. import _pt  # type: ignore
 from ..perf.consts import PerfRecord
@@ -258,8 +254,7 @@ class Chunk(object):
 #    return False
 
 
-def chunk_trace(core, trace):
-    # type: (int, List[Union[TraceEvent, Instruction]]) -> List[Chunk]
+def chunk_trace(core: int, trace: List[Union[TraceEvent, Instruction]]) -> List[Chunk]:
     chunks: List[Chunk] = []
 
     enable_event = None
@@ -316,26 +311,25 @@ def chunk_trace(core, trace):
 
 # TODO multiple threads
 def decode(
-    trace_paths,  # type: List[str]
-    perf_event_paths,  # type: List[str]
-    start_thread_ids,  # type: List[int]
-    start_times,  # type: List[int]
-    pid,  # type: int
-    tid,  # type: int
-    mappings,  # type: List[Mapping]
-    cpu_family,  # type: int
-    cpu_model,  # type: int
-    cpu_stepping,  # type: int
-    cpuid_0x15_eax,  # type: int
-    cpuid_0x15_ebx,  # type: int
-    sample_type,  # type: int
-    time_zero,  # type: int
-    time_shift,  # type: int
-    time_mult,  # type: int
-    sysroot,  # type: str
-    vdso_x64,  # type: str
-):
-    # type: (...) -> List[Instruction]
+    trace_paths: List[str],
+    perf_event_paths: List[str],
+    start_thread_ids: List[int],
+    start_times: List[int],
+    pid: int,
+    tid: int,
+    mappings: List[Mapping],
+    cpu_family: int,
+    cpu_model: int,
+    cpu_stepping: int,
+    cpuid_0x15_eax: int,
+    cpuid_0x15_ebx: int,
+    sample_type: int,
+    time_zero: int,
+    time_shift: int,
+    time_mult: int,
+    sysroot: str,
+    vdso_x64: str,
+) -> List[Instruction]:
 
     assert len(trace_paths) > 0
 

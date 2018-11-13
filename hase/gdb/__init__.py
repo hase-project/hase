@@ -1,24 +1,25 @@
 from __future__ import absolute_import, division, print_function
 
-import pty
 import binascii
+import logging
 import os
 import os.path
-import logging
-import tty
-import threading
+import pty
 import resource
-import termios
 import struct
+import termios
+import threading
+import tty
 import xml.etree.ElementTree as ET
-from pygdbmi.gdbcontroller import GdbController
-from typing import Tuple, IO, Any, Optional, List, Dict, Union
-from cle import ELF
+from typing import IO, Any, Dict, List, Optional, Tuple, Union
 
+from cle import ELF
+from pygdbmi.gdbcontroller import GdbController
+
+from ..errors import HaseError
+from ..path import APP_ROOT
 from ..symbex.state import State, StateManager
 from ..symbex.tracer import CoredumpAnalyzer
-from ..path import APP_ROOT
-from ..errors import HaseError
 
 logging.basicConfig()
 l = logging.getLogger(__name__)
@@ -183,16 +184,14 @@ class GdbSharedLibrary(object):
         self.xml = header + str(body)
         return self.xml
 
-    def validate_xml(self, xml):
-        # type: (str) -> Tuple[bool, str]
+    def validate_xml(self, xml: str) -> Tuple[bool, str]:
         from lxml import etree
 
         root = etree.XML(xml)
         dtd = etree.DTD(open("./library-list-svr4.dtd"))
         return dtd.validate(root), dtd.error_log.filter_from_errors()
 
-    def read_xml(self, offset, size):
-        # type: (int, int) -> str
+    def read_xml(self, offset: int, size: int) -> str:
         prefix = "m"
         xml = self.make_xml()
         if offset > len(xml):
@@ -205,8 +204,7 @@ class GdbSharedLibrary(object):
         return prefix + xml[offset : offset + size]
 
 
-def create_pty():
-    # type: () -> Tuple[IO[Any], str]
+def create_pty() -> Tuple[IO[Any], str]:
     master_fd, slave_fd = pty.openpty()
     # disable echoing
     tty.setraw(master_fd, termios.TCSANOW)
@@ -220,14 +218,18 @@ def create_pty():
 PAGESIZE = resource.getpagesize()
 
 
-def compute_checksum(data):
-    # type: (str) -> int
+def compute_checksum(data: str) -> int:
     return sum((ord(c) for c in data)) % 256
 
 
-class GdbServer(object):
-    def __init__(self, states, binary, cda, active_state=None):
-        # type: (StateManager, str, CoredumpAnalyzer, Optional[State]) -> None
+class GdbServer:
+    def __init__(
+        self,
+        states: StateManager,
+        binary: str,
+        cda: CoredumpAnalyzer,
+        active_state: Optional[State] = None,
+    ) -> None:
         # FIXME: this binary is original path
         master, ptsname = create_pty()
         self.master = master
@@ -261,15 +263,13 @@ class GdbServer(object):
         self.gdb.write("-file-exec-and-symbols %s" % binary, timeout_sec=100)
         self.gdb.write("set stack-cache off", timeout_sec=100)
 
-    def update_active(self):
-        # type: () -> None
+    def update_active(self) -> None:
         self.regs.active_state = self.active_state
         self.mem.active_state = self.active_state
         self.libs.active_state = self.active_state
         self.write_request("c")
 
-    def read_variables(self):
-        # type: () -> List[Dict[str, Any]]
+    def read_variables(self) -> List[Dict[str, Any]]:
         py_file = APP_ROOT.joinpath("gdb/gdb_get_locals.py")
         resp = self.write_request('python execfile ("{}")'.format(py_file))
         res = []
@@ -309,13 +309,11 @@ class GdbServer(object):
                 )
         return res
 
-    def eval_expression(self, expr):
-        # type: (str) -> None
+    def eval_expression(self, expr: str) -> None:
         res = self.gdb.write("-data-evaluate-expression %s" % expr, timeout_sec=99999)
         print(res)
 
-    def write_request(self, req, **kwargs):
-        # type: (str, **Any) -> List[Dict[str, Any]]
+    def write_request(self, req: str, **kwargs: Any) -> List[Dict[str, Any]]:
         timeout_sec = kwargs.pop("timeout_sec", 10)
         kwargs["read_response"] = False
         self.gdb.write(req, timeout_sec=timeout_sec, **kwargs)
@@ -327,8 +325,7 @@ class GdbServer(object):
                 break
         return resp
 
-    def run(self):
-        # type: () -> None
+    def run(self) -> None:
         l.info("start server gdb server")
         buf = ""
         while True:
@@ -343,8 +340,7 @@ class GdbServer(object):
             buf += data.decode("utf-8")
             buf = self.process_data(buf)
 
-    def process_data(self, buf):
-        # type: (str) -> str
+    def process_data(self, buf: str) -> str:
         while len(buf):
             if buf[0] == "+" or buf[0] == "-":
                 buf = buf[1:]
@@ -364,13 +360,11 @@ class GdbServer(object):
                 buf = buf[end + 3 :]
         return buf
 
-    def write_ack(self):
-        # type: () -> None
+    def write_ack(self) -> None:
         self.master.write("+")
         self.master.flush()
 
-    def process_packet(self, packet):
-        # type: (str) -> None
+    def process_packet(self, packet: str) -> None:
         handler = self.COMMANDS.get(packet[0], None)
 
         request = "".join(packet[1:])
@@ -383,8 +377,7 @@ class GdbServer(object):
             response = handler(request)
         self.write_response(response)
 
-    def write_response(self, response):
-        # type: (str) -> None
+    def write_response(self, response: str) -> None:
         # Each packet should be acknowledged with a single character.
         # '+' to indicate satisfactory receipt
         l.warning("--> %s" % response)
@@ -392,30 +385,26 @@ class GdbServer(object):
         self.master.write(s.encode("utf-8"))
         self.master.flush()
 
-    def extend_mode(self, packet):
-        # type: (str) -> str
+    def extend_mode(self, packet: str) -> str:
         """
         !
         """
         return "OK"
 
-    def read_register_all(self, packet):
-        # type: (str) -> str
+    def read_register_all(self, packet: str) -> str:
         """
         g
         """
         return self.regs.read_all()
 
-    def write_register_all(self, packet):
-        # type: (str) -> str
+    def write_register_all(self, packet: str) -> str:
         """
         G XX...
         """
         self.regs.write_all(packet)
         return "OK"
 
-    def read_register(self, packet):
-        # type: (str) -> str
+    def read_register(self, packet: str) -> str:
         """
         p n
         """
@@ -425,8 +414,7 @@ class GdbServer(object):
             return self.regs[self.regs.names[n]]
         return "ffffffff"
 
-    def write_register(self, packet):
-        # type: (str) -> str
+    def write_register(self, packet: str) -> str:
         """
         P n...=r...
         """
@@ -437,15 +425,13 @@ class GdbServer(object):
             self.regs[self.regs.names[n]] = r
         return "OK"
 
-    def set_thread(self, packet):
-        # type: (str) -> str
+    def set_thread(self, packet: str) -> str:
         """
         H op thread-id
         """
         return "OK"
 
-    def read_memory(self, packet):
-        # type: (str) -> str
+    def read_memory(self, packet: str) -> str:
         """
         m addr,length
         """
@@ -454,8 +440,7 @@ class GdbServer(object):
         length = int(length_, 16)
         return self.mem.read(addr, length)
 
-    def write_memory(self, packet):
-        # type: (str) -> str
+    def write_memory(self, packet: str) -> str:
         """
         M addr,length:XX
         """
@@ -467,15 +452,13 @@ class GdbServer(object):
         self.mem.write(addr, length, value)
         return "OK"
 
-    def write_memory_bin(self, packet):
-        # type: (str) -> str
+    def write_memory_bin(self, packet: str) -> str:
         """
         X addr,length:XX(bin)
         """
         pass
 
-    def insert_breakpoint(self, packet):
-        # type: (str) -> str
+    def insert_breakpoint(self, packet: str) -> str:
         """
         Z type,addr,kind
         type:   0 software (0xcc)
@@ -485,23 +468,18 @@ class GdbServer(object):
         """
         return "OK"
 
-    def remove_breakpoint(self, packet):
-        # type: (str) -> str
+    def remove_breakpoint(self, packet: str) -> str:
         """
         z type,addr,kind
         """
         return "OK"
 
-    def stop_reason(self, packet):
-        # type: (str) -> str
+    def stop_reason(self, packet: str) -> str:
         GDB_SIGNAL_TRAP = 5
         return "S%.2x" % GDB_SIGNAL_TRAP
 
-    def handle_long_commands(self, packet):
-        # type: (str) -> str
-
-        def handle_cont(action, tid=None):
-            # type: (str, Optional[int]) -> str
+    def handle_long_commands(self, packet: str) -> str:
+        def handle_cont(action: str, tid: Optional[int] = None) -> str:
             # TODO: for a continue/step/stop operation
             self.write_response("T05library:r;")
             return "S05"
@@ -527,8 +505,7 @@ class GdbServer(object):
             l.warning("unknown command: v%s", packet)
             return ""
 
-    def handle_query(self, packet):
-        # type: (str) -> str
+    def handle_query(self, packet: str) -> str:
         """
         qSupported|qAttached|qC
         qXfer:...:read:annex:offset,size

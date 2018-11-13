@@ -44,4 +44,3 @@ def find_in_path(filename: AnyStr, relative_root: List[AnyStr]) -> AnyStr:
 
 
 APP_ROOT = Path(os.path.dirname(os.path.realpath(__file__)))
-

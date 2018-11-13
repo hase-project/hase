@@ -2,8 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import os.path
 import subprocess
-import sys
-from typing import DefaultDict, Dict, List, Optional, Set, Tuple
+from typing import DefaultDict, Dict, Set, Tuple
 
 from cle import ELF
 
