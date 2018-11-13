@@ -110,7 +110,7 @@ class bindtextdomain(SimProcedure):
         malloc = SIM_PROCEDURES["libc"]["malloc"]
         str_addr = self.inline_call(malloc, self.state.libc.max_str_len).ret_expr
         return self.state.solver.If(
-            self.state.solver.BoolS("bindtextdomain"), str_addr, 0
+            self.state.solver.BoolS("bindtextdomain"), str_addr, self.state.solver.BVV(0, 32)
         )
 
 

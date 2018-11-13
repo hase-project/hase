@@ -287,4 +287,4 @@ class getline(SimProcedure):
 
 class isatty(SimProcedure):
     def run(self, fd):
-        return self.state.solver.If("isatty", 1, 0)
+        return self.state.solver.If("isatty", 1, self.state.solver.BVV(0, 32))
