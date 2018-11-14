@@ -1,17 +1,23 @@
 from __future__ import absolute_import, division, print_function
 
-import os
 import ctypes as ct
-from typing import List, Any, Union
-
-from .snapshot import Snapshot, TscConversion, CpuId
+import os
+from typing import Any, List, Optional, Union
 
 from .consts import PerfRecord
+from .snapshot import CpuId, Snapshot, TscConversion
 
 
 class CpuTrace:
-    def __init__(self, idx, event_path, trace_path, start_time, start_pid, start_tid):
-        # type: (int, str, str, int, int, int) -> None
+    def __init__(
+        self,
+        idx: int,
+        event_path: str,
+        trace_path: str,
+        start_time: int,
+        start_pid: int,
+        start_tid: int,
+    ) -> None:
         self.idx = idx
         self.start_time = start_time
         self.start_pid = start_pid
@@ -21,8 +27,13 @@ class CpuTrace:
 
 
 class Trace:
-    def __init__(self, tsc_conversion, cpuid, sample_type, cpus):
-        # type: (TscConversion, CpuId, int, List[CpuTrace]) -> None
+    def __init__(
+        self,
+        tsc_conversion: TscConversion,
+        cpuid: CpuId,
+        sample_type: int,
+        cpus: List[CpuTrace],
+    ) -> None:
         self.time_mult = tsc_conversion.time_mult
         self.time_shift = tsc_conversion.time_shift
         self.time_zero = tsc_conversion.time_zero
@@ -39,20 +50,18 @@ class Trace:
 
 
 class Perf:
-    def __init__(self, pid=-1):
-        # type: (int) -> None
+    def __init__(self, pid: int = -1) -> None:
         self.snapshot: Snapshot = Snapshot(pid)
 
-    def __enter__(self):
-        # type: () -> Perf
+    def __enter__(self) -> "Perf":
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, type: Any, value: Any, traceback: Any) -> bool:
         # only cleanup unless the user has successfully stopped
         self.close()
+        return False
 
-    def write(self, directory):
-        # type: (str) -> Trace
+    def write(self, directory: str) -> Trace:
         self.snapshot.stop()
 
         cpus = []
@@ -91,31 +100,26 @@ class Perf:
         sample_type = self.snapshot.sample_type()
         return Trace(conversion, cpuid, sample_type, cpus)
 
-    def close(self):
-        # type: () -> None
+    def close(self) -> None:
         self.snapshot.close()
 
 
 class IncreasePerfBuffer:
     PATH = "/proc/sys/kernel/perf_event_mlock_kb"
 
-    def __init__(self, size):
-        # type: (int) -> None
+    def __init__(self, size: int) -> None:
         self.new_size = size
         self.old_size: Union[None, int] = None
 
-    def update(self, value):
-        # type: (int) -> None
+    def update(self, value: int) -> None:
         with open(self.PATH, "w") as f:
             f.write(str(value))
 
-    def __enter__(self):
-        # type: () -> None
+    def __enter__(self) -> None:
         self.old_size = int(open(self.PATH).read())
         self.update(self.new_size)
 
-    def __exit__(self, type, value, traceback):
-        # type: (Any, Any, Any) -> bool
+    def __exit__(self, type: Any, value: Any, traceback: Any) -> bool:
         if self.old_size is not None:
             self.update(self.old_size)
         return False
