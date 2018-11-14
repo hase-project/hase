@@ -257,12 +257,13 @@ class Chunk:
 def chunk_trace(core: int, trace: List[Union[TraceEvent, Instruction]]) -> List[Chunk]:
     chunks: List[Chunk] = []
 
-    enable_event = None
+    enable_event: Optional[TraceEvent] = None
     # switch_detected = False
     instructions: List[Instruction] = []
     for (idx, ev) in enumerate(trace):
+
         if isinstance(ev, TraceEvent):
-            latest_time = ev.time
+            latest_event = ev
             if isinstance(ev, EnableEvent):
                 enable_event = ev
                 # switch_detected = False
@@ -290,20 +291,24 @@ def chunk_trace(core: int, trace: List[Union[TraceEvent, Instruction]]) -> List[
                 instructions = []
                 enable_event = None
         else:
-            assert enable_event is not None
-            latest_time = enable_event.time
+            if enable_event is None:
+                assert latest_event is not None
+                # If a program was started on a different CPU/HW-Thread
+                # we only see a flow-update packet instead
+                # of a trace-enabled packet here.
+                enable_event = latest_event
             instructions.append(ev)
 
     if len(instructions) != 0:
         assert (
             enable_event is not None
             and enable_event.time is not None
-            and latest_time is not None
+            and latest_event.time is not None
         )
         l.warning(
             "no final disable pt event found in stream, was the stream truncated?"
         )
-        chunk = Chunk(enable_event.time, latest_time, instructions)
+        chunk = Chunk(enable_event.time, latest_event.time, instructions)
         chunks.append(chunk)
 
     return chunks
