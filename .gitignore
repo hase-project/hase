@@ -106,6 +106,9 @@ venv.bak/
 
 /.direnv
 
+# spec benchmark
+/spec
+
 # generated data
 perf.data*
 perf.data

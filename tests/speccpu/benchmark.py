@@ -14,7 +14,7 @@ from tempfile import TemporaryDirectory
 from typing import List, Dict, Any
 
 from config import *
-from hase.record import Job, RecordPaths, record_loop, store_report, serialize_trace
+from hase.record import record
 
 
 class BenchCommand:
@@ -87,7 +87,7 @@ def measure(benchmark: str) -> Dict[str, Any]:
                     open(command.stdout_file, "w+") as stdout, \
                     open(command.stderr_file, "w+") as stderr:
                     temppath = Path(tempdir)
-                    recording = record_loop(
+                    recording = record(
                         temppath,
                         temppath.joinpath("logs"),
                         limit=1,
@@ -97,7 +97,6 @@ def measure(benchmark: str) -> Dict[str, Any]:
                         stderr=stderr
                     )
                     rusage = recording.rusage
-                    serialize_trace(recording.trace, temppath)
                     result["hase"][run]["result"].append(list(rusage))
 
             for validate_command in validate_commands:

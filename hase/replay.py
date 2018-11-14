@@ -7,7 +7,7 @@ import subprocess
 import sys
 from tempfile import TemporaryDirectory
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from . import pt
 from .pwn_wrapper import Coredump, Mapping
@@ -96,8 +96,7 @@ class Replay(object):
         self.executable = manifest["coredump"]["executable"]
         self.tracer = Tracer(self.executable, trace, coredump)
 
-    def run(self):
-        # type: () -> StateManager
+    def run(self) -> Tuple[StateManager, List[Any]]:
         if not self.tracer:
             self.prepare_tracer()
         states = self.tracer.run()
@@ -105,10 +104,11 @@ class Replay(object):
         active_state = states.major_states[-1]
         coredump = self.tracer.coredump
         arip = active_state.simstate.regs.rip
-        crip = hex(coredump.registers['rip'])
+        crip = hex(coredump.registers["rip"])
         arsp = active_state.simstate.regs.rsp
-        crsp = hex(coredump.registers['rsp'])
+        crsp = hex(coredump.registers["rsp"])
         import logging
+
         l = logging.getLogger("hase")
         l.warning(f"{arip} {crip} {arsp} {crsp}")
         low = active_state.simstate.regs.rsp
@@ -121,15 +121,15 @@ class Replay(object):
             high_v = start_state.solver.eval(high)
         except Exception:
             high_v = coredump.stack.stop
-        coredump_constraints = []
-        '''
+        coredump_constraints: List[Any] = []
+        """
         for addr in range(low_v, high_v):
             value = active_state.simstate.memory.load(addr, 1, endness="Iend_LE")
             if value.variables == frozenset():
                 continue
             cmem = coredump.stack[addr]
             coredump_constraints.append(value == cmem)
-        '''
+        """
         return states, coredump_constraints
 
     def cleanup(self):
@@ -156,17 +156,20 @@ class Replay(object):
         return manifest
 
 
-def replay_trace(report):
-    # type: (str) -> Replay
+def replay_trace(report: str) -> Replay:
     return Replay(report)
 
 
-def replay_command(args, debug_cli=True):
-    # type: (argparse.Namespace) -> StateManager
+def replay_command(args: argparse.Namespace, debug_cli: bool = False) -> StateManager:
     with replay_trace(args.report) as rt:
         states, constraints = rt.run()
         if debug_cli:
-            gdbs = GdbServer(states, rt.tracer.executable, rt.tracer.cdanalyzer, states.major_states[-1])
+            gdbs = GdbServer(
+                states,
+                rt.tracer.executable,
+                rt.tracer.cdanalyzer,
+                states.major_states[-1],
+            )
 
             def add_constraint(state):
                 active_state = state.simstate
@@ -178,8 +181,10 @@ def replay_command(args, debug_cli=True):
                             print("Unsatisfiable coredump constraints: " + str(c))
                             active_state.simstate.solver._stored_solver = old_solver
                     active_state.had_coredump_constraints = True
-            import ipdb
-            ipdb.set_trace()
+
+            import pry
+
+            pry()
         return states
 
 

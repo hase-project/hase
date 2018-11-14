@@ -34,8 +34,11 @@ PROT_EXEC = 4
 
 class Recording:
     def __init__(
-        self, coredump: Optional[coredumps.Coredump], trace: Trace, exit_status: int,
-        rusage: Optional[Tuple[Any, ...]] = None
+        self,
+        coredump: Optional[coredumps.Coredump],
+        trace: Trace,
+        exit_status: int,
+        rusage: Optional[Tuple[Any, ...]] = None,
     ) -> None:
         self.coredump = coredump
         self.trace = trace
@@ -89,9 +92,9 @@ def record_process(
         return Recording(coredump, trace, exit_code, rusage_result)
 
 
-def record(
+def _record(
     record_paths: "RecordPaths",
-    command: Optional[List[str]] = None,
+    command: List[str],
     stdin: Optional[IO[Any]] = None,
     stdout: Optional[IO[Any]] = None,
     stderr: Optional[IO[Any]] = None,
@@ -100,9 +103,6 @@ def record(
     extra_env: Optional[Dict[str, str]] = None,
     rusage: bool = False,
 ) -> Recording:
-
-    if command is None:
-        raise HaseError("recording without command is not supported at the moment")
 
     env = None
     if extra_env is not None:
@@ -175,8 +175,7 @@ class RecordPaths(object):
         )
 
 
-def serialize_trace(trace, state_dir):
-    # type: (Trace, Path) -> Dict[str, Any]
+def serialize_trace(trace: Trace, state_dir: Path) -> Dict[str, Any]:
     cpus = []
     for cpu in trace.cpus:
         event_path = str(Path(cpu.event_path).relative_to(state_dir))
@@ -206,9 +205,9 @@ def serialize_trace(trace, state_dir):
     )
 
 
-def store_report(job: Job) -> str:
-    core_file = job.core_file()
-    record_paths = job.record_paths
+def store_report(recording: Recording, record_paths: "RecordPaths") -> str:
+    assert recording.coredump is not None
+    core_file = recording.coredump.get()
     state_dir = record_paths.state_dir
     manifest_path = str(record_paths.manifest)
 
@@ -253,7 +252,7 @@ def store_report(job: Job) -> str:
             coredump["file"] = str(Path(core_file).relative_to(state_dir))
             append(core_file)
 
-        trace = serialize_trace(job.recording.trace, state_dir)
+        trace = serialize_trace(recording.trace, state_dir)
 
         for cpu in trace["cpus"]:
             append(str(state_dir.joinpath(cpu["event_path"])))
@@ -288,32 +287,12 @@ def store_report(job: Job) -> str:
         return str(archive_path)
 
 
-def report_worker(queue):
-    # type: (Queue) -> None
-    l.info("start worker")
-    while True:
-        job: Union[Job, ExitEvent] = queue.get()
-        if isinstance(job, ExitEvent):
-            return
-
-        try:
-            report_path = store_report(job)
-            job.recording.report_path = report_path
-            l.info("processed job")
-        except OSError:
-            l.exception("Error while creating report")
-        finally:
-            l.info("remove job")
-            job.remove()
-
-
-# XXX since global recording is probably not coming back we can remove this background worker + loop
-def record_loop(
+def record(
     record_path: Path,
     log_path: Path,
+    command: List[str],
     pid_file: Optional[str] = None,
     limit: int = 0,
-    command: Optional[List[str]] = None,
     stdin: Optional[IO[Any]] = None,
     stdout: Optional[IO[Any]] = None,
     stderr: Optional[IO[Any]] = None,
@@ -322,60 +301,49 @@ def record_loop(
     extra_env: Optional[Dict[str, str]] = None,
     rusage: bool = True,
 ) -> Optional[Recording]:
-    job_queue: Queue[Union[Job, ExitEvent]] = Queue()
-    post_process_thread = Thread(target=report_worker, args=(job_queue,))
-    post_process_thread.start()
-
     try:
-        i = 0
-        while limit == 0 or limit > i:
-            i += 1
-            # TODO ratelimit
-            record_paths = RecordPaths(record_path, i, log_path, pid_file)
-            recording = record(
-                record_paths,
-                command,
-                stdin=stdin,
-                stdout=stdout,
-                stderr=stderr,
-                working_directory=working_directory,
-                timeout=timeout,
-                extra_env=extra_env,
-                rusage=rusage,
-            )
-            if recording.coredump is None:
-                return recording
-            job_queue.put(Job(recording, record_paths))
-            if command is not None:
-                # if we record a single command we do not go into a loop
-                return recording
+        i = 1
+        record_paths = RecordPaths(record_path, i, log_path, pid_file)
+        recording = _record(
+            record_paths,
+            command,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            working_directory=working_directory,
+            timeout=timeout,
+            extra_env=extra_env,
+            rusage=rusage,
+        )
+        if recording.coredump is None:
+            return recording
+        recording.report_path = store_report(recording, record_paths)
+
+        return recording
     except KeyboardInterrupt:
         pass
     finally:
-        job_queue.put(ExitEvent())
-        l.info("Wait for child")
-        post_process_thread.join()
+        l.info("execution was interrupted by user")
 
     return None
 
 
-def record_command(args):
-    # type: (argparse.Namespace) -> None
+def record_command(args: argparse.Namespace) -> None:
 
     log_path = Path(args.log_dir)
     log_path.mkdir(parents=True, exist_ok=True)
 
     logging.basicConfig(filename=str(log_path.joinpath("hase.log")), level=logging.INFO)
 
-    command = None if len(args.args) == 0 else args.args
+    command = args.args
 
     with TemporaryDirectory() as tempdir:
-        record_loop(
-            Path(tempdir),
-            log_path,
+        record(
+            command=command,
+            record_path=Path(tempdir),
+            log_path=log_path,
             pid_file=args.pid_file,
             limit=args.limit,
-            command=command,
         )
 
     if args.rusage_file is not None:

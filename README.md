@@ -83,3 +83,20 @@ $ sudo ./bin/hase record -- ls -al
 Benchmarks require Pandas, which cannot be installed via pip3.
 Use https://pandas.pydata.org/pandas-docs/stable/install.html instead or install
 it using your system package manager.
+
+## Making changes
+
+To avoid breaking mypy use the following steps:
+
+1. Create a feature branch:
+
+```console
+$ git checkout -b <branch-name> 
+$ git push origin <branch-name>
+```
+
+2. Make a pull request by visiting `https://github.com/hase-project/hase/pull/new/<branch-name>` or use [hub](https://hub.github.com):
+
+```console
+$ git pull-request
+```

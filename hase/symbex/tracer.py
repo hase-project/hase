@@ -711,7 +711,9 @@ class Tracer(object):
                 self.debug_sat = old_state
                 self.debug_unsat = new_state
 
-    def record_constraints_index(self, old_state: SimState, new_state: SimState, index: int) -> None:
+    def record_constraints_index(
+        self, old_state: SimState, new_state: SimState, index: int
+    ) -> None:
         sat_uuid = map(lambda c: c.uuid, old_state.solver.constraints)
         unsat_constraints = list(new_state.solver.constraints)
         for c in unsat_constraints:
@@ -734,8 +736,10 @@ class Tracer(object):
         first_ins = capstone.insns[0].insn
         ins_repr = first_ins.mnemonic
         # manually syscall will have no entry and just execute it.
-        if ins_repr.startswith("syscall") and \
-            0x3000000 <= step.successors[0].reg_concrete('rip') < 0x3002000:
+        if (
+            ins_repr.startswith("syscall")
+            and 0x3000000 <= step.successors[0].reg_concrete("rip") < 0x3002000
+        ):
             return step.successors[0].step(num_inst=1)
         return step
 
@@ -755,7 +759,7 @@ class Tracer(object):
 
         try:
             step = self.project.factory.successors(
-                state, num_inst=1 # , force_addr=addr
+                state, num_inst=1  # , force_addr=addr
             )
             step = self.repair_syscall_jump(state, step)
         except Exception as e:
@@ -769,9 +773,7 @@ class Tracer(object):
             if force_type == "call":
                 new_state.regs.rsp -= 8
                 ret_addr = state.addr + state.block().capstone.insns[0].size
-                new_state.memory.store(
-                    new_state.regs.rsp, ret_addr, endness="Iend_LE"
-                )
+                new_state.memory.store(new_state.regs.rsp, ret_addr, endness="Iend_LE")
             elif force_type == "ret":
                 new_state.regs.rsp += 8
             new_state.regs.ip = instruction.ip
@@ -800,13 +802,15 @@ class Tracer(object):
             + "\n"
         )
         for choice in choices:
-            if self.last_match(choice, instruction):
-                return choice, choice
-            if self.jump_match(
-                old_state, choice, previous_instruction, instruction
-            ):
-                self.post_execute(old_state, choice)
-                return old_state, choice
+            # HACKS: if ip is symbolic
+            try:
+                if self.last_match(choice, instruction):
+                    return choice, choice
+                if self.jump_match(old_state, choice, previous_instruction, instruction):
+                    self.post_execute(old_state, choice)
+                    return old_state, choice
+            except angr.SimUnsatError:
+                pass
         new_state = state.copy()
         new_state.regs.ip = instruction.ip
         return state, new_state
@@ -874,7 +878,9 @@ class Tracer(object):
             assert self.valid_address(previous_instruction.ip) and self.valid_address(
                 instruction.ip
             )
-            old_simstate, new_simstate = self.execute(simstate, previous_instruction, instruction, cnt)
+            old_simstate, new_simstate = self.execute(
+                simstate, previous_instruction, instruction, cnt
+            )
             simstate = new_simstate
             if cnt % interval == 0 or length - cnt < 15:
                 states.add_major(
