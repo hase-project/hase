@@ -280,9 +280,6 @@ def chunk_trace(core: int, trace: List[Union[TraceEvent, Instruction]]) -> List[
                 #    switch_detected = is_context_switch(ev, last_instruction)
 
                 assert enable_event.time and ev.time
-                for instruction in instructions:
-                    instruction.core = core
-                    instruction.chunk = idx
 
                 # chunk = Chunk(enable_event.time, ev.time, switch_detected,
                 #              instructions)

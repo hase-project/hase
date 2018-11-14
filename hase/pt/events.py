@@ -49,12 +49,12 @@ class InstructionClass(IntEnum):
 
 
 class Instruction:
+    __slots__ = ['ip', 'size', 'iclass']
+
     def __init__(self, ip: int, size: int, iclass: InstructionClass) -> None:
         self.ip = ip
         self.size = size
         self.iclass = iclass
-        self.core = -1
-        self.chunk = -1
 
     def __repr__(self):
         return "<Instruction[%s] @ %x>" % (self.iclass.name, self.ip)
