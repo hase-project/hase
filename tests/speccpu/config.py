@@ -2,11 +2,13 @@ from pathlib import Path
 
 from hase.path import APP_ROOT
 
-SPEC_PATH = APP_ROOT.joinpath("..", "spec").resolve()
+#SPEC_PATH = APP_ROOT.joinpath("..", "spec").resolve()
+SPEC_PATH = Path('/home') / 'harveylu' / 'cpu2017'
 
 SUITE_PATH = str(SPEC_PATH.joinpath("benchspec", "CPU")) + "/"
 
-RUN_PATH = '/run/run_base_test_mytest-m64.0000/'
+#RUN_PATH = '/run/run_base_test_mytest-m64.0000/'
+RUN_PATH = '/run/run_base_refspeed_mytest-m64.0000/'
 
 USAGE = str(APP_ROOT.joinpath('rusage.csv'))
 

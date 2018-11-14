@@ -156,7 +156,8 @@ def main() -> None:
         sys.exit(1)
 
     results: Dict[str, Any] = {}
-    result_file = Path(args.record_path).joinpath(args.name + ".json")
+    result_file = Path(args.record_path).joinpath(args.name + ".json").resolve()
+    #import pdb; pdb.set_trace()
     if result_file.exists():
         with open(result_file, "r") as f:
             results = json.load(f)
