@@ -6,7 +6,7 @@ from typing import Callable, Union
 HandlerFunc = Union[Callable[[int, FrameType], None], int, None]
 
 
-class SignalHandler(object):
+class SignalHandler:
     def __init__(self, signum, handler=signal.SIG_IGN):
         # type: (int, HandlerFunc) -> None
         self.signum = signum

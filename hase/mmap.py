@@ -12,7 +12,7 @@ munmap.restype = ct.c_int
 munmap.argtypes = [ct.c_void_p, ct.c_size_t]
 
 
-class MMap(object):
+class MMap:
     def __init__(self, fd, size, protection, flags, offset=0):
         # type: (int, int, int, int, int) -> None
         # ctypes does not support pythons mmap module, so we use the libc

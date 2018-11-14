@@ -6,8 +6,7 @@ from typing import List
 from .record import DEFAULT_LOG_DIR, record_command
 
 
-def parse_arguments(argv):
-    # type: (List[str]) -> argparse.Namespace
+def parse_arguments(argv: List[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog=argv[0], description="process crashes")
     parser.add_argument(
         "--debug", action="store_true", help="jump into ipdb post mortem debugger"

@@ -70,7 +70,7 @@ def intel_pt_type():
         return int(f.read())
 
 
-class PMU(object):
+class PMU:
     def __init__(self, perf_attr, cpu, pid):
         # type: (perf_event_attr, int, int) -> None
         self.fd = Libc.syscall(
@@ -173,7 +173,7 @@ def open_dummy_event(cpu, pid):
     return PMU(attr, cpu, pid)
 
 
-class TscConversion(object):
+class TscConversion:
     def __init__(self, time_mult, time_shift, time_zero):
         # type: (int, int, int) -> None
         self.time_mult = time_mult
@@ -181,7 +181,7 @@ class TscConversion(object):
         self.time_zero = time_zero
 
 
-class CpuId(object):
+class CpuId:
     def __init__(self, family, model, stepping, cpuid_0x15_eax, cpuid_0x15_ebx):
         # type: (int, int, int, int, int) -> None
         self.family = family
@@ -191,7 +191,7 @@ class CpuId(object):
         self.cpuid_0x15_ebx = cpuid_0x15_ebx
 
 
-class MmapHeader(object):
+class MmapHeader:
     def __init__(self, addr, data_size):
         # type: (int, int) -> None
         self._header = perf_event_mmap_page.from_address(addr)
@@ -304,7 +304,7 @@ class MmapHeader(object):
         self._header.data_tail = self._header.data_head
 
 
-class BackwardRingbuffer(object):
+class BackwardRingbuffer:
     def __init__(self, cpu, pid=-1):
         # type: (int, int) -> None
         """
@@ -340,7 +340,7 @@ class BackwardRingbuffer(object):
         return self.header.tsc_conversion()
 
 
-class AuxRingbuffer(object):
+class AuxRingbuffer:
     def __init__(self, cpu, pid=-1):
         # type: (int, int) -> None
         # data area must be a multiply of two
@@ -392,12 +392,12 @@ class AuxRingbuffer(object):
         return self.header.events()
 
 
-class PerfEvents(object):
+class PerfEvents:
     def __init__(self, tsc_conversion):
         self.tsc_conversion = tsc_conversion
 
 
-class Cpu(object):
+class Cpu:
     def __init__(self, idx, event_buffer, pt_buffer):
         # type: (int, BackwardRingbuffer, AuxRingbuffer) -> None
         self.idx = idx
@@ -461,7 +461,7 @@ class Cpu(object):
         self.event_buffer.close()
 
 
-class Snapshot(object):
+class Snapshot:
     def __init__(self, pid=-1):
         # type: (int) -> None
         self.stopped = False

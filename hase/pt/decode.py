@@ -3,12 +3,8 @@ from __future__ import absolute_import, division, print_function
 import bisect
 import ctypes as ct
 import logging
-import os
-import shutil
-from io import BytesIO
 from pathlib import Path
-from tempfile import NamedTemporaryFile
-from typing import Any, DefaultDict, List, Optional, Union
+from typing import List, Optional, Union
 
 from .. import _pt  # type: ignore
 from ..perf.consts import PerfRecord
@@ -20,7 +16,7 @@ from .events import (AsyncDisableEvent, DisableEvent, EnableEvent, Instruction,
 l = logging.getLogger(__name__)
 
 
-class ScheduleEntry(object):
+class ScheduleEntry:
     def __init__(self, core, pid, tid, start, stop):
         # type: (int, int, int, int, Optional[int]) -> None
         self.core = core
@@ -223,7 +219,7 @@ def merge_same_core_switches(schedule):
     return new_schedule
 
 
-class Chunk(object):
+class Chunk:
     def __init__(self, start, stop, instructions):
         # type: (int, int, List[Instruction]) -> None
         self.start = start
@@ -258,16 +254,16 @@ class Chunk(object):
 #    return False
 
 
-def chunk_trace(core, trace):
-    # type: (int, List[Union[TraceEvent, Instruction]]) -> List[Chunk]
+def chunk_trace(core: int, trace: List[Union[TraceEvent, Instruction]]) -> List[Chunk]:
     chunks: List[Chunk] = []
 
-    enable_event = None
+    enable_event: Optional[TraceEvent] = None
     # switch_detected = False
     instructions: List[Instruction] = []
     for (idx, ev) in enumerate(trace):
+
         if isinstance(ev, TraceEvent):
-            latest_time = ev.time
+            latest_event = ev
             if isinstance(ev, EnableEvent):
                 enable_event = ev
                 # switch_detected = False
@@ -284,9 +280,6 @@ def chunk_trace(core, trace):
                 #    switch_detected = is_context_switch(ev, last_instruction)
 
                 assert enable_event.time and ev.time
-                for instruction in instructions:
-                    instruction.core = core
-                    instruction.chunk = idx
 
                 # chunk = Chunk(enable_event.time, ev.time, switch_detected,
                 #              instructions)
@@ -295,20 +288,24 @@ def chunk_trace(core, trace):
                 instructions = []
                 enable_event = None
         else:
-            assert enable_event is not None
-            latest_time = enable_event.time
+            if enable_event is None:
+                assert latest_event is not None
+                # If a program was started on a different CPU/HW-Thread
+                # we only see a flow-update packet instead
+                # of a trace-enabled packet here.
+                enable_event = latest_event
             instructions.append(ev)
 
     if len(instructions) != 0:
         assert (
             enable_event is not None
             and enable_event.time is not None
-            and latest_time is not None
+            and latest_event.time is not None
         )
         l.warning(
             "no final disable pt event found in stream, was the stream truncated?"
         )
-        chunk = Chunk(enable_event.time, latest_time, instructions)
+        chunk = Chunk(enable_event.time, latest_event.time, instructions)
         chunks.append(chunk)
 
     return chunks
@@ -316,26 +313,25 @@ def chunk_trace(core, trace):
 
 # TODO multiple threads
 def decode(
-    trace_paths,  # type: List[str]
-    perf_event_paths,  # type: List[str]
-    start_thread_ids,  # type: List[int]
-    start_times,  # type: List[int]
-    pid,  # type: int
-    tid,  # type: int
-    mappings,  # type: List[Mapping]
-    cpu_family,  # type: int
-    cpu_model,  # type: int
-    cpu_stepping,  # type: int
-    cpuid_0x15_eax,  # type: int
-    cpuid_0x15_ebx,  # type: int
-    sample_type,  # type: int
-    time_zero,  # type: int
-    time_shift,  # type: int
-    time_mult,  # type: int
-    sysroot,  # type: str
-    vdso_x64,  # type: str
-):
-    # type: (...) -> List[Instruction]
+    trace_paths: List[str],
+    perf_event_paths: List[str],
+    start_thread_ids: List[int],
+    start_times: List[int],
+    pid: int,
+    tid: int,
+    mappings: List[Mapping],
+    cpu_family: int,
+    cpu_model: int,
+    cpu_stepping: int,
+    cpuid_0x15_eax: int,
+    cpuid_0x15_ebx: int,
+    sample_type: int,
+    time_zero: int,
+    time_shift: int,
+    time_mult: int,
+    sysroot: str,
+    vdso_x64: str,
+) -> List[Instruction]:
 
     assert len(trace_paths) > 0
 

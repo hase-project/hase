@@ -1,5 +1,16 @@
-language: nix
+language: python
+python:
+  - "3.6"
+install:
+  - pip install mypy
 script:
-  - nix run --quiet nixpkgs.python3Packages.mypy -c mypy hase
-  # too slow at the moment, needs caching
-  #  - nix-shell --quiet --command "virtualenv venv && . ./venv/bin/activate && pip install --quiet --process-dependency-links -e '.[test]'"
+  - mypy hase tests/benchmark
+branches:
+  only:
+  - master
+
+#language: nix
+#script:
+#  - nix run --quiet nixpkgs.python3Packages.mypy -c mypy hase
+#  # too slow at the moment, needs caching
+#  #  - nix-shell --quiet --command "virtualenv venv && . ./venv/bin/activate && pip install --quiet --process-dependency-links -e '.[test]'"

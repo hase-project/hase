@@ -11,7 +11,7 @@ from ..annotate import Addr2line
 from ..pt.events import Instruction
 
 
-class Register(object):
+class Register:
     def __init__(self, state, name, simreg):
         # type: (State, str, BV) -> None
         self.state = state
@@ -29,7 +29,7 @@ class Register(object):
         return self.state.eval(self.simreg)
 
 
-class RegisterSet(object):
+class RegisterSet:
     def __init__(self, state):
         # type: (State) -> None
         self.state = state
@@ -44,7 +44,7 @@ class RegisterSet(object):
         setattr(self.state.simstate.regs, name, value)
 
 
-class Memory(object):
+class Memory:
     def __init__(self, state):
         # type: (State) -> None
         self.state = state
@@ -59,7 +59,7 @@ class Memory(object):
             return None
 
 
-class State(object):
+class State:
     def __init__(
         self, index, from_instruction, to_instruction, from_simstate, to_simstate
     ):
@@ -122,7 +122,7 @@ class State(object):
         return a.compute()[self.simstate.addr]
 
 
-class StateManager(object):
+class StateManager:
     def __init__(self, tracer, length):
         # type: (Any, int) -> None
         self.tracer = tracer
