@@ -5,7 +5,9 @@ install:
   - pip install mypy
 script:
   - mypy hase tests/benchmark
-
+branches:
+  only:
+  - master
 
 #language: nix
 #script:
