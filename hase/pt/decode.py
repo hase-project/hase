@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Union
 
-from .. import _pt  # type: ignore
+from .. import _pt
 from ..perf.consts import PerfRecord
 from ..perf.reader import perf_events
 from ..pwn_wrapper import Mapping
@@ -17,8 +17,9 @@ l = logging.getLogger(__name__)
 
 
 class ScheduleEntry:
-    def __init__(self, core, pid, tid, start, stop):
-        # type: (int, int, int, int, Optional[int]) -> None
+    def __init__(
+        self, core: int, pid: int, tid: int, start: int, stop: Optional[int]
+    ) -> None:
         self.core = core
         self.pid = pid
         self.tid = tid
@@ -28,15 +29,13 @@ class ScheduleEntry:
         self.chunks: List[Chunk] = []
         self.count = 1
 
-    def is_main_thread(self):
-        # type: () -> bool
+    def is_main_thread(self) -> bool:
         """
         The initial process started.
         """
         return self.pid == self.tid
 
-    def __lt__(self, other):
-        # type: (ScheduleEntry) -> bool
+    def __lt__(self, other: "ScheduleEntry") -> bool:
         if self.start >= other.start:
             return False
         else:
@@ -44,8 +43,7 @@ class ScheduleEntry:
             assert self.stop is not None and self.stop <= other.start
             return True
 
-    def __repr__(self):
-        # type: () -> str
+    def __repr__(self) -> str:
         start = "%x" % self.start
         if self.stop is None:
             stop = ""
@@ -59,15 +57,15 @@ class ScheduleEntry:
         )
 
 
-def copy_struct(struct):
-    # type: (ct.Structure) -> ct.Structure
+def copy_struct(struct: ct.Structure) -> ct.Structure:
     copy = struct.__class__()
     ct.memmove(ct.addressof(copy), ct.addressof(struct), ct.sizeof(struct))
     return copy
 
 
-def get_thread_schedule(perf_event_paths, start_thread_ids, start_times):
-    # type: (List[str], List[int], List[int]) -> List[ScheduleEntry]
+def get_thread_schedule(
+    perf_event_paths: List[str], start_thread_ids: List[int], start_times: List[int]
+) -> List[ScheduleEntry]:
     schedule: List[ScheduleEntry] = []
 
     for (core, cpu_events) in enumerate(perf_event_paths):
@@ -122,8 +120,7 @@ def get_thread_schedule(perf_event_paths, start_thread_ids, start_times):
 
 # In future this should become a warning, since bugs can smash the stack! For
 # now we rely on this to figure out if we re-assemble the trace incorrectly
-def sanity_check_order(instructions):
-    # type: (List[Instruction]) -> None
+def sanity_check_order(instructions: List[Instruction]) -> None:
     """
     Check that calls matches returns and that syscalls and non-jumps do not change the control flow.
     """
@@ -146,9 +143,43 @@ def sanity_check_order(instructions):
             stack.append(return_ip)
 
 
-def correlate_traces(traces, schedule, pid, tid):
-    # type: (List[List[Chunk]], List[ScheduleEntry], int, int) -> List[Instruction]
+def merge_same_core_switches(schedule: List[ScheduleEntry]) -> List[ScheduleEntry]:
+    if len(schedule) == 0:
+        return []
 
+    new_schedule = [schedule[0]]
+
+    for (i, entry) in enumerate(schedule[1:]):
+        if new_schedule[-1].core == entry.core and new_schedule[-1].tid == entry.tid:
+            new_schedule[-1].stop = entry.stop
+            new_schedule[-1].count += 1
+        else:
+            new_schedule.append(entry)
+
+    return new_schedule
+
+
+class Chunk:
+    def __init__(self, start: int, stop: int, instructions: List[Instruction]) -> None:
+        self.start = start
+        self.stop = stop
+        self.instructions = instructions
+
+    def saw_tsc_update(self) -> bool:
+        return self.start != self.stop
+
+    def __repr__(self) -> str:
+        return "<%s time: 0x%x..0x%x [%d instructions]>" % (
+            self.__class__.__name__,
+            self.start,
+            self.stop,
+            len(self.instructions),
+        )
+
+
+def correlate_traces(
+    traces: List[List[Chunk]], schedule: List[ScheduleEntry], pid: int, tid: int
+) -> List[Instruction]:
     schedule_per_core: List[List[ScheduleEntry]] = []
     for _ in range(len(traces)):
         schedule_per_core.append([])
@@ -200,44 +231,6 @@ def correlate_traces(traces, schedule, pid, tid):
 
     assert len(instructions) == instruction_count
     return instructions
-
-
-def merge_same_core_switches(schedule):
-    # type: (List[ScheduleEntry]) -> List[ScheduleEntry]
-    if len(schedule) == 0:
-        return []
-
-    new_schedule = [schedule[0]]
-
-    for (i, entry) in enumerate(schedule[1:]):
-        if new_schedule[-1].core == entry.core and new_schedule[-1].tid == entry.tid:
-            new_schedule[-1].stop = entry.stop
-            new_schedule[-1].count += 1
-        else:
-            new_schedule.append(entry)
-
-    return new_schedule
-
-
-class Chunk:
-    def __init__(self, start, stop, instructions):
-        # type: (int, int, List[Instruction]) -> None
-        self.start = start
-        self.stop = stop
-        self.instructions = instructions
-
-    def saw_tsc_update(self):
-        # type: () -> bool
-        return self.start != self.stop
-
-    def __repr__(self):
-        # type: () -> str
-        return "<%s time: 0x%x..0x%x [%d instructions]>" % (
-            self.__class__.__name__,
-            self.start,
-            self.stop,
-            len(self.instructions),
-        )
 
 
 # def is_context_switch(event, instruction):
