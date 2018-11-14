@@ -3,7 +3,7 @@ from pathlib import Path
 PT_ROOT = Path("/sys/bus/event_source/devices/intel_pt")
 
 
-class PtFeatures(object):
+class PtFeatures:
     def __init__(self, supported=False, ip_filtering=False):
         # type: (bool, bool) -> None
         self.supported = supported

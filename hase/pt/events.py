@@ -4,7 +4,7 @@ from enum import IntEnum
 from typing import Optional
 
 
-class TraceEvent(object):
+class TraceEvent:
     """
     This class is used by the C extension _pt
     """
@@ -48,7 +48,7 @@ class InstructionClass(IntEnum):
     ptic_ptwrite = 9
 
 
-class Instruction(object):
+class Instruction:
     def __init__(self, ip: int, size: int, iclass: InstructionClass) -> None:
         self.ip = ip
         self.size = size

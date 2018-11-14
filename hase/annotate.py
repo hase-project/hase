@@ -2,8 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import os.path
 import subprocess
-import sys
-from typing import DefaultDict, Dict, List, Optional, Set, Tuple
+from typing import DefaultDict, Dict, Set, Tuple
 
 from cle import ELF
 
@@ -11,7 +10,7 @@ from .errors import HaseError
 from .path import find_in_path
 
 
-class Addr2line(object):
+class Addr2line:
     def __init__(self) -> None:
         self.dsos: DefaultDict[ELF, Set[int]] = DefaultDict(set)
 

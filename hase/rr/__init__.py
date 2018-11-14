@@ -20,7 +20,7 @@ def rr_record(binary_path, *args):
         print(lines)
 
 
-class RRController(object):
+class RRController:
     def __init__(self, binary_path, trace):
         # type: (str, List[Instruction]) -> None
         self.binary_path = binary_path

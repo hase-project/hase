@@ -35,7 +35,7 @@ class SymbolicMeta(type):
 
 
 # disable pylint error
-class SymStruct(object):
+class SymStruct:
     def __init__(self, buf):
         self.buf = buf
 

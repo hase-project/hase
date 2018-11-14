@@ -5,7 +5,7 @@ import resource
 from typing import Any, List, Tuple, Type
 
 
-class Libc(object):
+class Libc:
     libc = ct.CDLL("libc.so.6", use_errno=True)
 
     MAP_FAILED = ct.c_void_p(-1)
@@ -75,7 +75,7 @@ class perf_event_mmap_page(ct.Structure):
     ]
 
 
-class Ioctls(object):
+class Ioctls:
     # source: https://github.com/golang/sys/blob/7c87d13f8e835d2fb3a70a2912c811ed0c1d241b/unix/zerrors_linux_amd64.go#L1205
     PERF_EVENT_IOC_DISABLE = 0x2401
     PERF_EVENT_IOC_ENABLE = 0x2400
@@ -89,7 +89,7 @@ class Ioctls(object):
     PERF_EVENT_IOC_SET_OUTPUT = 0x2405
 
 
-class PerfRecord(object):
+class PerfRecord:
     PERF_RECORD_MMAP = 1
     PERF_RECORD_LOST = 2
     PERF_RECORD_COMM = 3
@@ -162,7 +162,7 @@ def compute_string_size(fn):
     return wrapper
 
 
-class EventStructs(object):
+class EventStructs:
     def __init__(self, sample_flags):
         # type: (int) -> None
         self.sample_id: Type[Any] = sample_id_struct(sample_flags)
@@ -332,7 +332,7 @@ class SampleFlags:
     )
 
 
-class AttrFlags(object):
+class AttrFlags:
     DISABLED = 1 << 0
     INHERIT = 1 << 1
     PINNED = 1 << 2
@@ -372,7 +372,7 @@ PERF_COUNT_SW_DUMMY = 9
 CAP_USER_TIME_ZERO = 4
 
 
-class RecordMisc(object):
+class RecordMisc:
     PERF_RECORD_MISC_CPUMODE_UNKNOWN = 0
     PERF_RECORD_MISC_CPUMODE_MASK = 7
     PERF_RECORD_MISC_KERNEL = 1
