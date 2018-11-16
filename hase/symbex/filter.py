@@ -13,38 +13,38 @@ from cle import ELF
 from ..errors import HaseError
 from ..pt.events import Instruction, InstructionClass
 from .hook import unsupported_symbols
+from .tracer import CoredumpGDB
 
-try:
-    from . import tracer
-except ImportError:  # make mypy happy
-    pass
-
-l = logging.getLogger("hase")
+l = logging.getLogger(__name__)
 
 
 class FakeSymbol:
-    def __init__(self, name, addr):
-        # type: (str, int) -> None
+    def __init__(self, name: str, addr: int) -> None:
         self.name = name
         self.rebased_addr = addr
 
-    def __eq__(self, other):
-        # (FakeSymbol) -> bool
-        if other is None:
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, FakeSymbol):
             return False
         return self.name == other.name and self.rebased_addr == other.rebased_addr
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self.name, self.rebased_addr))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         # () -> str
         return "FakeSymbol '{}' at {}".format(self.name, hex(self.rebased_addr))
 
 
 class FilterBase:
-    def __init__(self, project, cfg, trace, hooked_symbol, gdb):
-        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], tracer.CoredumpGDB) -> None
+    def __init__(
+        self,
+        project: Project,
+        cfg: CFGFast,
+        trace: List[Instruction],
+        hooked_symbol: Dict[str, SimProcedure],
+        gdb: CoredumpGDB,
+    ) -> None:
         self.project = project
         self.main_cfg = cfg
         self.main_object = project.loader.main_object
@@ -55,24 +55,20 @@ class FilterBase:
         self.omitted_section: List[List[int]] = []
         self.analyze_unsupported()
 
-    def analyze_unsupported(self):
-        # type: () -> None
+    def analyze_unsupported(self) -> None:
         for l in unsupported_symbols:
             self.omitted_section.append(self.gdb.get_func_range(l[0]))
 
-    def test_plt(self, addr):
-        # type: (int) -> bool
+    def test_plt(self, addr: int) -> bool:
         # NOTE: .plt or .plt.got
         section = self.project.loader.find_section_containing(addr)
         return section.name.startswith(".plt")
 
-    def test_ld(self, addr):
-        # type: (int) -> bool
+    def test_ld(self, addr: int) -> bool:
         o = self.project.loader.find_object_containing(addr)
         return o == self.project.loader.linux_loader_object
 
-    def test_omit(self, addr):
-        # type: (int) -> bool
+    def test_omit(self, addr: int) -> bool:
         for sec in self.omitted_section:
             if sec[0] <= addr < sec[0] + sec[1]:
                 return True
@@ -82,17 +78,16 @@ class FilterBase:
 class FilterTrace:
     def __init__(
         self,
-        project,
-        cfg,
-        trace,
-        hooked_symbol,
-        gdb,
-        omitted_section,
-        from_initial,
-        static_link,
-        backtrace,
-    ):
-        # type: (Project, CFGFast, List[Instruction], Dict[str, SimProcedure], tracer.CoredumpGDB, List[List[int]], bool, bool, List[Dict[str, Any]]) -> None
+        project: Project,
+        cfg: CFGFast,
+        trace: List[Instruction],
+        hooked_symbol: Dict[str, SimProcedure],
+        gdb: CoredumpGDB,
+        omitted_section: List[List[int]],
+        from_initial: bool,
+        static_link: bool,
+        backtrace: List[Dict[str, Any]],
+    ) -> None:
         self.project = project
         self.main_cfg = cfg
         self.main_object = project.loader.main_object
@@ -134,8 +129,7 @@ class FilterTrace:
             self.syms[lib].sort()
         self.analyze_trace()
 
-    def analyze_unsupported(self):
-        # type: () -> None
+    def analyze_unsupported(self) -> None:
         for l in unsupported_symbols:
             try:
                 r = self.gdb.get_func_range(l[0])
@@ -144,8 +138,7 @@ class FilterTrace:
                 r = [0, 0]
             self.omitted_section.append(r)
 
-    def test_plt_vdso(self, addr):
-        # type: (int) -> bool
+    def test_plt_vdso(self, addr: int) -> bool:
         # NOTE: .plt or .plt.got
         section = self.project.loader.find_section_containing(addr)
         if section:
@@ -154,27 +147,24 @@ class FilterTrace:
             # NOTE: unrecognizable section, regard as vDSO
             return True
 
-    def test_ld(self, addr):
-        # type: (int) -> bool
+    def test_ld(self, addr: int) -> bool:
         o = self.project.loader.find_object_containing(addr)
         return o == self.project.loader.linux_loader_object
 
-    def test_omit(self, addr):
-        # type: (int) -> bool
+    def test_omit(self, addr: int) -> bool:
         for sec in self.omitted_section:
             if sec[0] <= addr < sec[0] + sec[1]:
                 return True
         return False
 
-    def test_hook_name(self, fname):
+    def test_hook_name(self, fname: str) -> bool:
         for name in self.hooked_symname:
             # _IO_fopen@@xxx
             if fname == name or (fname.startswith(name + "@")):
                 return True
         return False
 
-    def solve_name_plt(self, addr):
-        # type: (int) -> str
+    def solve_name_plt(self, addr: int) -> str:
         for lib in self.project.loader.all_elf_objects:
             if addr in lib.reverse_plt.keys():
                 return lib.reverse_plt[addr]
@@ -195,8 +185,7 @@ class FilterTrace:
                 return self.syms_dict[lib][entry]
         return None
 
-    def test_function_entry(self, addr):
-        # type: (int) -> Tuple[bool, str]
+    def test_function_entry(self, addr: int) -> Tuple[bool, str]:
         sym = self.find_function(addr)
         if sym and sym.rebased_addr == addr:
             symname = sym.name
@@ -249,8 +238,7 @@ class FilterTrace:
         self.start_funcname = function.name
         return self.trace[self.start_idx :], self.start_idx
 
-    def analyze_trace(self):
-        # type: () -> None
+    def analyze_trace(self) -> None:
         # NOTE: assume the hooked function should have return
         self.new_trace = []
         self.call_parent: defaultdict = defaultdict(lambda: None)
@@ -369,8 +357,9 @@ class FilterTrace:
                 self.new_trace.append(instruction)
                 self.trace_idx.append(idx + self.start_idx)
 
-    def filtered_trace(self, update=False):
-        # type: (bool) -> Tuple[List[Instruction], List[int], Dict[int, int]]
+    def filtered_trace(
+        self, update: bool = False
+    ) -> Tuple[List[Instruction], List[int], Dict[int, int]]:
         if self.new_trace and not update:
             return self.new_trace, self.trace_idx, self.hook_target
         self.analyze_trace()

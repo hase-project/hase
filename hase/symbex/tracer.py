@@ -23,7 +23,7 @@ from .filter import FilterTrace
 from .hook import addr_symbols, all_hookable_symbols
 from .state import State, StateManager
 
-l = logging.getLogger("hase")
+l = logging.getLogger(__name__)
 
 ELF_MAGIC = b"\x7fELF"
 

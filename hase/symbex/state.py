@@ -70,6 +70,7 @@ class State:
         self.from_simstate = from_simstate
         self.to_simstate = to_simstate
         self.is_to_simstate = True
+        self.had_coredump_constraints = False
 
     @property
     def simstate(self):

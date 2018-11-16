@@ -21,7 +21,6 @@ from ..path import APP_ROOT
 from ..symbex.state import State, StateManager
 from ..symbex.tracer import CoredumpAnalyzer
 
-logging.basicConfig()
 l = logging.getLogger(__name__)
 
 
