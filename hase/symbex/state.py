@@ -12,58 +12,53 @@ from ..pt.events import Instruction
 
 
 class Register:
-    def __init__(self, state, name, simreg):
-        # type: (State, str, BV) -> None
+    def __init__(self, state: State, name: str, simreg: BV) -> None:
         self.state = state
         self.name = name
         self.simreg = simreg
 
     @property
-    def size(self):
-        # type: () -> int
+    def size(self) -> int:
         return self.simreg.size()
 
     @property
-    def value(self):
-        # type: () -> int
+    def value(self) -> int:
         return self.state.eval(self.simreg)
 
 
 class RegisterSet:
-    def __init__(self, state):
-        # type: (State) -> None
+    def __init__(self, state: State) -> None:
         self.state = state
 
-    def __getitem__(self, name):
-        # type: (str) -> Register
+    def __getitem__(self, name: str) -> Register:
         reg = getattr(self.state.simstate.regs, name)
         return Register(self.state, name, reg)
 
-    def __setitem__(self, name, value):
-        # type: (str, int) -> None
+    def __setitem__(self, name: str, value: int) -> None:
         setattr(self.state.simstate.regs, name, value)
 
 
 class Memory:
-    def __init__(self, state):
-        # type: (State) -> None
+    def __init__(self, state: State) -> None:
         self.state = state
 
-    def __getitem__(self, addr):
-        # type: (int) -> Optional[int]
-        # good idea?
+    def __getitem__(self, addr: int) -> Optional[int]:
         try:
             byte = self.state.simstate.mem[addr].byte
             return self.state.eval(byte)
-        except:
+        except Exception:
             return None
 
 
 class State:
     def __init__(
-        self, index, from_instruction, to_instruction, from_simstate, to_simstate
-    ):
-        # type: (int, Optional[Instruction], Instruction, Optional[SimState], SimState) -> None
+        self,
+        index: int,
+        from_instruction: Optional[Instruction],
+        to_instruction: Instruction,
+        from_simstate: Optional[SimState],
+        to_simstate: SimState,
+    ) -> None:
         self.index = index
         self.from_instruction = from_instruction
         self.to_instruction = to_instruction
@@ -73,19 +68,16 @@ class State:
         self.had_coredump_constraints = False
 
     @property
-    def simstate(self):
-        # type: () -> SimState
+    def simstate(self) -> SimState:
         if self.is_to_simstate:
             return self.to_simstate
         assert self.from_simstate is not None
         return self.from_simstate
 
-    def eval(self, expression):
-        # type: (BV) -> Any
+    def eval(self, expression: BV) -> Any:
         return self.simstate.solver.eval(expression)
 
-    def __repr__(self):
-        # type: () -> str
+    def __repr__(self) -> str:
         if self.from_instruction is None:
             return "State(Start -> 0x%x)" % (self.to_instruction.ip)
         else:
@@ -95,25 +87,20 @@ class State:
             )
 
     @property
-    def registers(self):
-        # type: () -> RegisterSet
+    def registers(self) -> RegisterSet:
         return RegisterSet(self)
 
     @property
-    def memory(self):
-        # type: () -> Memory
+    def memory(self) -> Memory:
         return Memory(self)
 
-    def object(self):
-        # type: () -> ELF
+    def object(self) -> ELF:
         return self.simstate.project.loader.find_object_containing(self.simstate.addr)
 
-    def address(self):
-        # type: () -> int
+    def address(self) -> int:
         return self.simstate.addr
 
-    def location(self):
-        # type: () -> Tuple[str, int]
+    def location(self) -> Tuple[str, int]:
         """
         Binary of current state
         """
@@ -124,43 +111,44 @@ class State:
 
 
 class StateManager:
-    def __init__(self, tracer, length):
-        # type: (Any, int) -> None
+    def __init__(self, tracer: Any, length: int) -> None:
         self.tracer = tracer
         self.index_to_state: List[Optional[State]] = [None] * length
         # Better have something like skip-table
         self.ordered_index: List[int] = []
         self.major_index: List[int] = []
 
-    def add(self, state):
-        # type: (State) -> None
+    def add(self, state: State) -> None:
         self.index_to_state[state.index] = state
         bisect.insort_left(self.ordered_index, state.index)
 
-    def add_major(self, state):
-        # type: (State) -> None
+    def add_major(self, state: State) -> None:
         # NOTE: major means the interval stubs
         self.add(state)
         bisect.insort_left(self.major_index, state.index)
 
     @property
-    def major_states(self):
-        return [self.index_to_state[i] for i in self.major_index]
+    def major_states(self) -> List[State]:
+        states = []
+        for i in self.major_index:
+            state = self.index_to_state[i]
+            assert state is not None
+            states.append(state)
+        return states
 
-    def get_major(self, index):
-        # type: (int) -> State
-        return self.index_to_state[self.major_index[index]]  # type: ignore
+    def get_major(self, index: int) -> State:
+        state = self.index_to_state[self.major_index[index]]
+        assert state is not None
+        return state
 
     @property
-    def len_major(self):
+    def len_major(self) -> int:
         return len(self.major_index)
 
-    def __len__(self):
-        # type: () -> int
+    def __len__(self) -> int:
         return len(self.ordered_index)
 
-    def __getitem__(self, index):
-        # type: (int) -> Tuple[State, bool]
+    def __getitem__(self, index: int) -> Tuple[State, bool]:
         is_new = False
         pos = bisect.bisect_left(self.ordered_index, index)
         if self.ordered_index[pos] != index:

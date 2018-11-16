@@ -812,8 +812,7 @@ class Tracer:
         # type: (int) -> bool
         return self.project.loader.find_object_containing(address)
 
-    def constrain_registers(self, state):
-        # type: (State) -> None
+    def constrain_registers(self, state: State) -> None:
         # FIXME: if exception caught is omitted by hook?
         # If same address, then give registers
         if state.registers["rip"].value == self.coredump.registers["rip"]:
