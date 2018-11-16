@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from shlex import split as shsplit
 from types import ModuleType
-from typing import Any
+from typing import Any, Callable
 
 from IPython import get_ipython
 from IPython.core.interactiveshell import InteractiveShell

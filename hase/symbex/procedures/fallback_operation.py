@@ -4,8 +4,6 @@ import claripy
 from angr import SimProcedure
 from angr.procedures import SIM_PROCEDURES
 
-from .helper import errno_success
-
 
 # NOTE: since angr SimProcedure check arguments, we cannot directly hook with *args
 def generate_run(lib, name, ret_size=32, ret_expr=None):

@@ -3,14 +3,14 @@ from __future__ import absolute_import, division, print_function
 import logging
 import os
 import sys
-from typing import Any, List, Tuple, Union, Dict
+from typing import Any, Dict, List, Tuple
 
 import pygments
 import pygments.formatters
 import pygments.lexers
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import QSize
-from PyQt5.QtGui import QIcon, QPainter, QPixmap, QTextCharFormat, QTextCursor
+from PyQt5.QtGui import QIcon, QTextCursor
 from PyQt5.uic import loadUiType
 from qtconsole.inprocess import QtInProcessKernelManager
 

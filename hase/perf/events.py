@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import ctypes as ct
 
-from .consts import Libc, PerfRecord, RecordMisc, perf_event_header
+from .consts import PerfRecord, RecordMisc
 from .snapshot import EVENTS
 
 

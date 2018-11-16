@@ -1,9 +1,9 @@
 from __future__ import absolute_import, division, print_function
 
+import claripy
 from angr import SimProcedure
 from angr.procedures import SIM_PROCEDURES
-from angr.sim_type import (SimTypeArray, SimTypeChar, SimTypeFd, SimTypeInt,
-                           SimTypeLength, SimTypeString)
+from angr.sim_type import SimTypeInt, SimTypeString
 
 # TODO: getlogin, getpwuid
 

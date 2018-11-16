@@ -5,8 +5,7 @@ from struct import unpack
 from typing import Any, Dict, List
 
 from PyQt5.QtGui import QContextMenuEvent, QCursor
-from PyQt5.QtWidgets import (QAbstractScrollArea, QAction, QMenu, QTableWidget,
-                             QTableWidgetItem)
+from PyQt5.QtWidgets import QAction, QMenu, QTableWidget, QTableWidgetItem
 
 
 class RegTableWidget(QTableWidget):

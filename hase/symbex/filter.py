@@ -7,11 +7,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from angr import Project, SimProcedure
 from angr.analyses.cfg import CFGFast
-from angr.knowledge_plugins.functions.function import Function
-from cle import ELF
 
-from ..errors import HaseError
-from ..pt.events import Instruction, InstructionClass
+from ..pt.events import Instruction
 from .hook import unsupported_symbols
 from .tracer import CoredumpGDB
 

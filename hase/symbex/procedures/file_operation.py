@@ -2,16 +2,13 @@ from __future__ import absolute_import, division, print_function
 
 import claripy
 from angr import SimProcedure
-from angr.errors import SimProcedureError, SimUnsatError
+from angr.errors import SimUnsatError
 from angr.procedures import SIM_PROCEDURES
-from angr.procedures.libc import fopen, io_file_data_for_arch
+from angr.procedures.libc import io_file_data_for_arch
 from angr.procedures.stubs.format_parser import FormatParser
-from angr.sim_type import (SimTypeArray, SimTypeChar, SimTypeFd, SimTypeInt,
-                           SimTypeLength, SimTypeString)
-from angr.storage.file import Flags
 
 from .helper import minmax
-from .syscall import fstat, lstat, stat
+from .syscall import lstat, stat
 
 # NOTE: if we hook one of the file operation, we need to hook all of these
 # Or the FILE struct will be inconsistent. But if we don't use them, angr's IO operations will have wrong branch

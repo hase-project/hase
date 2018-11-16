@@ -1,8 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
 import argparse
-import errno
-import fcntl
 import json
 import logging
 import os
@@ -10,17 +8,13 @@ import resource
 import shutil
 import subprocess
 from pathlib import Path
-from queue import Queue
 from signal import SIGUSR2
 from tempfile import NamedTemporaryFile, TemporaryDirectory
-from threading import Condition, Thread
 from types import FrameType
-from typing import IO, Any, Dict, List, Optional, Tuple, Union
+from typing import IO, Any, Dict, List, Optional, Tuple
 
 from . import coredumps
 from .. import pwn_wrapper
-from ..errors import HaseError
-from ..path import APP_ROOT
 from ..perf import IncreasePerfBuffer, Perf, Trace
 from .ptrace import ptrace_detach, ptrace_me
 from .signal_handler import SignalHandler
