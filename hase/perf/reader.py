@@ -10,9 +10,7 @@ from .consts import perf_event_header
 from .snapshot import EVENTS
 
 
-def perf_events(trace_file):
-    # type: (str) -> Generator[ct.Structure, None, None]
-
+def perf_events(trace_file: str) -> Generator[ct.Structure, None, None]:
     with open(trace_file, "rb+") as f:
         fd = f.fileno()
         size = os.fstat(fd).st_size

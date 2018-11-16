@@ -6,13 +6,11 @@ from .consts import Libc, PerfRecord, RecordMisc, perf_event_header
 from .snapshot import EVENTS
 
 
-def string_size(path):
-    # type: (str) -> int
+def string_size(path: str) -> int:
     return (len(path) + 1 + 7) & ~7
 
 
-def comm_event(tid, command):
-    # type: (int, str) -> bytearray
+def comm_event(tid: int, command: str) -> bytearray:
     event_type = EVENTS[PerfRecord.PERF_RECORD_COMM]
     base_size = ct.sizeof(event_type(-1))
     size = base_size + string_size(command)
@@ -30,8 +28,7 @@ def comm_event(tid, command):
     return bytearray(event)
 
 
-def switch_event(tid):
-    # type: (int) -> bytearray
+def switch_event(tid: int) -> bytearray:
     event_type = EVENTS[PerfRecord.PERF_RECORD_SWITCH]
     event = event_type(-1)()
     event.size = ct.sizeof(event)
@@ -44,8 +41,7 @@ def switch_event(tid):
     return bytearray(event)
 
 
-def mmap2_event(tid, path, start, stop, page_offset):
-    # type: (int, str, int, int, int) -> bytearray
+def mmap2_event(tid: int, path: str, start: int, stop: int, page_offset: int) -> bytearray:
     event_type = EVENTS[PerfRecord.PERF_RECORD_MMAP2]
     base_size = ct.sizeof(event_type(-1))
     size = base_size + string_size(path)

@@ -24,8 +24,7 @@ while not blk.is_global and not blk.is_static:
         break
 
 
-def parse_addr(s):
-    # type: (str) -> str
+def parse_addr(s: str) -> str:
     l = s.split(" ")
     # NOTE: ['$n', '=', '('qualifier', 'type', '*)', 'addr\n']
     has_type = False

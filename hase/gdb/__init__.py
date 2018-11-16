@@ -25,8 +25,7 @@ l = logging.getLogger(__name__)
 
 
 class GdbRegSpace:
-    def __init__(self, active_state):
-        # type: (State) -> None
+    def __init__(self, active_state: State) -> None:
         # https://github.com/radare/radare2/blob/fe6372339da335bd08a8b568d95bb0bd29f24406/shlr/gdb/src/arch.c#L5
         self.names = [
             "rax",
@@ -56,8 +55,7 @@ class GdbRegSpace:
         ]
         self.active_state = active_state
 
-    def __getitem__(self, name):
-        # type: (str) -> str
+    def __getitem__(self, name: str) -> str:
         if name in ["cs", "ss", "ds", "es"]:
             return "xx"
         try:
@@ -73,30 +71,25 @@ class GdbRegSpace:
         except Exception:
             return "xx" * 8
 
-    def __setitem__(self, name, value):
-        # type: (str, int) -> None
+    def __setitem__(self, name: str, value: int) -> None:
         return
 
-    def read_all(self):
-        # type: () -> str
+    def read_all(self) -> str:
         values = ""
         for r in self.names:
             values += self.__getitem__(r)
         return values
 
-    def write_all(self, values):
-        # type: (str) -> None
+    def write_all(self, values: str) -> None:
         return
 
 
 class GdbMemSpace:
-    def __init__(self, active_state, cda):
-        # type: (State, CoredumpAnalyzer) -> None
+    def __init__(self, active_state: State, cda: CoredumpAnalyzer) -> None:
         self.active_state = active_state
         self.cda = cda
 
-    def __getitem__(self, addr):
-        # type: (int) -> str
+    def __getitem__(self, addr: int) -> str:
         # TODO: good idea to directly use coredump stack?
         value = self.active_state.memory[addr]
         if value is None:
@@ -115,27 +108,23 @@ class GdbMemSpace:
             return "xx"
         return "%.2x" % value
 
-    def __setitem__(self, addr, value):
-        # type: (int, int) -> None
+    def __setitem__(self, addr: int, value: int) -> None:
         # TODO: affect simstate memory
         return
 
-    def read(self, addr, length):
-        # type: (int, int) -> str
+    def read(self, addr: int, length: int) -> str:
         values = ""
         for offset in range(length):
             values += self.__getitem__(addr + offset)
         return values
 
-    def write(self, addr, length, value):
-        # type: (int, int, str) -> None
+    def write(self, addr: int, length: int, value: str) -> None:
         # TODO: affect simstate memory
         return
 
 
 class GdbSharedLibrary:
-    def __init__(self, active_state, pksize):
-        # type: (State, int) -> None
+    def __init__(self, active_state: State, pksize: int) -> None:
         self.active_state = active_state
         self.libs: List[ELF] = []
         self.pksize = pksize
@@ -146,8 +135,7 @@ class GdbSharedLibrary:
                 self.libs.append(lib)
         self.xml: Optional[str] = None
 
-    def make_xml(self, update=False):
-        # type: (Optional[bool]) -> str
+    def make_xml(self, update: Optional[bool] = False) -> str:
         if not update and self.xml:
             return self.xml
         header = '<?xml version="1.0"?>'

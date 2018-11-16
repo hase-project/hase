@@ -155,7 +155,9 @@ class StateManager:
             print("Computing new states")
             is_new = True
             start_pos = self.ordered_index[pos - 1]
-            simstate = self.index_to_state[start_pos].simstate  # type: ignore
+            state = self.index_to_state[start_pos]
+            assert state is not None
+            simstate = state.simstate
             diff = index - start_pos
             for i in range(diff):
                 from_instruction = self.tracer.trace[start_pos + i]
@@ -173,4 +175,6 @@ class StateManager:
                             simstate,
                         )
                     )
-        return self.index_to_state[index], is_new  # type: ignore
+        state = self.index_to_state[index]
+        assert state is not None
+        return state, is_new

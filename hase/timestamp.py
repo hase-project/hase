@@ -3,21 +3,17 @@ from datetime import datetime
 FORMAT = "%Y%m%dT%H%M%S"
 
 
-def now():
-    # type: () -> str
+def now() -> str:
     return from_datetime(datetime.utcnow().replace(microsecond=0))
 
 
-def from_unix_time(time):
-    # type: (int) -> str
+def from_unix_time(time: int) -> str:
     return from_datetime(datetime.utcfromtimestamp(time))
 
 
-def from_datetime(time):
-    # type: (datetime) -> str
+def from_datetime(time: datetime) -> str:
     return time.strftime(FORMAT)
 
 
-def to_datetime(s):
-    # type: (str) -> datetime
+def to_datetime(s: str) -> datetime:
     return datetime.strptime(s, FORMAT)

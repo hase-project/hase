@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import ctypes as ct
 import resource
-from typing import Any, List, Tuple, Type
+from typing import Any, Callable, List, Tuple, Type, Dict
 
 
 class Libc:
@@ -108,8 +108,7 @@ class PerfRecord:
     PERF_RECORD_NAMESPACES = 16
 
 
-def sample_id_struct(sample_flags):
-    # type: (int) -> Type[Any]
+def sample_id_struct(sample_flags: int) -> Type[Any]:
     fields: List[Tuple[str, Any]] = []
     if sample_flags & SampleFlags.PERF_SAMPLE_TID != 0:
         fields.append(("pid", ct.c_uint))
@@ -137,11 +136,12 @@ def sample_id_struct(sample_flags):
     return sample_id
 
 
-def compute_string_size(fn):
-    memo = {}
+def compute_string_size(
+    fn: Callable[["EventStructs", int], Type[ct.Structure]]
+) -> Callable[["EventStructs", int], Type[ct.Structure]]:
+    memo: Dict[int, Type[ct.Structure]] = {}
 
-    def wrapper(self, size):
-        # type: (EventStructs, int) -> Type[ct.Structure]
+    def wrapper(self: EventStructs, size: int) -> Type[ct.Structure]:
         if size == -1:
             base_type = memo.get(0)
             if base_type:
@@ -163,12 +163,10 @@ def compute_string_size(fn):
 
 
 class EventStructs:
-    def __init__(self, sample_flags):
-        # type: (int) -> None
+    def __init__(self, sample_flags: int) -> None:
         self.sample_id: Type[Any] = sample_id_struct(sample_flags)
 
-    def _event_header(self, event_fields):
-        # type: (List[Tuple[str, Any]]) -> Type[ct.Structure]
+    def _event_header(self, event_fields: List[Tuple[str, Any]]) -> Type[ct.Structure]:
         class event(ct.Structure):
             _fields_ = (
                 perf_event_header._fields_
@@ -179,8 +177,7 @@ class EventStructs:
         return event
 
     @compute_string_size
-    def mmap_event(self, size):
-        # type: (int) -> Type[ct.Structure]
+    def mmap_event(self, size: int) -> Type[ct.Structure]:
         return self._event_header(
             [
                 ("pid", ct.c_uint),  #
@@ -193,13 +190,11 @@ class EventStructs:
         )
 
     @compute_string_size
-    def lost_event(self, _size):
-        # type: (int) -> Type[ct.Structure]
+    def lost_event(self, _size: int) -> Type[ct.Structure]:
         return self._event_header([("id", ct.c_ulong), ("lost", ct.c_ulong)])  #  #
 
     @compute_string_size
-    def comm_event(self, size):
-        # type: (int) -> Type[ct.Structure]
+    def comm_event(self, size: int) -> Type[ct.Structure]:
         return self._event_header(
             [
                 ("pid", ct.c_uint),  #
@@ -209,8 +204,7 @@ class EventStructs:
         )
 
     @compute_string_size
-    def exit_event(self, _size):
-        # type: (int) -> Type[ct.Structure]
+    def exit_event(self, _size: int) -> Type[ct.Structure]:
         return self._event_header(
             [
                 ("pid", ct.c_uint),  #
@@ -222,8 +216,7 @@ class EventStructs:
         )
 
     @compute_string_size
-    def throttle_event(self, _size):
-        # type: (int) -> Type[ct.Structure]
+    def throttle_event(self, _size: int) -> Type[ct.Structure]:
         return self._event_header(
             [
                 ("time", ct.c_ulong),  #
@@ -237,8 +230,7 @@ class EventStructs:
     fork_event = exit_event
 
     @compute_string_size
-    def mmap2_event(self, size):
-        # type: (int) -> Type[ct.Structure]
+    def mmap2_event(self, size: int) -> Type[ct.Structure]:
         return self._event_header(
             [
                 ("pid", ct.c_uint),  #
@@ -257,8 +249,7 @@ class EventStructs:
         )
 
     @compute_string_size
-    def aux_event(self, size):
-        # type: (int) -> Type[ct.Structure]
+    def aux_event(self, size: int) -> Type[ct.Structure]:
         return self._event_header(
             [
                 ("aux_offset", ct.c_ulong),  #
@@ -268,30 +259,26 @@ class EventStructs:
         )
 
     @compute_string_size
-    def itrace_start_event(self, size):
-        # type: (int) -> Type[ct.Structure]
+    def itrace_start_event(self, size: int) -> Type[ct.Structure]:
         return self._event_header([("pid", ct.c_uint), ("tid", ct.c_uint)])  #  #
 
     @compute_string_size
-    def lost_samples_event(self, size):
-        # type: (int) -> Type[ct.Structure]
+    def lost_samples_event(self, size: int) -> Type[ct.Structure]:
         return self._event_header([("lost", ct.c_ulong)])  #
 
     @compute_string_size
-    def record_switch_event(self, size):
-        # type: (int) -> Type[ct.Structure]
+    def record_switch_event(self, size: int) -> Type[ct.Structure]:
         base: Any = self._event_header([])
 
         class RecordSwitch(base):
-            def is_switch_out(self):
+            def is_switch_out(self) -> bool:
                 # otherwise switch in
                 return (self.misc & RecordMisc.PERF_RECORD_MISC_SWITCH_OUT) != 0
 
         return RecordSwitch
 
     @compute_string_size
-    def record_switch_cpu_wide_event(self, size):
-        # type: (int) -> Type[ct.Structure]
+    def record_switch_cpu_wide_event(self, size: int) -> Type[ct.Structure]:
         return self._event_header(
             [("next_prev_pid", ct.c_uint), ("next_prev_tid", ct.c_uint)]  #  #
         )

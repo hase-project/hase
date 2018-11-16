@@ -7,16 +7,14 @@ HandlerFunc = Union[Callable[[int, FrameType], None], int, None]
 
 
 class SignalHandler:
-    def __init__(self, signum, handler=signal.SIG_IGN):
-        # type: (int, HandlerFunc) -> None
+    def __init__(self, signum: int, handler: HandlerFunc=signal.SIG_IGN) -> None:
         self.signum = signum
         self.handler = handler
         self.original_handler = signal.getsignal(signum)
 
-    def __enter__(self):
-        # type: () -> SignalHandler
+    def __enter__(self) -> "SignalHandler":
         signal.signal(self.signum, self.handler)
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, type, value, traceback) -> None:
         signal.signal(self.signum, self.original_handler)

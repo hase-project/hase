@@ -13,22 +13,21 @@ munmap.argtypes = [ct.c_void_p, ct.c_size_t]
 
 
 class MMap:
-    def __init__(self, fd, size, protection, flags, offset=0):
-        # type: (int, int, int, int, int) -> None
+    def __init__(
+        self, fd: int, size: int, protection: int, flags: int, offset: int = 0
+    ) -> None:
         # ctypes does not support pythons mmap module, so we use the libc
         # version
         self.addr = mmap(None, size, protection, flags, fd, offset)
         assert self.addr != MAP_FAILED.value
         self.size = size
 
-    def close(self):
-        # type: () -> None
+    def close(self) -> None:
         if self.addr:
             res = munmap(self.addr, self.size)
             assert res == 0
 
-    def __enter__(self):
-        # type: () -> MMap
+    def __enter__(self) -> MMap:
         return self
 
     def __exit__(self, type, value, traceback):

@@ -36,8 +36,7 @@ unsupported_symbols: List[Tuple[str]] = []
 skip_hook: List[str] = []
 
 
-def hook_angr_procedures(dct, libs, skip_hook, hook_IO=True):
-    # type: (Dict[str, Any], List[str], List[str], bool) -> None
+def hook_angr_procedures(dct: Dict[str, Any], libs: List[str], skip_hook: List[str], hook_IO: bool=True) -> None:
     for lib in libs:
         funcs = SIM_PROCEDURES[lib]
         for name, proc in funcs.items():
@@ -47,8 +46,7 @@ def hook_angr_procedures(dct, libs, skip_hook, hook_IO=True):
                 dct[name] = proc
 
 
-def hook_user_procedures(dct, hook_IO=True):
-    # type: (Dict[str, Any], bool) -> None
+def hook_user_procedures(dct: Dict[str, Any], hook_IO: bool=True) -> None:
     procedures = [
         memory_operation,
         group_operation,
@@ -76,8 +74,7 @@ def hook_user_procedures(dct, hook_IO=True):
                     SIM_LIBRARIES["linux"].procedures[op] = ins
 
 
-def hook_alias_procedures(dct):
-    # type: (Dict[str, Any]) -> None
+def hook_alias_procedures(dct: Dict[str, Any]) -> None:
     alias_sym = alias_symbols
     for decr_sym, sym in alias_sym.items():
         candidates = [sym]
@@ -100,8 +97,7 @@ def hook_alias_procedures(dct):
 
 # FIXME: it would be too hack to use inspect or something to generate
 # Simprocedure, but the argument may have weird case
-def hook_fallback_procedures(dct):
-    # type: (Dict[str, Any]) -> None
+def hook_fallback_procedures(dct: Dict[str, Any]) -> None:
     pass
 
 

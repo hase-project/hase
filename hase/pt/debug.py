@@ -7,22 +7,19 @@ from .decode import Chunk, ScheduleEntry
 from .events import Instruction, TraceEvent
 
 
-def to_file(data, filename):
-    # type: (DefaultDict[str, List[Any]], str) -> pd.DataFrame
+def to_file(data: DefaultDict[str, List[Any]], filename: str) -> pd.DataFrame:
     df = pd.DataFrame(data, dtype=int)
     df.to_csv(filename, sep="\t")
     return df
 
 
-def traces_to_file(traces, filename):
-    # type: (List[List[Union[TraceEvent, Instruction]]], str) -> pd.DataFrame
+def traces_to_file(traces: List[List[Union[TraceEvent, Instruction]]], filename: str) -> pd.DataFrame:
     df = trace_to_dataframe(traces)
     df.to_csv(filename, sep="\t")
     return df
 
 
-def instructions_to_file(instructions, filename):
-    # type: (List[Instruction], str) -> pd.DataFrame
+def instructions_to_file(instructions: List[Instruction], filename: str) -> pd.DataFrame:
     data: DefaultDict[str, List[Any]] = defaultdict(list)
 
     for instruction in instructions:
@@ -32,8 +29,7 @@ def instructions_to_file(instructions, filename):
     return to_file(data, filename)
 
 
-def chunks_to_file(traces, filename):
-    # type: (List[List[Chunk]], str) -> pd.DataFrame
+def chunks_to_file(traces: List[List[Chunk]], filename: str) -> pd.DataFrame:
     data: DefaultDict[str, List[Any]] = defaultdict(list)
 
     for (i, chunks) in enumerate(traces):
@@ -47,8 +43,7 @@ def chunks_to_file(traces, filename):
     return to_file(data, filename)
 
 
-def schedule_to_file(schedule, filename):
-    # type: (List[ScheduleEntry], str) -> pd.DataFrame
+def schedule_to_file(schedule: List[ScheduleEntry], filename: str) -> pd.DataFrame:
     data: DefaultDict[str, List[Any]] = defaultdict(list)
 
     for entry in schedule:
@@ -64,8 +59,7 @@ def schedule_to_file(schedule, filename):
     return to_file(data, filename)
 
 
-def trace_to_dataframe(traces):
-    # type: (List[List[Union[TraceEvent, Instruction]]]) -> Any
+def trace_to_dataframe(traces: List[List[Union[TraceEvent, Instruction]]]) -> Any:
     data: DefaultDict[str, List[Any]] = defaultdict(list)
 
     for (i, trace) in enumerate(traces):
