@@ -11,7 +11,7 @@ from angr.analyses.cfg import CFGFast
 from ..pt.events import Instruction
 from .hook import unsupported_symbols
 
-if False: # for mypy
+if False:  # for mypy
     from .tracer import CoredumpGDB
 
 l = logging.getLogger(__name__)
