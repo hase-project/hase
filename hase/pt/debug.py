@@ -23,8 +23,8 @@ def instructions_to_file(instructions: List[Instruction], filename: str) -> pd.D
     data: DefaultDict[str, List[Any]] = defaultdict(list)
 
     for instruction in instructions:
-        #data["core"].append(instruction.core)
-        #data["chunk"].append(instruction.chunk)
+        # data["core"].append(instruction.core)
+        # data["chunk"].append(instruction.chunk)
         data["ip"].append(instruction.ip)
     return to_file(data, filename)
 

@@ -36,7 +36,9 @@ unsupported_symbols: List[Tuple[str]] = []
 skip_hook: List[str] = []
 
 
-def hook_angr_procedures(dct: Dict[str, Any], libs: List[str], skip_hook: List[str], hook_IO: bool=True) -> None:
+def hook_angr_procedures(
+    dct: Dict[str, Any], libs: List[str], skip_hook: List[str], hook_IO: bool = True
+) -> None:
     for lib in libs:
         funcs = SIM_PROCEDURES[lib]
         for name, proc in funcs.items():
@@ -46,7 +48,7 @@ def hook_angr_procedures(dct: Dict[str, Any], libs: List[str], skip_hook: List[s
                 dct[name] = proc
 
 
-def hook_user_procedures(dct: Dict[str, Any], hook_IO: bool=True) -> None:
+def hook_user_procedures(dct: Dict[str, Any], hook_IO: bool = True) -> None:
     procedures = [
         memory_operation,
         group_operation,

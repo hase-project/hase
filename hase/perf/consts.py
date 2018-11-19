@@ -191,7 +191,7 @@ class EventStructs:
 
     @compute_string_size
     def lost_event(self, _size: int) -> Type[ct.Structure]:
-        return self._event_header([("id", ct.c_ulong), ("lost", ct.c_ulong)])  #  #
+        return self._event_header([("id", ct.c_ulong), ("lost", ct.c_ulong)])
 
     @compute_string_size
     def comm_event(self, size: int) -> Type[ct.Structure]:
@@ -260,7 +260,7 @@ class EventStructs:
 
     @compute_string_size
     def itrace_start_event(self, size: int) -> Type[ct.Structure]:
-        return self._event_header([("pid", ct.c_uint), ("tid", ct.c_uint)])  #  #
+        return self._event_header([("pid", ct.c_uint), ("tid", ct.c_uint)])
 
     @compute_string_size
     def lost_samples_event(self, size: int) -> Type[ct.Structure]:
@@ -280,7 +280,7 @@ class EventStructs:
     @compute_string_size
     def record_switch_cpu_wide_event(self, size: int) -> Type[ct.Structure]:
         return self._event_header(
-            [("next_prev_pid", ct.c_uint), ("next_prev_tid", ct.c_uint)]  #  #
+            [("next_prev_pid", ct.c_uint), ("next_prev_tid", ct.c_uint)]
         )
 
 

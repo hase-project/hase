@@ -27,7 +27,7 @@ class MMap:
             res = munmap(self.addr, self.size)
             assert res == 0
 
-    def __enter__(self) -> MMap:
+    def __enter__(self) -> "MMap":
         return self
 
     def __exit__(self, type, value, traceback):

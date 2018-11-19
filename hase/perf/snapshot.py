@@ -86,7 +86,7 @@ class PMU:
         assert res == 0
         return res
 
-    def set_output(self, pmu: PMU) -> int:
+    def set_output(self, pmu: "PMU") -> int:
         return self._ioctl(Ioctls.PERF_EVENT_IOC_SET_OUTPUT, pmu.fd)
 
     def pause(self) -> int:

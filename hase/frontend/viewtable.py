@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import QAction, QMenu, QTableWidget, QTableWidgetItem
 
 
 class RegTableWidget(QTableWidget):
-    def __init__(self, parent: QTableWidget=None) -> None:
+    def __init__(self, parent: QTableWidget = None) -> None:
         super(RegTableWidget, self).__init__(parent)
         # self.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
 
@@ -24,11 +24,13 @@ class RegTableWidget(QTableWidget):
 
 
 class VarTableWidget(QTableWidget):
-    def __init__(self, parent: QTableWidget=None) -> None:
+    def __init__(self, parent: QTableWidget = None) -> None:
         super(VarTableWidget, self).__init__(parent)
         # self.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
 
-    def set_var(self, i: int, attrs: Dict[str, Any], value: str, value_type: str) -> None:
+    def set_var(
+        self, i: int, attrs: Dict[str, Any], value: str, value_type: str
+    ) -> None:
         name_item = QTableWidgetItem()
         name_item.setText(attrs["name"])
         self.setItem(i, 0, name_item)

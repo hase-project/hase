@@ -436,7 +436,7 @@ class Tracer:
             self.project._sim_procedures.pop(assert_addr, None)
             self.project._sim_procedures.pop(stack_addr, None)
             self.project._sim_procedures.pop(kill_addr, None)
-        except:
+        except Exception:
             pass
 
         for symname, func in self.hooked_symbols.items():
@@ -482,7 +482,7 @@ class Tracer:
             """
                 it might be that call -> jmp -> real plt
                 or it could be add rsp 0x8, jmp -> directly ret
-                the only way seems to be sacrifice some execution 
+                the only way seems to be sacrifice some execution
                 or look back to old_trace
             """
             old_branch_idx = self.trace_idx[index] - 1
@@ -676,8 +676,8 @@ class Tracer:
 
     def repair_satness(self, old_state: SimState, new_state: SimState) -> None:
         if not new_state.solver.satisfiable():
-            sat_constraints = old_state.solver._solver.constraints
             """
+            sat_constraints = old_state.solver._solver.constraints
             unsat_constraints = list(new_state.solver._solver.constraints)
             sat_uuid = map(lambda c: c.uuid, sat_constraints)
             for i, c in enumerate(unsat_constraints):
@@ -734,7 +734,6 @@ class Tracer:
             state, previous_instruction, instruction
         )
         self.repair_alloca_ins(state)
-        addr = previous_instruction.ip
 
         try:
             step = self.project.factory.successors(
@@ -775,9 +774,7 @@ class Tracer:
         l.warning(
             repr(state)
             + " "
-            +
-            # repr(all_choices) + ' ' +
-            repr(instruction)
+            + repr(instruction)
             + "\n"
         )
         for choice in choices:

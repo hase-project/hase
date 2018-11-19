@@ -12,7 +12,7 @@ from ..pt.events import Instruction
 
 
 class Register:
-    def __init__(self, state: State, name: str, simreg: BV) -> None:
+    def __init__(self, state: "State", name: str, simreg: BV) -> None:
         self.state = state
         self.name = name
         self.simreg = simreg
@@ -27,7 +27,7 @@ class Register:
 
 
 class RegisterSet:
-    def __init__(self, state: State) -> None:
+    def __init__(self, state: "State") -> None:
         self.state = state
 
     def __getitem__(self, name: str) -> Register:
@@ -39,7 +39,7 @@ class RegisterSet:
 
 
 class Memory:
-    def __init__(self, state: State) -> None:
+    def __init__(self, state: "State") -> None:
         self.state = state
 
     def __getitem__(self, addr: int) -> Optional[int]:

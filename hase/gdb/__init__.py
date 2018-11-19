@@ -145,7 +145,7 @@ class GdbSharedLibrary:
             # TODO: Find a way to solve linked_map address. Maybe some solutions below
             # REF: https://reverseengineering.stackexchange.com/questions/6525/elf-link-map-when-linked-as-relro
             #    : https://code.woboq.org/userspace/glibc/elf/link.h.html
-            a_lm = 0  # address of linked_map
+            # a_lm = 0  # address of linked_map
 
             for sec in lib.sections:
                 if sec.name == ".dynamic":

@@ -244,9 +244,8 @@ class FilterTrace:
         is_current_hooked = False
         hook_idx = 0
         first_meet = False
-        hook_fname = None
         # FIXME: seems dso object not always this one
-        dso_sym = FakeSymbol("plt-ld", 0)
+        # dso_sym = FakeSymbol("plt-ld", 0)
         plt_sym = None
         previous_instr = None
         for (idx, instruction) in enumerate(cut_trace):
@@ -329,7 +328,6 @@ class FilterTrace:
                         is_current_hooked = True
                         first_meet = False
                         hooked_parent = parent
-                        hook_fname = fname
                         hook_idx = idx + self.start_idx
                 else:
                     if self.test_omit(instruction.ip):
@@ -338,7 +336,6 @@ class FilterTrace:
                         assert previous_instr is not None
                         hooked_parent = self.find_function(previous_instr.ip)
                         hook_idx = idx + self.start_idx
-                        hook_fname = "omit"
             flg, fname = self.test_function_entry(instruction.ip)
             if (
                 is_current_hooked

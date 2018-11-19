@@ -8,7 +8,7 @@ import sys
 # TODO python3
 from pipes import quote
 from tempfile import NamedTemporaryFile
-from typing import IO, Any, Optional, Tuple
+from typing import Any, Optional, Tuple
 
 from ..path import which
 from .coredump_handler import EXTRA_CORE_DUMP_PARAMETER, RECV_MESSAGE

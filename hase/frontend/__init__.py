@@ -26,7 +26,7 @@ EXIT_REBOOT = 1
 l = logging.getLogger(__name__)
 
 
-ui_types: Tuple[Any,Any] = loadUiType(
+ui_types: Tuple[Any, Any] = loadUiType(
     str(APP_ROOT.joinpath("frontend", "mainwindow.ui"))
 )
 form_class: Any = ui_types[0]
@@ -131,7 +131,9 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             cmem = coredump.stack[addr]
             self.coredump_constraints.append(value == cmem)
 
-    def eval_variable(self, active_state: State, loc: int, addr: Any, size: int) -> Tuple[str, str]:
+    def eval_variable(
+        self, active_state: State, loc: int, addr: Any, size: int
+    ) -> Tuple[str, str]:
         # NOTE: * -> uninitialized / 'E' -> symbolic
         if not active_state.had_coredump_constraints:
             for c in self.coredump_constraints:
@@ -195,10 +197,10 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
     def update_active_index(self, active_index: int) -> None:
         new_state, is_new = self.states[active_index]
-        user_ns = self.kernel_client.kernel.shell.user_ns
+        # user_ns = self.kernel_client.kernel.shell.user_ns
         if is_new:
-            pass
             # self.callgraph.add_node(new_state, user_ns['tracer'])
+            pass
         major_index = self.states.major_index
         if active_index in major_index:
             slider_index = len(major_index) - major_index.index(active_index) - 1
@@ -358,7 +360,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                     self.reg_view.append_reg(rname, value)
         self.reg_view.resizeColumnsToContents()
 
-    def setup_ipython(self, app: QtWidgets.QApplication, window: MainWindow) -> None:
+    def setup_ipython(self, app: QtWidgets.QApplication, window: "MainWindow") -> None:
         """
         Might break with future versions of IPython, but nobody got time for
         this!

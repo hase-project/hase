@@ -4,7 +4,7 @@ PT_ROOT = Path("/sys/bus/event_source/devices/intel_pt")
 
 
 class PtFeatures:
-    def __init__(self, supported: bool=False, ip_filtering: bool=False) -> None:
+    def __init__(self, supported: bool = False, ip_filtering: bool = False) -> None:
         self.supported = supported
         self.ip_filtering = ip_filtering
 
