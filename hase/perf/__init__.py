@@ -1,8 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
-import ctypes as ct
 import os
-from typing import Any, List, Optional, Union
+from typing import Any, List, Union
 
 from .consts import PerfRecord
 from .snapshot import CpuId, Snapshot, TscConversion

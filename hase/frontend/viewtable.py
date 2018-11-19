@@ -5,18 +5,15 @@ from struct import unpack
 from typing import Any, Dict, List
 
 from PyQt5.QtGui import QContextMenuEvent, QCursor
-from PyQt5.QtWidgets import (QAbstractScrollArea, QAction, QMenu, QTableWidget,
-                             QTableWidgetItem)
+from PyQt5.QtWidgets import QAction, QMenu, QTableWidget, QTableWidgetItem
 
 
 class RegTableWidget(QTableWidget):
-    def __init__(self, parent=None):
-        # type: (QTableWidget) -> None
+    def __init__(self, parent: QTableWidget = None) -> None:
         super(RegTableWidget, self).__init__(parent)
         # self.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
 
-    def append_reg(self, rname, value):
-        # type: (str, str) -> None
+    def append_reg(self, rname: str, value: str) -> None:
         rname_item = QTableWidgetItem()
         rname_item.setText(rname)
         value_item = QTableWidgetItem()
@@ -27,13 +24,13 @@ class RegTableWidget(QTableWidget):
 
 
 class VarTableWidget(QTableWidget):
-    def __init__(self, parent=None):
-        # type: (QTableWidget) -> None
+    def __init__(self, parent: QTableWidget = None) -> None:
         super(VarTableWidget, self).__init__(parent)
         # self.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
 
-    def set_var(self, i, attrs, value, value_type):
-        # type: (int, Dict[str, Any], str, str) -> None
+    def set_var(
+        self, i: int, attrs: Dict[str, Any], value: str, value_type: str
+    ) -> None:
         name_item = QTableWidgetItem()
         name_item.setText(attrs["name"])
         self.setItem(i, 0, name_item)
@@ -65,8 +62,7 @@ class VarTableWidget(QTableWidget):
                     arr[i] = int(v, 16)
             value_item.core_value = arr
 
-    def contextMenuEvent(self, event):
-        # type: (QContextMenuEvent) -> None
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         col = self.columnAt(event.pos().x())
         row = self.rowAt(event.pos().y())
         if col == 3:
@@ -91,8 +87,7 @@ class VarTableWidget(QTableWidget):
                 menu.addAction(as_bys)
                 menu.popup(QCursor.pos())
 
-    def repr_as_int(self, row, col):
-        # type: (int, int) -> None
+    def repr_as_int(self, row: int, col: int) -> None:
         item = self.item(row, col)
         vtype = item.value_type
         dec_value = 0
@@ -107,8 +102,7 @@ class VarTableWidget(QTableWidget):
             dec_value = item.core_value
         item.setText(str(dec_value) + comment)
 
-    def repr_as_hex(self, row, col):
-        # type: (int, int) -> None
+    def repr_as_hex(self, row: int, col: int) -> None:
         item = self.item(row, col)
         vtype = item.value_type
         dec_value = 0
@@ -123,8 +117,7 @@ class VarTableWidget(QTableWidget):
             dec_value = item.core_value
         item.setText(hex(dec_value) + comment)
 
-    def repr_as_str(self, row, col):
-        # type: (int, int) -> None
+    def repr_as_str(self, row: int, col: int) -> None:
         item = self.item(row, col)
         vtype = item.value_type
         string = ""
@@ -141,8 +134,7 @@ class VarTableWidget(QTableWidget):
             string = format(item.core_value, "02x")
         item.setText(string + comment)
 
-    def repr_as_bytes(self, row, col):
-        # type: (int, int) -> None
+    def repr_as_bytes(self, row: int, col: int) -> None:
         item = self.item(row, col)
         vtype = item.value_type
         arr: List[str] = []
@@ -154,8 +146,7 @@ class VarTableWidget(QTableWidget):
             arr = [t[0] + t[1] for t in zip(h[0::2], h[1::2])][::-1]
         item.setText(" ".join(arr) + comment)
 
-    def repr_as_floating(self, row, col):
-        # type: (int, int) -> None
+    def repr_as_floating(self, row: int, col: int) -> None:
         # TODO: seperate this into double / float
         item = self.item(row, col)
         vtype = item.value_type

@@ -11,8 +11,7 @@ from ..pt.events import Instruction
 DEFAULT_RR_PATH = APP_ROOT.joinpath("/bin/rr")
 
 
-def rr_record(binary_path, *args):
-    # type: (str, *str) -> None
+def rr_record(binary_path: str, *args: str) -> None:
     proc = subprocess.Popen([str(DEFAULT_RR_PATH), "replay", binary_path] + list(args))
     proc.wait()
     if proc.stdout:
@@ -21,8 +20,7 @@ def rr_record(binary_path, *args):
 
 
 class RRController:
-    def __init__(self, binary_path, trace):
-        # type: (str, List[Instruction]) -> None
+    def __init__(self, binary_path: str, trace: List[Instruction]) -> None:
         self.binary_path = binary_path
         self.trace = trace
         self.rr = GdbController(
@@ -30,8 +28,7 @@ class RRController:
         )
         self.current_index = 0
 
-    def eval_expression(self, expr):
-        # type: (str) -> None
+    def eval_expression(self, expr: str) -> None:
         res = self.rr.write("-data-evaluate-expression %s" % expr, timeout_sec=99999)
         print(res)
 
@@ -50,8 +47,7 @@ class RRController:
                     break
         return resp
 
-    def count_occurence(self, idx):
-        # type: (int) -> int
+    def count_occurence(self, idx: int) -> int:
         """Count # of addr -> target in trace"""
         instruction = self.trace[idx]
         addr = instruction.ip
@@ -63,8 +59,7 @@ class RRController:
                 cnt += 1
         return cnt
 
-    def run_until(self, idx):
-        # type: (int) -> None
+    def run_until(self, idx: int) -> None:
         instruction = self.trace[idx]
         addr = instruction.ip
         n = self.count_occurence(idx)

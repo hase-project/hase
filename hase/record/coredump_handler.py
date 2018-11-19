@@ -54,8 +54,7 @@ def creat(path: str, mode="wb") -> IO[Any]:
     return os.fdopen(os.open(path, flags), mode)
 
 
-def main(args):
-    # type: (List[str]) -> None
+def main(args: List[str]) -> None:
     nargs = 1  # argv[0]
     nargs += len(EXTRA_CORE_DUMP_PARAMETER)
     nargs += 3  # arguments from our self

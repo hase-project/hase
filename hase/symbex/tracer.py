@@ -23,7 +23,7 @@ from .filter import FilterTrace
 from .hook import addr_symbols, all_hookable_symbols
 from .state import State, StateManager
 
-l = logging.getLogger("hase")
+l = logging.getLogger(__name__)
 
 ELF_MAGIC = b"\x7fELF"
 
@@ -55,8 +55,7 @@ def timeout(seconds=10):
 
 
 class CoredumpGDB:
-    def __init__(self, elf, coredump):
-        # type: (ELF, Coredump) -> None
+    def __init__(self, elf: ELF, coredump: Coredump) -> None:
         self.coredump = coredump
         self.elf = elf
         self.corefile = self.coredump.file.name
@@ -69,13 +68,11 @@ class CoredumpGDB:
         self.get_response()
         self.setup_gdb()
 
-    def setup_gdb(self):
-        # type: () -> None
+    def setup_gdb(self) -> None:
         self.write_request("file {}".format(self.execfile))
         self.write_request("core {}".format(self.corefile))
 
-    def get_response(self):
-        # type: () -> List[Dict[str, Any]]
+    def get_response(self) -> List[Dict[str, Any]]:
         resp: List[Dict[str, Any]] = []
         while True:
             try:
@@ -84,14 +81,12 @@ class CoredumpGDB:
                 break
         return resp
 
-    def write_request(self, req, **kwargs):
-        # type: (str, **Any) -> List[Dict[str, Any]]
+    def write_request(self, req: str, **kwargs: Any) -> List[Dict[str, Any]]:
         self.gdb.write(req, timeout_sec=1, read_response=False, **kwargs)
         resp = self.get_response()
         return resp
 
-    def parse_frame(self, r):
-        # type: (str) -> Dict[str, Any]
+    def parse_frame(self, r: str) -> Dict[str, Any]:
         attrs: Dict[str, Any] = {}
         # NOTE: #n  addr in func (args=args[ <name>][@entry=v]) at source_code[:line]\n
         r = r.replace("\\n", "")
@@ -106,8 +101,7 @@ class CoredumpGDB:
         args_list = []
 
         # NOTE: remove <xxx>
-        def remove_comment(arg):
-            # type: (str) -> str
+        def remove_comment(arg: str) -> str:
             if arg.find("<") != -1:
                 arg = arg.partition("<")[0]
                 arg = arg.replace(" ", "")
@@ -127,7 +121,7 @@ class CoredumpGDB:
                 args_list.append([name, value, entry])
             else:
                 args_list.append([name, value, ""])
-        attrs["args"] = args_list  # type: ignore
+        attrs["args"] = args_list
         r = r.partition(")")[2]
         r = r.partition(" ")[2]
         r = r.partition(" ")[2]
@@ -140,8 +134,7 @@ class CoredumpGDB:
         attrs["line"] = line
         return attrs
 
-    def parse_addr(self, r):
-        # type: (str) -> int
+    def parse_addr(self, r: str) -> int:
         # $n = (...) 0xaddr <name>
         l = r.split(" ")
         for blk in l:
@@ -149,8 +142,7 @@ class CoredumpGDB:
                 return int(blk, 16)
         return 0
 
-    def parse_offset(self, r):
-        # type: (str) -> int
+    def parse_offset(self, r: str) -> int:
         # addr <+offset>:  inst
         l = r.split(" ")
         for blk in l:
@@ -159,8 +151,7 @@ class CoredumpGDB:
                 return int(blk[2:idx])
         return 0
 
-    def backtrace(self):
-        # type: () -> List[Dict[str, Any]]
+    def backtrace(self) -> List[Dict[str, Any]]:
         resp = self.write_request("where")
         bt = []
         for r in resp:
@@ -170,27 +161,23 @@ class CoredumpGDB:
                 bt.append(self.parse_frame(payload))
         return bt
 
-    def get_symbol(self, addr):
-        # type: (int) -> str
+    def get_symbol(self, addr: int) -> str:
         resp = self.write_request("info symbol {}".format(addr))
         return resp[1]["payload"]
 
-    def get_reg(self, reg_name):
-        # type: (str) -> int
+    def get_reg(self, reg_name: str) -> int:
         resp = self.write_request("info reg {}".format(reg_name))
         if len(resp) < 5 or not resp[2]["payload"].startswith("\\t"):
             return 0
         return int(resp[2]["payload"][2:].split(" ")[0], 16)
 
-    def get_stack_base(self, n):
-        # type: (int) -> Tuple[int, int]
+    def get_stack_base(self, n: int) -> Tuple[int, int]:
         self.write_request("select-frame {}".format(n))
         rsp_value = self.get_reg("rsp")
         rbp_value = self.get_reg("rbp")
         return rsp_value, rbp_value
 
-    def get_func_range(self, name):
-        # type: (str) -> List[int]
+    def get_func_range(self, name: str) -> List[int]:
         # FIXME: Not a good idea. Maybe some gdb extension?
         r1 = self.write_request("print &{}".format(name))
         addr = self.parse_addr(r1[1]["payload"])
@@ -200,8 +187,7 @@ class CoredumpGDB:
 
 
 class CoredumpAnalyzer:
-    def __init__(self, elf, coredump):
-        # type: (ELF, Coredump) -> None
+    def __init__(self, elf: ELF, coredump: Coredump) -> None:
         self.coredump = coredump
         self.elf = elf
         self.gdb = CoredumpGDB(elf, coredump)
@@ -210,8 +196,7 @@ class CoredumpAnalyzer:
         self.argv = [self.read_argv(i) for i in range(self.argc)]
         self.argv_addr = [self.read_argv_addr(i) for i in range(self.argc)]
 
-    def read_stack(self, addr, length=0x1):
-        # type: (int, int) -> str
+    def read_stack(self, addr: int, length: int = 0x1) -> str:
         # NOTE: a op b op c will invoke weird typing
         assert self.coredump.stack.start <= addr < self.coredump.stack.stop
         offset = addr - self.coredump.stack.start
@@ -293,8 +278,9 @@ def build_load_options(mappings: List[Mapping]) -> Dict[str, Any]:
 
 
 class Tracer:
-    def __init__(self, executable, trace, coredump):
-        # type: (str, List[Instruction], Coredump) -> None
+    def __init__(
+        self, executable: str, trace: List[Instruction], coredump: Coredump
+    ) -> None:
         self.executable = executable
         options = build_load_options(coredump.mappings)
         self.project = angr.Project(executable, **options)
@@ -421,8 +407,7 @@ class Tracer:
         # self.project.pt = self
         self.constraints_index: Dict[int, int] = {}
 
-    def setup_argv(self):
-        # type: () -> None
+    def setup_argv(self) -> None:
         # argv follows argc
         argv_addr = self.coredump.argc_address + ctypes.sizeof(ctypes.c_int)
         # TODO: if argv is modified by users, this won't help
@@ -436,8 +421,7 @@ class Tracer:
                 endness=archinfo.Endness.LE,
             )
 
-    def setup_hook(self):
-        # type: () -> None
+    def setup_hook(self) -> None:
         self.hooked_symbols.pop("abort", None)
         self.hooked_symbols.pop("__assert_fail", None)
         self.hooked_symbols.pop("__stack_chk_fail", None)
@@ -452,7 +436,7 @@ class Tracer:
             self.project._sim_procedures.pop(assert_addr, None)
             self.project._sim_procedures.pop(stack_addr, None)
             self.project._sim_procedures.pop(kill_addr, None)
-        except:
+        except Exception:
             pass
 
         for symname, func in self.hooked_symbols.items():
@@ -465,13 +449,13 @@ class Tracer:
                     self.project.hook(r[0], func(), length=r[1])
                     self.omitted_section.append(r)
 
-    def setup_breakpoint(self):
+    def setup_breakpoint(self) -> None:
         self.start_state.inspect.b(
             "mem_write", when=angr.BP_AFTER, action=Tracer.inspect_mem_write
         )
 
     @staticmethod
-    def inspect_mem_write(state):
+    def inspect_mem_write(state: SimState) -> None:
         length = state.inspect.mem_write_length
         if not state.solver.symbolic(length) and state.solver.eval(length) > 0x1000:
             l.warning(
@@ -481,10 +465,9 @@ class Tracer:
                 + "with length "
                 + str(state.inspect.mem_write_length)
             )
-            raw_input()
+            input()
 
-    def test_rep_ins(self, state):
-        # type: (SimState) -> bool
+    def test_rep_ins(self, state: SimState) -> bool:
         # NOTE: rep -> sat or unsat
         capstone = state.block().capstone
         first_ins = capstone.insns[0].insn
@@ -492,14 +475,14 @@ class Tracer:
         ins_repr = first_ins.mnemonic
         return ins_repr.startswith("rep")
 
-    def repair_hook_return(self, state, index):
+    def repair_hook_return(self, state: SimState, index: int) -> Tuple[bool, SimState]:
         # given a force_jump, from hook -> last
         # caller -> plt -> hook
         if self.project.is_hooked(state.addr):
             """
                 it might be that call -> jmp -> real plt
                 or it could be add rsp 0x8, jmp -> directly ret
-                the only way seems to be sacrifice some execution 
+                the only way seems to be sacrifice some execution
                 or look back to old_trace
             """
             old_branch_idx = self.trace_idx[index] - 1
@@ -513,8 +496,7 @@ class Tracer:
             return True, new_state
         return False, None
 
-    def repair_exit_handler(self, state, step):
-        # type: (SimState, SimState) -> SimState
+    def repair_exit_handler(self, state: SimState, step: SimState) -> SimState:
         artifacts = getattr(step, "artifacts", None)
         if (
             artifacts
@@ -528,8 +510,7 @@ class Tracer:
                 )
         return step
 
-    def repair_alloca_ins(self, state):
-        # type: (SimState) -> None
+    def repair_alloca_ins(self, state: SimState) -> None:
         # NOTE: alloca problem, focus on sub rsp, rax
         # Typical usage: alloca(strlen(x))
         capstone = state.block().capstone
@@ -545,8 +526,12 @@ class Tracer:
                 if state.solver.symbolic(reg_v):
                     setattr(state.regs, reg_name, state.libc.max_str_len)
 
-    def repair_jump_ins(self, state, previous_instruction, instruction):
-        # type: (SimState, Instruction, Instruction) -> Tuple[bool, str]
+    def repair_jump_ins(
+        self,
+        state: SimState,
+        previous_instruction: Instruction,
+        instruction: Instruction,
+    ) -> Tuple[bool, str]:
         # ret: force_jump
         # NOTE: typical case: switch(getchar())
 
@@ -620,8 +605,7 @@ class Tracer:
                         return True, ins
         return False, "ok"
 
-    def repair_ip(self, state):
-        # type: (SimState) -> int
+    def repair_ip(self, state: SimState) -> int:
         try:
             addr = state.solver.eval(state._ip)
             # NOTE: repair IFuncResolver
@@ -640,8 +624,7 @@ class Tracer:
             addr = self.debug_state[-2].addr
         return addr
 
-    def repair_func_resolver(self, state, step):
-        # type: (SimState, SimState) -> SimState
+    def repair_func_resolver(self, state: SimState, step: SimState) -> SimState:
         artifacts = getattr(step, "artifacts", None)
         if (
             artifacts
@@ -658,8 +641,7 @@ class Tracer:
                 raise HaseError("Cannot resolve function")
         return step
 
-    def last_match(self, choice, instruction):
-        # type: (SimState, Instruction) -> bool
+    def last_match(self, choice: SimState, instruction: Instruction) -> bool:
         # if last trace is A -> A
         if (
             instruction == self.trace[-1]
@@ -671,15 +653,19 @@ class Tracer:
                 return True
         return False
 
-    def jump_match(self, old_state, choice, previous_instruction, instruction):
-        # type: (SimState, SimState, Instruction, Instruction) -> bool
+    def jump_match(
+        self,
+        old_state: SimState,
+        choice: SimState,
+        previous_instruction: Instruction,
+        instruction: Instruction,
+    ) -> bool:
         if choice.addr == instruction.ip:
             l.debug("jump 0%x -> 0%x", previous_instruction.ip, choice.addr)
             return True
         return False
 
-    def jump_was_not_taken(self, old_state, new_state):
-        # type: (SimState, SimState) -> bool
+    def jump_was_not_taken(self, old_state: SimState, new_state: SimState) -> bool:
         # was the last control flow change an exit vs call/jump?
         ev = new_state.history.recent_events[-1]
         if not isinstance(ev, SimActionExit):  # and len(instructions) == 1
@@ -688,10 +674,10 @@ class Tracer:
         size = instructions[0].insn.size
         return (new_state.addr - size) == old_state.addr
 
-    def repair_satness(self, old_state, new_state):
-        if not new_state.solver.satisfiable():  # type: ignore
-            sat_constraints = old_state.solver._solver.constraints
+    def repair_satness(self, old_state: SimState, new_state: SimState) -> None:
+        if not new_state.solver.satisfiable():
             """
+            sat_constraints = old_state.solver._solver.constraints
             unsat_constraints = list(new_state.solver._solver.constraints)
             sat_uuid = map(lambda c: c.uuid, sat_constraints)
             for i, c in enumerate(unsat_constraints):
@@ -700,7 +686,7 @@ class Tracer:
             """
             new_state.solver._stored_solver = old_state.solver._solver.branch()
 
-            if not self.debug_unsat:  # type: ignore
+            if not self.debug_unsat:
                 self.debug_sat = old_state
                 self.debug_unsat = new_state
 
@@ -720,11 +706,11 @@ class Tracer:
         if ins_repr.startswith("syscall"):
             new_state.regs.ip_at_syscall = new_state.ip
 
-    def post_execute(self, old_state, state):
+    def post_execute(self, old_state: SimState, state: SimState) -> None:
         self.repair_satness(old_state, state)
         self.repair_ip_at_syscall(old_state, state)
 
-    def repair_syscall_jump(self, old_state, step):
+    def repair_syscall_jump(self, old_state: SimState, step: SimState) -> SimState:
         capstone = old_state.block().capstone
         first_ins = capstone.insns[0].insn
         ins_repr = first_ins.mnemonic
@@ -748,7 +734,6 @@ class Tracer:
             state, previous_instruction, instruction
         )
         self.repair_alloca_ins(state)
-        addr = previous_instruction.ip
 
         try:
             step = self.project.factory.successors(
@@ -789,9 +774,7 @@ class Tracer:
         l.warning(
             repr(state)
             + " "
-            +
-            # repr(all_choices) + ' ' +
-            repr(instruction)
+            + repr(instruction)
             + "\n"
         )
         for choice in choices:
@@ -799,7 +782,9 @@ class Tracer:
             try:
                 if self.last_match(choice, instruction):
                     return choice, choice
-                if self.jump_match(old_state, choice, previous_instruction, instruction):
+                if self.jump_match(
+                    old_state, choice, previous_instruction, instruction
+                ):
                     self.post_execute(old_state, choice)
                     return old_state, choice
             except angr.SimUnsatError:
@@ -808,12 +793,10 @@ class Tracer:
         new_state.regs.ip = instruction.ip
         return state, new_state
 
-    def valid_address(self, address):
-        # type: (int) -> bool
+    def valid_address(self, address: int) -> bool:
         return self.project.loader.find_object_containing(address)
 
-    def constrain_registers(self, state):
-        # type: (State) -> None
+    def constrain_registers(self, state: State) -> None:
         # FIXME: if exception caught is omitted by hook?
         # If same address, then give registers
         if state.registers["rip"].value == self.coredump.registers["rip"]:
@@ -844,8 +827,7 @@ class Tracer:
         else:
             l.warning("RIP mismatch.")
 
-    def run(self):
-        # type: () -> StateManager
+    def run(self) -> StateManager:
         simstate = self.simgr.active[0]
         states = StateManager(self, len(self.trace) + 1)
         states.add_major(State(0, None, self.trace[0], None, simstate))

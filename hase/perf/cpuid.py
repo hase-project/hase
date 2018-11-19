@@ -121,8 +121,7 @@ class CPUID_struct(ctypes.Structure):
 
 
 class CPUID:
-    def __init__(self):
-        # type: () -> None
+    def __init__(self) -> None:
         machine = platform.machine()  # type: ignore
         if machine not in ("AMD64", "x86_64", "x86", "i686"):
             raise SystemError("Only available for x86")
@@ -150,14 +149,12 @@ class CPUID:
         func_type = CFUNCTYPE(None, POINTER(CPUID_struct), c_uint32, c_uint32)
         self.func_ptr = func_type(self.addr)
 
-    def __call__(self, eax, ecx=0):
-        # type: (int, int) -> Tuple[int, int, int, int]
+    def __call__(self, eax: int, ecx: int = 0) -> Tuple[int, int, int, int]:
         struct = CPUID_struct()
         self.func_ptr(struct, eax, ecx)
         return struct.eax, struct.ebx, struct.ecx, struct.edx
 
-    def __del__(self):
-        # type: () -> None
+    def __del__(self) -> None:
         # Seems to throw exception when the program ends and
         # libc is cleaned up before the object?
         self.libc.free.restype = None
@@ -167,8 +164,7 @@ class CPUID:
 
 if __name__ == "__main__":
 
-    def valid_inputs():
-        # type: () -> Iterator[Tuple[int, Tuple[int, int, int, int]]]
+    def valid_inputs() -> Iterator[Tuple[int, Tuple[int, int, int, int]]]:
         cpuid = CPUID()
         for eax in (0x0, 0x80000000):
             highest, _, _, _ = cpuid(eax)

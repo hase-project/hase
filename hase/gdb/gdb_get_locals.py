@@ -24,8 +24,7 @@ while not blk.is_global and not blk.is_static:
         break
 
 
-def parse_addr(s):
-    # type: (str) -> str
+def parse_addr(s: str) -> str:
     l = s.split(" ")
     # NOTE: ['$n', '=', '('qualifier', 'type', '*)', 'addr\n']
     has_type = False
@@ -49,7 +48,7 @@ for name in names:
     try:
         tmp = "ptype {}".format(name)
         result = gdb.execute(tmp, to_string=True)
-    except:
+    except Exception:
         print(" ".join(["ARGS:", name, "unknown", "-2", "0", "0"]))
         continue
     ty = result.partition("=")[2].strip()

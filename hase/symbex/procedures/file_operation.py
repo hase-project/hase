@@ -2,16 +2,13 @@ from __future__ import absolute_import, division, print_function
 
 import claripy
 from angr import SimProcedure
-from angr.errors import SimProcedureError, SimUnsatError
+from angr.errors import SimUnsatError
 from angr.procedures import SIM_PROCEDURES
-from angr.procedures.libc import fopen, io_file_data_for_arch
+from angr.procedures.libc import io_file_data_for_arch
 from angr.procedures.stubs.format_parser import FormatParser
-from angr.sim_type import (SimTypeArray, SimTypeChar, SimTypeFd, SimTypeInt,
-                           SimTypeLength, SimTypeString)
-from angr.storage.file import Flags
 
 from .helper import minmax
-from .syscall import fstat, lstat, stat
+from .syscall import lstat, stat
 
 # NOTE: if we hook one of the file operation, we need to hook all of these
 # Or the FILE struct will be inconsistent. But if we don't use them, angr's IO operations will have wrong branch
@@ -23,13 +20,14 @@ from .syscall import fstat, lstat, stat
 
 class vfprintf(SimProcedure):
     ARGS_MISMATCH = True
+
     # mov rsp, [rbp+xx]
-    def run(self, file_ptr, fmt, ap):
+    def run(self, file_ptr, fmt, ap) -> claripy.BVV:
         return self.state.solver.Unconstrained("vfprintf_ret", 32, uninitialized=False)
 
 
 class ferror(SimProcedure):
-    def run(self, file_ptr):
+    def run(self, file_ptr) -> claripy.BVV:
         fd_offset = io_file_data_for_arch(self.state.arch)["fd"]
         fileno = self.state.mem[file_ptr + fd_offset :].int.resolved
         simfd = self.state.posix.get_fd(fileno)
@@ -42,14 +40,14 @@ class ferror(SimProcedure):
 # NOTE: invoked by putchar (while inlined)
 # FIXME: no overflow concept in SimFile, low-fieldity simulation then
 class __overflow(SimProcedure):
-    def run(self, file_ptr, ch):
+    def run(self, file_ptr, ch) -> claripy.BVV:
         fputc = SIM_PROCEDURES["libc"]["fputc"]
         ret_expr = self.inline_call(fputc, ch, file_ptr).ret_expr
         return ret_expr
 
 
 class __underflow(SimProcedure):
-    def run(self, file_ptr, ch):
+    def run(self, file_ptr, ch) -> claripy.BVV:
         fputc = SIM_PROCEDURES["libc"]["fputc"]
         ret_expr = self.inline_call(fputc, ch, file_ptr).ret_expr
         return ret_expr
@@ -58,14 +56,14 @@ class __underflow(SimProcedure):
 # NOTE: invoked by getc
 # TODO: https://code.woboq.org/userspace/glibc/libio/genops.c.html
 class __uflow(SimProcedure):
-    def run(self, file_ptr):
+    def run(self, file_ptr) -> claripy.BVV:
         fgetc = SIM_PROCEDURES["libc"]["fgetc"]
         ret_expr = self.inline_call(fgetc, file_ptr).ret_expr
         return ret_expr
 
 
 class ftello(SimProcedure):
-    def run(self, file_ptr):
+    def run(self, file_ptr) -> claripy.BVV:
         ftell = SIM_PROCEDURES["libc"]["ftell"]
         ret_expr = self.inline_call(ftell, file_ptr).ret_expr
         # FIXME: Acutally off_t
@@ -73,7 +71,7 @@ class ftello(SimProcedure):
 
 
 class fseeko(SimProcedure):
-    def run(self, fp, offset, whence):
+    def run(self, fp, offset, whence) -> claripy.BVV:
         fseek = SIM_PROCEDURES["libc"]["fseek"]
         # FIXME: Actually offset: off_t
         ret_expr = self.inline_call(fseek, fp, offset, whence).ret_expr
@@ -84,27 +82,27 @@ class fseeko(SimProcedure):
 class freopen(SimProcedure):
     INCOMPLETE = True
 
-    def run(self, file_ptr, mode_ptr, stream_ptr):
+    def run(self, file_ptr, mode_ptr, stream_ptr) -> claripy.BVV:
         pass
 
 
 # NOTE: posix extra
 # http://refspecs.linuxbase.org/LSB_3.0.0/LSB-PDA/LSB-PDA/baselib-xstat-1.html
 class __xstat(SimProcedure):
-    def run(self, ver, file_path, stat_buf):
+    def run(self, ver, file_path, stat_buf) -> claripy.BVV:
         ret_expr = self.inline_call(stat, file_path, stat_buf).ret_expr
         return ret_expr
 
 
 class __fxstat(SimProcedure):
-    def run(self, ver, fd, stat_buf):
+    def run(self, ver, fd, stat_buf) -> claripy.BVV:
         fstat = SIM_PROCEDURES["linux_kernel"]["fstat"]
         ret_expr = self.inline_call(fstat, fd, stat_buf).ret_expr
         return ret_expr
 
 
 class __lxstat(SimProcedure):
-    def run(self, ver, file_path, stat_buf):
+    def run(self, ver, file_path, stat_buf) -> claripy.BVV:
         ret_expr = self.inline_call(lstat, file_path, stat_buf).ret_expr
         return ret_expr
 
@@ -113,7 +111,7 @@ class __lxstat(SimProcedure):
 class vprintf(SimProcedure):
     INCOMPLETE = True
 
-    def run(self, fmt, va_list):
+    def run(self, fmt, va_list) -> claripy.BVV:
         return None
 
 
@@ -128,7 +126,7 @@ NOTE:
 
 
 class getcwd(SimProcedure):
-    def run(self, buf, size):
+    def run(self, buf, size) -> claripy.BVV:
         _getcwd = SIM_PROCEDURES["linux_kernel"]["getcwd"]
         malloc = SIM_PROCEDURES["libc"]["malloc"]
         if not self.state.solver.symbolic(buf):
@@ -142,7 +140,7 @@ class getcwd(SimProcedure):
 
 # NOTE: if allow-read
 class __freadable(SimProcedure):
-    def run(self, file_ptr):
+    def run(self, file_ptr) -> claripy.BVV:
         return self.state.solver.If(
             self.state.solver.BoolS("file_readable"), self.state.solver.BVV(1, 32), 0
         )
@@ -150,7 +148,7 @@ class __freadable(SimProcedure):
 
 # NOTE: if allow-write
 class __fwritable(SimProcedure):
-    def run(self, file_ptr):
+    def run(self, file_ptr) -> claripy.BVV:
         return self.state.solver.If(
             self.state.solver.BoolS("file_writable"), self.state.solver.BVV(1, 32), 0
         )
@@ -158,7 +156,7 @@ class __fwritable(SimProcedure):
 
 # NOTE: if read-only or last operation read
 class __freading(SimProcedure):
-    def run(self, file_ptr):
+    def run(self, file_ptr) -> claripy.BVV:
         return self.state.solver.If(
             self.state.solver.BoolS("file_reading"), self.state.solver.BVV(1, 32), 0
         )
@@ -166,7 +164,7 @@ class __freading(SimProcedure):
 
 # NOTE: if write-only or last operation write
 class __fwriting(SimProcedure):
-    def run(self, file_ptr):
+    def run(self, file_ptr) -> claripy.BVV:
         return self.state.solver.If(
             self.state.solver.BoolS("file_writing"), self.state.solver.BVV(1, 32), 0
         )
@@ -174,7 +172,7 @@ class __fwriting(SimProcedure):
 
 # NOTE: If line-buffered
 class __flbf(SimProcedure):
-    def run(self, file_ptr):
+    def run(self, file_ptr) -> claripy.BVV:
         return self.state.solver.If(
             self.state.solver.BoolS("file_bf"), self.state.solver.BVV(1, 32), 0
         )
@@ -182,32 +180,33 @@ class __flbf(SimProcedure):
 
 # NOTE: assume it's not fail
 class __fgets_chk(SimProcedure):
-    def run(self, buf, size, n, fp):
+    def run(self, buf, size, n, fp) -> claripy.BVV:
         fgets = SIM_PROCEDURES["libc"]["fgets"]
         return self.inline_call(fgets, buf, n, fp).ret_expr
 
 
 class __fgets_unlocked_chk(SimProcedure):
-    def run(self, buf, size, n, fp):
+    def run(self, buf, size, n, fp) -> claripy.BVV:
         fgets = SIM_PROCEDURES["libc"]["fgets"]
         return self.inline_call(fgets, buf, n, fp).ret_expr
 
 
 class __fprintf_chk(SimProcedure):
-    def run(self, fp, flag, fmt):
+    def run(self, fp, flag, fmt) -> claripy.BVV:
         fprintf = SIM_PROCEDURES["libc"]["fprintf"]
         return self.inline_call(fprintf, fp, fmt).ret_expr
 
 
 class __getcwd_chk(SimProcedure):
-    def run(self, buf, len, buflen):
+    def run(self, buf, len, buflen) -> claripy.BVV:
         return self.inline_call(getcwd, buf, len)
 
 
 class __snprintf_chk(FormatParser):
     ARGS_MISMATCH = True
+
     # FIXME: check maxlen
-    def run(self, dst_ptr, maxlen, flag, strlen):
+    def run(self, dst_ptr: int, maxlen: int, flag: int, strlen: int) -> claripy.BVV:
         try:
             fmt_str = self._parse(4)
             out_str = fmt_str.replace(5, self.arg)
@@ -233,7 +232,7 @@ class __snprintf_chk(FormatParser):
 class __sprintf_chk(FormatParser):
     ARGS_MISMATCH = True
 
-    def run(self, dst_ptr, flag, strlen):
+    def run(self, dst_ptr, flag, strlen) -> claripy.BVV:
         """
         fmt_str = self._parse(3)
         out_str = fmt_str.replace(4, self.arg)
@@ -247,18 +246,18 @@ class __sprintf_chk(FormatParser):
 
 
 class __read_chk(SimProcedure):
-    def run(self, fd, buf, nbytes, buflen):
+    def run(self, fd, buf, nbytes, buflen) -> claripy.BVV:
         read = SIM_PROCEDURES["posix"]["read"]
         return self.inline_call(read, fd, buf, nbytes).ret_expr
 
 
 class posix_fadvise(SimProcedure):
-    def run(self, fd, offset, len, advise):
+    def run(self, fd, offset, len, advise) -> claripy.BVV:
         return self.state.solver.Unconstrained("posiv_fadvise", 32, uninitialized=False)
 
 
 class getdelim(SimProcedure):
-    def run(self, lineptr, n, delimiter, stream):
+    def run(self, lineptr, n, delimiter, stream) -> claripy.BVV:
         malloc = SIM_PROCEDURES["libc"]["malloc"]
         # Actually a realloc(*lineptr, size)
         a_addr = self.inline_call(malloc, self.state.libc.max_buffer_size).ret_expr
@@ -281,10 +280,10 @@ class getdelim(SimProcedure):
 
 
 class getline(SimProcedure):
-    def run(self, lineptr, n, stream):
+    def run(self, lineptr, n, stream) -> claripy.BVV:
         return self.inline_call(getdelim, lineptr, n, "\n", stream).ret_expr
 
 
 class isatty(SimProcedure):
-    def run(self, fd):
+    def run(self, fd) -> claripy.BVV:
         return self.state.solver.If("isatty", 1, self.state.solver.BVV(0, 32))

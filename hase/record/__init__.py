@@ -1,8 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
 import argparse
-import errno
-import fcntl
 import json
 import logging
 import os
@@ -10,17 +8,13 @@ import resource
 import shutil
 import subprocess
 from pathlib import Path
-from queue import Queue
 from signal import SIGUSR2
 from tempfile import NamedTemporaryFile, TemporaryDirectory
-from threading import Condition, Thread
 from types import FrameType
-from typing import IO, Any, Dict, List, Optional, Tuple, Union
+from typing import IO, Any, Dict, List, Optional, Tuple
 
 from . import coredumps
 from .. import pwn_wrapper
-from ..errors import HaseError
-from ..path import APP_ROOT
 from ..perf import IncreasePerfBuffer, Perf, Trace
 from .ptrace import ptrace_detach, ptrace_me
 from .signal_handler import SignalHandler
@@ -64,8 +58,7 @@ def record_process(
     # work around missing nonlocal keyword in python2 with a list
     got_coredump = [False]
 
-    def received_coredump(signum, frame_type):
-        # type: (int, FrameType) -> None
+    def received_coredump(signum: int, frame_type: FrameType) -> None:
         got_coredump[0] = True
 
     with IncreasePerfBuffer(100 * 1024), Perf(
@@ -121,8 +114,7 @@ def _record(
     return record_process(proc, record_paths, timeout, rusage=rusage)
 
 
-def write_pid_file(pid_file):
-    # type: (Optional[str]) -> None
+def write_pid_file(pid_file: Optional[str]) -> None:
     if pid_file is not None:
         with open(pid_file, "w") as f:
             f.write(str(os.getpid()))
@@ -154,8 +146,7 @@ class Job:
 
 
 class RecordPaths:
-    def __init__(self, path, id, log_path, pid_file):
-        # type: (Path, int, Path, Optional[str]) -> None
+    def __init__(self, path: Path, id: int, log_path: Path, pid_file: Optional[str]) -> None:
         self.path = path
         self.log_path = log_path
         self.pid_file = pid_file
@@ -168,8 +159,7 @@ class RecordPaths:
         self.fifo = self.path.joinpath("fifo.%d" % self.id)
         self.manifest = self.path.joinpath("manifest.json")
 
-    def report_archive(self, executable, timestamp):
-        # type: (str, str) -> Path
+    def report_archive(self, executable: str, timestamp: str) -> Path:
         return self.log_path.joinpath(
             "%s-%s.tar.gz" % (os.path.basename(executable), timestamp)
         )
@@ -213,8 +203,7 @@ def store_report(recording: Recording, record_paths: "RecordPaths") -> str:
 
     with NamedTemporaryFile() as template:
 
-        def append(path):
-            # type: (str) -> None
+        def append(path: str) -> None:
             template.write(str(Path(path).relative_to(state_dir)).encode("utf-8"))
             template.write(b"\0")
 

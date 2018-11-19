@@ -5,9 +5,10 @@ import logging
 import os
 import os.path
 import sys
-from shlex import split as shsplit
 from pathlib import Path
+from shlex import split as shsplit
 from types import ModuleType
+from typing import Any, Callable
 
 from IPython import get_ipython
 from IPython.core.interactiveshell import InteractiveShell
@@ -27,14 +28,14 @@ class HaseFrontEndException(Exception):
     pass
 
 
-def op_restrict(low=0, high=65536):
-    def comp(actual, given):
+def op_restrict(low: int = 0, high: int = 65536) -> Callable[[int, int], bool]:
+    def comp(actual: int, given: int) -> bool:
         return low <= actual <= high
 
     return comp
 
 
-def op_eq(actual, given):
+def op_eq(actual: Any, given: Any) -> bool:
     return actual == given
 
 
@@ -66,8 +67,7 @@ def args(*param_names, **kwargs):
 
 @magics_class
 class HaseMagics(Magics):
-    def __init__(self, shell):
-        # type (InteractiveShell) -> None
+    def __init__(self, shell: InteractiveShell) -> None:
         if shell is not None:
             self.user_ns = shell.user_ns
         else:
@@ -77,40 +77,35 @@ class HaseMagics(Magics):
         super(HaseMagics, self).__init__(shell)
 
     @property
-    def app(self):
-        # type: () -> QtWidgets.QApplication
+    def app(self) -> QtWidgets.QApplication:
         return self.user_ns["app"]
 
     @property
-    def window(self):
-        # type: () -> MainWindow
+    def window(self) -> MainWindow:
         return self.user_ns["window"]
 
     @args("<source_code>", name="show")
     @line_magic("show")
-    def show_source(self, query):
-        # type: (str) -> None
+    def show_source(self, query: str) -> None:
         self.window.set_location(query, 0)
 
     @args()
     @line_magic("refresh")
-    def refresh(self, query):
-        # type: (str) -> None
+    def refresh(self, query: str) -> None:
         self.window.time_slider.setValue(0)
         self.window.clear_viewer()
         self.window.append_archive()
 
     @args()
     @line_magic("reload_hase")
-    def reload_hase(self, query):
-        # type: (str) -> None
+    def reload_hase(self, query: str) -> None:
         module_path = os.path.dirname(os.path.dirname(__file__))
         for name, m in sys.modules.items():
             if isinstance(m, ModuleType) and hasattr(m, "__file__"):
                 if m.__file__ is not None and m.__file__.startswith(module_path):
                     print("reload %s" % name)
                     try:
-                        imp.reload(m)  # type: ignore
+                        imp.reload(m)
                     except Exception as e:
                         print("error while loading %s" % e)
         self.shell.extension_manager.reload_extension(__name__)
@@ -175,8 +170,7 @@ class HaseMagics(Magics):
 
     @args(info="USAGE: info")
     @line_magic("info")
-    def gdb_information(self, query):
-        # type: (str) -> None
+    def gdb_information(self, query: str) -> None:
         self.gdb_update("")
         user_ns = self.shell.user_ns
         addr_map = user_ns["addr_map"]
@@ -190,8 +184,7 @@ class HaseMagics(Magics):
 
     @args(info="USAGE: init")
     @line_magic("init")
-    def gdb_init(self, query):
-        # type: (str) -> None
+    def gdb_init(self, query: str) -> None:
         user_ns = self.shell.user_ns
         if "gdbs" in user_ns.keys():
             user_ns["gdbs"].gdb.exit()
@@ -216,23 +209,20 @@ class HaseMagics(Magics):
 
     @args(info="USAGE: update")
     @line_magic("update")
-    def gdb_update(self, query):
-        # type: (str) -> None
+    def gdb_update(self, query: str) -> None:
         user_ns = self.shell.user_ns
         user_ns["gdbs"].active_state = user_ns["active_state"]
         user_ns["gdbs"].update_active()
 
     @line_magic("p")
-    def print_value(self, query):
-        # type: (str) -> int
+    def print_value(self, query: str) -> int:
         """
         open current breakpoint in editor.
         """
         return 10
 
     @line_magic("backtrace")
-    def backtrace(self, query):
-        # type: (str) -> None
+    def backtrace(self, query: str) -> None:
         """
         open current breakpoint in editor.
         """
@@ -240,8 +230,7 @@ class HaseMagics(Magics):
 
     @args(comp=op_restrict(1), info="USAGE: gdb ...")
     @line_magic("gdb")
-    def gdb_angr(self, query):
-        # type: (str) -> None
+    def gdb_angr(self, query: str) -> None:
         try:
             resp = self.shell.user_ns["gdbs"].write_request(query)
             for r in resp:
@@ -252,8 +241,7 @@ class HaseMagics(Magics):
 
     @args(comp=op_restrict(1), info="USAGE: gdb-core ...")
     @line_magic("gdb-core")
-    def gdb_core(self, query):
-        # type: (str) -> None
+    def gdb_core(self, query: str) -> None:
         try:
             resp = self.shell.user_ns["tracer"].cdanalyzer.gdb.write_request(query)
             for r in resp:

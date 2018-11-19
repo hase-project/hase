@@ -3,30 +3,33 @@ from __future__ import absolute_import, division, print_function
 import logging
 import os
 import sys
-from typing import Any, List, Tuple, Union
+from typing import Any, Dict, List, Tuple
 
 import pygments
 import pygments.formatters
 import pygments.lexers
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import QSize
-from PyQt5.QtGui import QIcon, QPainter, QPixmap, QTextCharFormat, QTextCursor
+from PyQt5.QtGui import QIcon, QTextCursor
 from PyQt5.uic import loadUiType
 from qtconsole.inprocess import QtInProcessKernelManager
 
 from ..path import APP_ROOT
 from ..record import DEFAULT_LOG_DIR
+from ..symbex.state import State, StateManager
+from ..symbex.tracer import Tracer
 
 # from .callgraph import CallGraphManager, CallGraphView
 
 EXIT_NORMAL = 0
 EXIT_REBOOT = 1
-l = logging.getLogger("hase")
+l = logging.getLogger(__name__)
 
 
-form_class, base_class = loadUiType(
+ui_types: Tuple[Any, Any] = loadUiType(
     str(APP_ROOT.joinpath("frontend", "mainwindow.ui"))
-)  # type: Tuple[Any, Any]
+)
+form_class: Any = ui_types[0]
 
 code_template = """
 <html>
@@ -101,7 +104,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
         self.coredump_constraints = []
 
-    def cache_coredump_constraints(self):
+    def cache_coredump_constraints(self) -> None:
         user_ns = self.kernel_client.kernel.shell.user_ns
         tracer = user_ns["tracer"]
         start_state = tracer.start_state
@@ -128,15 +131,16 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             cmem = coredump.stack[addr]
             self.coredump_constraints.append(value == cmem)
 
-    def eval_variable(self, active_state, loc, addr, size):
-        # type: (Any, int, Any, int) -> Tuple[str, str]
+    def eval_variable(
+        self, active_state: State, loc: int, addr: Any, size: int
+    ) -> Tuple[str, str]:
         # NOTE: * -> uninitialized / 'E' -> symbolic
-        if not getattr(active_state, "had_coredump_constraints", False):
+        if not active_state.had_coredump_constraints:
             for c in self.coredump_constraints:
                 old_solver = active_state.simstate.solver._solver.branch()
                 active_state.simstate.solver.add(c)
                 if not active_state.simstate.solver.satisfiable():
-                    print("Unsatisfiable coredump constraints: " + str(c))
+                    print(f"Unsatisfiable coredump constraints: {c}")
                     active_state.simstate.solver._stored_solver = old_solver
             active_state.had_coredump_constraints = True
 
@@ -172,8 +176,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                 return v, "unknown"
             return v, "hex"
 
-    def eval_value(self, active_state, value):
-        # type: (Any, Any) -> str
+    def eval_value(self, active_state: State, value: Any) -> str:
         if value.uninitialized:
             return "uninitialized"
         try:
@@ -182,50 +185,45 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             v = "symbolic"
         return v
 
-    def update_active(self, new_active):
-        # type: (Any) -> None
+    def update_active(self, new_active: State) -> None:
         user_ns = self.kernel_client.kernel.shell.user_ns
         user_ns["active_state"] = new_active
         user_ns["gdbs"].active_state = new_active
         # NOTE: gdb c for every operation is slow
         # user_ns['gdbs'].update_active()
         addr = new_active.address()
-        self.set_location(*self.addr_map[addr])
+        source_file, line = self.addr_map[addr]
+        self.set_location(source_file, line)
 
-    def update_active_index(self, active_index):
-        # type: (int) -> None
+    def update_active_index(self, active_index: int) -> None:
         new_state, is_new = self.states[active_index]
-        user_ns = self.kernel_client.kernel.shell.user_ns
+        # user_ns = self.kernel_client.kernel.shell.user_ns
         if is_new:
-            pass
             # self.callgraph.add_node(new_state, user_ns['tracer'])
+            pass
         major_index = self.states.major_index
         if active_index in major_index:
             slider_index = len(major_index) - major_index.index(active_index) - 1
             self.time_slider.setValue(slider_index)
         self.update_active(new_state)
 
-    def push_upto(self):
-        # type: () -> None
+    def push_upto(self) -> None:
         v = self.time_slider.value()
         self.time_slider.setValue(min(self.time_slider.maximum(), v + 1))
         self.slider_change()
 
-    def push_downto(self):
-        # type: () -> None
+    def push_downto(self) -> None:
         v = self.time_slider.value()
         self.time_slider.setValue(max(self.time_slider.minimum(), v - 1))
         self.slider_change()
 
-    def push_up(self):
-        # type: () -> None
+    def push_up(self) -> None:
         user_ns = self.kernel_client.kernel.shell.user_ns
         active_state = user_ns["active_state"]
         state_index = max(0, active_state.index - 1)
         self.update_active_index(state_index)
 
-    def push_down(self):
-        # type: () -> None
+    def push_down(self) -> None:
         user_ns = self.kernel_client.kernel.shell.user_ns
         active_state = user_ns["active_state"]
         tracer = user_ns["tracer"]
@@ -236,8 +234,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         pass
         # self.view = CallGraphView(self.callgraph, self)
 
-    def push_info(self):
-        # type: () -> None
+    def push_info(self) -> None:
         user_ns = self.kernel_client.kernel.shell.user_ns
         active_state = user_ns["active_state"]
         self.set_regs()
@@ -248,21 +245,18 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         else:
             print("Cannot retrieve variables on unresolvable source code")
 
-    def push_switch(self):
-        # type: () -> None
+    def push_switch(self) -> None:
         user_ns = self.kernel_client.kernel.shell.user_ns
         active_state = user_ns["active_state"]
         active_state.is_to_simstate = not active_state.is_to_simstate
         self.update_active(active_state)
 
-    def slider_change(self):
-        # type: () -> None
+    def slider_change(self) -> None:
         v = self.time_slider.value()
         new_active = self.states.get_major(-(v + 1))
         self.update_active(new_active)
 
-    def set_slider(self, addr_map, states):
-        # type: (List[Union[str, int]], Any) -> None
+    def set_slider(self, addr_map: List[Tuple[str, int]], states: StateManager) -> None:
         # NOTE: slider is for major states
         self.addr_map = addr_map
         self.states = states
@@ -274,8 +268,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.time_slider.setValue(0)
         self.time_slider.valueChanged.connect(self.slider_change)
 
-    def set_location(self, source_file, line):
-        # type: (str, int) -> None
+    def set_location(self, source_file: str, line: int) -> None:
         shell = self.kernel_client.kernel.shell
         user_ns = shell.user_ns
         active_state = user_ns["active_state"]
@@ -310,8 +303,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             for insn in insns:
                 self.code_view.append("\t" + str(insn))
 
-    def set_variable(self):
-        # type: () -> None
+    def set_variable(self) -> None:
         shell = self.kernel_client.kernel.shell
         user_ns = shell.user_ns
         var = user_ns["gdbs"].read_variables()
@@ -327,9 +319,8 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                 i += 1
         self.var_view.resizeColumnsToContents()
 
-    def set_regs(self):
-        # type: () -> None
-        def fix_new_regname(rname):
+    def set_regs(self) -> None:
+        def fix_new_regname(rname: str):
             # HACK: angr has no access to register like r9w, r8d, r15b
             for i in range(8, 16):
                 if "r" + str(i) in rname:
@@ -369,8 +360,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                     self.reg_view.append_reg(rname, value)
         self.reg_view.resizeColumnsToContents()
 
-    def setup_ipython(self, app, window):
-        # type: (QtWidgets.QApplication, MainWindow) -> None
+    def setup_ipython(self, app: QtWidgets.QApplication, window: "MainWindow") -> None:
         """
         Might break with future versions of IPython, but nobody got time for
         this!
@@ -386,7 +376,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
         shell.extension_manager.load_extension(ipython_extension.__name__)
 
-    def cache_tokens(self, addr_map):
+    def cache_tokens(self, addr_map: Dict[int, Tuple[str, int]]):
         for filename, line in addr_map.values():
             l.warning("caching file: " + str(filename) + " at line: " + str(line))
             if filename != "??":
@@ -403,16 +393,16 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                         )
                         css = html_formatter.get_style_defs(".highlight")
                         with open(str(filename)) as f:
-                            content = f.readlines()
-                        if len(content) < 1000:
-                            content = "".join(content)
+                            lines = f.readlines()
+                        if len(lines) < 1000:
+                            content = "".join(lines)
                             tokens = lexer.get_tokens(content)
                             source = pygments.format(tokens, html_formatter)
                             self.file_cache[filename][line] = (css, source)
                             self.file_read_cache[filename] = (lexer, content, False)
                         else:
                             minl = max(0, line - 30)
-                            maxl = min(len(content), line + 30)
+                            maxl = min(len(lines), line + 30)
                             formatter_opts = dict(
                                 linenos="inline", linespans="line", hl_lines=[line]
                             )
@@ -421,11 +411,11 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                             )
                             css = html_formatter.get_style_defs(".highlight")
                             source = pygments.format(
-                                lexer.get_tokens("".join(content[minl:maxl])),
+                                lexer.get_tokens("".join(lines[minl:maxl])),
                                 html_formatter,
                             )
                             self.file_cache[filename][line] = (css, source)
-                            self.file_read_cache[filename] = (lexer, content, True)
+                            self.file_read_cache[filename] = (lexer, lines, True)
                     except Exception as e:
                         print(e)
                         self.file_cache[filename][line] = (None, None)
@@ -469,7 +459,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                     else:
                         self.file_cache[filename][line] = (None, None)
 
-    def add_states(self, states: Any, tracer: Any) -> None:
+    def add_states(self, states: StateManager, tracer: Tracer) -> None:
         for s in states.major_states[1:]:
             pass
             # self.callgraph.add_node(s, tracer)
@@ -494,19 +484,18 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.info_button.setEnabled(True)
         self.switch_button.setEnabled(True)
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         self.file_cache = {}
         self.coredump_constraints = []
         # self.callgraph.clear_cache()
 
-    def shutdown_kernel(self):
-        # type: () -> None
+    def shutdown_kernel(self) -> None:
         print("Shutting down kernel...")
         self.kernel_client.stop_channels()
         self.kernel_manager.shutdown_kernel()
 
 
-def start_window():
+def start_window() -> int:
     app = QtWidgets.QApplication(sys.argv)
     window = MainWindow()
     app.aboutToQuit.connect(window.shutdown_kernel)
@@ -516,7 +505,6 @@ def start_window():
     return app.exec_()
 
 
-def main():
-    # type: () -> None
+def main() -> None:
     while start_window() == EXIT_REBOOT:
         pass

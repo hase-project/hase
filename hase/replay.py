@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import argparse
 import json
+import logging
 import subprocess
 import sys
 from pathlib import Path
@@ -9,10 +10,12 @@ from tempfile import TemporaryDirectory
 from typing import Any, Dict, List, Tuple
 
 from .gdb import GdbServer
-from .pt import decode
+from ._pt import decode
 from .pt.events import Instruction
 from .pwn_wrapper import Coredump, Mapping
 from .symbex.tracer import State, StateManager, Tracer
+
+l = logging.getLogger(__name__)
 
 
 def decode_trace(

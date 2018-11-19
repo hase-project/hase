@@ -34,9 +34,7 @@ EVENTS = {
 }  # yapf: disable
 
 
-def cpus_online():
-    # type: () -> List[int]
-
+def cpus_online() -> List[int]:
     # Accepted parameters:
     # 0  - core 0
     # 0,1,2,3  - cores 0,1,2,3
@@ -64,63 +62,52 @@ def cpus_online():
     return list(result)
 
 
-def intel_pt_type():
-    # type: () -> int
+def intel_pt_type() -> int:
     with open("/sys/bus/event_source/devices/intel_pt/type") as f:
         return int(f.read())
 
 
 class PMU:
-    def __init__(self, perf_attr, cpu, pid):
-        # type: (perf_event_attr, int, int) -> None
+    def __init__(self, perf_attr: perf_event_attr, cpu: int, pid: int) -> None:
         self.fd = Libc.syscall(
             SYS_perf_event_open, ct.byref(perf_attr), pid, cpu, -1, PERF_FLAG_FD_CLOEXEC
         )
         assert self.fd != -1
         fcntl.fcntl(self.fd, fcntl.F_SETFL, os.O_RDONLY | os.O_NONBLOCK)
 
-    def __enter__(self):
-        # type: () -> PMU
+    def __enter__(self) -> "PMU":
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, type, value, traceback) -> None:
         self.close()
 
-    def _ioctl(self, cmd, arg):
-        # type: (int, Any) -> int
+    def _ioctl(self, cmd: int, arg: Any) -> int:
         res = Libc.ioctl(self.fd, cmd, arg)
         assert res == 0
         return res
 
-    def set_output(self, pmu):
-        # type: (PMU) -> int
+    def set_output(self, pmu: "PMU") -> int:
         return self._ioctl(Ioctls.PERF_EVENT_IOC_SET_OUTPUT, pmu.fd)
 
-    def pause(self):
-        # type: () -> int
+    def pause(self) -> int:
         return self._ioctl(Ioctls.PERF_EVENT_IOC_PAUSE_OUTPUT, 1)
 
-    def disable(self):
-        # type: () -> int
+    def disable(self) -> int:
         return self._ioctl(Ioctls.PERF_EVENT_IOC_DISABLE, 0)
 
-    def enable(self):
-        # type: () -> int
+    def enable(self) -> int:
         return self._ioctl(Ioctls.PERF_EVENT_IOC_ENABLE, 0)
 
-    def close(self):
-        # type: () -> None
+    def close(self) -> None:
         os.close(self.fd)
 
-    def event_id(self):
-        # type: () -> int
+    def event_id(self) -> int:
         id = ct.c_ulong()
         self._ioctl(Ioctls.PERF_EVENT_IOC_ID, ct.byref(id))
         return id.value
 
 
-def open_pt_event(cpu, pid):
-    # type: (int, int) -> PMU
+def open_pt_event(cpu: int, pid: int) -> PMU:
     attr = perf_event_attr()
     attr.size = ct.sizeof(attr)
     attr.type = intel_pt_type()
@@ -141,8 +128,7 @@ def open_pt_event(cpu, pid):
     return PMU(attr, cpu, pid)
 
 
-def open_dummy_event(cpu, pid):
-    # type: (int, int) -> PMU
+def open_dummy_event(cpu: int, pid: int) -> PMU:
     attr = perf_event_attr()
     attr.size = ct.sizeof(attr)
     attr.type = PERF_TYPE_SOFTWARE
@@ -174,16 +160,21 @@ def open_dummy_event(cpu, pid):
 
 
 class TscConversion:
-    def __init__(self, time_mult, time_shift, time_zero):
-        # type: (int, int, int) -> None
+    def __init__(self, time_mult: int, time_shift: int, time_zero: int) -> None:
         self.time_mult = time_mult
         self.time_shift = time_shift
         self.time_zero = time_zero
 
 
 class CpuId:
-    def __init__(self, family, model, stepping, cpuid_0x15_eax, cpuid_0x15_ebx):
-        # type: (int, int, int, int, int) -> None
+    def __init__(
+        self,
+        family: int,
+        model: int,
+        stepping: int,
+        cpuid_0x15_eax: int,
+        cpuid_0x15_ebx: int,
+    ) -> None:
         self.family = family
         self.model = model
         self.stepping = stepping
@@ -192,8 +183,7 @@ class CpuId:
 
 
 class MmapHeader:
-    def __init__(self, addr, data_size):
-        # type: (int, int) -> None
+    def __init__(self, addr: int, data_size: int) -> None:
         self._header = perf_event_mmap_page.from_address(addr)
         self.data_addr = addr + self._header.data_offset
         self.data_size = data_size
@@ -222,8 +212,7 @@ class MmapHeader:
     # In each situation, 'head' points to the beginning of the newest record.
     # From this record, tooling can iterate over the full ring buffer and fetch
     # records one by one.
-    def events(self):
-        # type: () -> Iterator[ct.Structure]
+    def events(self) -> Iterator[ct.Structure]:
         data_head = self._header.data_head
         events: List[ct.Structure] = []
 
@@ -266,8 +255,7 @@ class MmapHeader:
             offset += ev.size
         return reversed(events)
 
-    def tsc_conversion(self):
-        # type: () -> TscConversion
+    def tsc_conversion(self) -> TscConversion:
         i = 0
         while True:
             seq = self._header.lock
@@ -284,29 +272,24 @@ class MmapHeader:
                 raise Exception("failed to get perf_event_mmap_page lock")
 
     @property
-    def aux_offset(self):
-        # type: () -> int
+    def aux_offset(self) -> int:
         return self._header.aux_offset
 
     @property
-    def aux_size(self):
-        # type: () -> int
+    def aux_size(self) -> int:
         return self._header.aux_size
 
     @aux_size.setter
-    def aux_size(self, size):
-        # type: (int) -> None
+    def aux_size(self, size: int) -> None:
         self._header.aux_offset = self._header.data_offset + self._header.data_size
         self._header.aux_size = size
 
-    def advance(self):
-        # type: () -> None
+    def advance(self) -> None:
         self._header.data_tail = self._header.data_head
 
 
 class BackwardRingbuffer:
-    def __init__(self, cpu, pid=-1):
-        # type: (int, int) -> None
+    def __init__(self, cpu: int, pid: int = -1) -> None:
         """
         Implements ring buffer described here: https://lwn.net/Articles/688338/
         """
@@ -321,28 +304,23 @@ class BackwardRingbuffer:
 
         self.header = MmapHeader(self.buf.addr, data_size)
 
-    def stop(self):
-        # type: () -> None
+    def stop(self) -> None:
         self.pmu.pause()
 
-    def close(self):
-        # type: () -> None
+    def close(self) -> None:
         if self.buf:
             self.buf.close()
         self.pmu.close()
 
-    def events(self):
-        # type: () -> Iterator[ct.Structure]
+    def events(self) -> Iterator[ct.Structure]:
         return self.header.events()
 
-    def tsc_conversion(self):
-        # type: () -> TscConversion
+    def tsc_conversion(self) -> TscConversion:
         return self.header.tsc_conversion()
 
 
 class AuxRingbuffer:
-    def __init__(self, cpu, pid=-1):
-        # type: (int, int) -> None
+    def __init__(self, cpu: int, pid: int = -1) -> None:
         # data area must be a multiply of two
         data_size = (2 ** 9) * Libc.PAGESIZE  # == 2097152
         self.pmu = open_pt_event(cpu, pid)
@@ -369,12 +347,10 @@ class AuxRingbuffer:
 
         self.pmu.enable()
 
-    def mark_as_read(self):
-        # type: () -> None
+    def mark_as_read(self) -> None:
         self.header.advance()
 
-    def close(self):
-        # type: () -> None
+    def close(self) -> None:
         if self.aux_buf:
             self.aux_buf.close()
 
@@ -383,40 +359,31 @@ class AuxRingbuffer:
 
         self.pmu.close()
 
-    def stop(self):
-        # type: () -> None
+    def stop(self) -> None:
         self.pmu.disable()
 
-    def events(self):
-        # type: () -> Iterator[ct.Structure]
+    def events(self) -> Iterator[ct.Structure]:
         return self.header.events()
 
 
-class PerfEvents:
-    def __init__(self, tsc_conversion):
-        self.tsc_conversion = tsc_conversion
-
-
 class Cpu:
-    def __init__(self, idx, event_buffer, pt_buffer):
-        # type: (int, BackwardRingbuffer, AuxRingbuffer) -> None
+    def __init__(
+        self, idx: int, event_buffer: BackwardRingbuffer, pt_buffer: AuxRingbuffer
+    ) -> None:
         self.idx = idx
         self.event_buffer = event_buffer
         self.pt_buffer = pt_buffer
 
         self._itrace_start_event: Optional[ct.Structure] = None
 
-    def events(self):
-        # type: () -> Iterator[ct.Structure]
+    def events(self) -> Iterator[ct.Structure]:
         return self.event_buffer.events()
 
-    def itrace_start_event(self):
-        # type: () -> ct.Structure
+    def itrace_start_event(self) -> ct.Structure:
         assert self._itrace_start_event is not None
         return self._itrace_start_event
 
-    def traces(self):
-        # type: () -> Generator[bytearray, None, None]
+    def traces(self) -> Generator[bytearray, None, None]:
         seen: Dict[int, int] = {}
         for ev in self.pt_buffer.events():
             if ev.type == PerfRecord.PERF_RECORD_ITRACE_START:
@@ -449,21 +416,18 @@ class Cpu:
 
             yield buf
 
-    def stop(self):
-        # type: () -> None
+    def stop(self) -> None:
         self.pt_buffer.stop()
 
         self.event_buffer.stop()
 
-    def close(self):
-        # type: () -> None
+    def close(self) -> None:
         self.pt_buffer.close()
         self.event_buffer.close()
 
 
 class Snapshot:
-    def __init__(self, pid=-1):
-        # type: (int) -> None
+    def __init__(self, pid: int = -1) -> None:
         self.stopped = False
         self.cpus: List[Cpu] = []
 
@@ -473,8 +437,7 @@ class Snapshot:
             self.close()
             raise
 
-    def start(self, pid):
-        # type: (int) -> None
+    def start(self, pid: int) -> None:
         assert not self.stopped
         event_buffers: List[BackwardRingbuffer] = []
         pt_buffers: List[AuxRingbuffer] = []
@@ -490,25 +453,21 @@ class Snapshot:
         for idx in cpu_idx:
             self.cpus.append(Cpu(idx, event_buffers[idx], pt_buffers[idx]))
 
-    def __enter__(self):
-        # type: () -> Snapshot
+    def __enter__(self) -> "Snapshot":
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, type, value, traceback) -> None:
         self.close()
 
-    def stop(self):
-        # type: () -> None
+    def stop(self) -> None:
         for cpu in self.cpus:
             cpu.stop()
         self.stopped = True
 
-    def tsc_conversion(self):
-        # type: () -> TscConversion
+    def tsc_conversion(self) -> TscConversion:
         return self.cpus[0].event_buffer.tsc_conversion()
 
-    def cpuid(self):
-        # type: () -> CpuId
+    def cpuid(self) -> CpuId:
         cpuid = CPUID()
         eax, _, _, _ = cpuid(0x1)
         family = (eax >> 8) & 0xF
@@ -522,11 +481,9 @@ class Snapshot:
 
         return CpuId(family, model, stepping, cpuid_0x15_eax, cpuid_0x15_ebx)
 
-    def sample_type(self):
-        # type: () -> int
+    def sample_type(self) -> int:
         return SampleFlags.PERF_SAMPLE_MASK
 
-    def close(self):
-        # type: () -> None
+    def close(self) -> None:
         for cpu in self.cpus:
             cpu.close()

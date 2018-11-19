@@ -1,9 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
-from ctypes import *  # noqa # pylint: disable=W0614
-
-# pylint: disable=E1101
-from claripy import BVS
+from ctypes import (CFUNCTYPE, POINTER, Structure, c_char, c_char_p, c_int,
+                    c_long, c_uint, c_ulong, c_ushort, c_void_p, sizeof)
 
 from ...errors import HaseError
 
