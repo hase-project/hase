@@ -23,5 +23,5 @@ def generate_run(lib, name, ret_size=32, ret_expr=None):
 
 
 class atoi(SimProcedure):
-    def run(self, s):
+    def run(self, s) -> claripy.BVV:
         return self.state.solver.Unconstrained("atoi", 32, uninitialized=False)

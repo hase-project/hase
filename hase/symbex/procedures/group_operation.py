@@ -12,14 +12,14 @@ from .sym_struct import passwd
 
 
 class getgrgid(SimProcedure):
-    def run(self, gid):
+    def run(self, gid) -> claripy.BVV:
         malloc = SIM_PROCEDURES["libc"]["malloc"]
         ret_addr = self.inline_call(malloc, 0x18).ret_expr
         self._store_amd64(ret_addr)
         return ret_addr
 
     def _store_amd64(self, group_buf):
-        store = lambda offset, val: self.state.memory.store(group_buf + offset, val)
+        # store = lambda offset, val: self.state.memory.store(group_buf + offset, val)
         # TODO: complete struct group member
         """
         struct group {
@@ -33,7 +33,7 @@ class getgrgid(SimProcedure):
 
 
 class getlogin_r(SimProcedure):
-    def run(self, name, namesize, size=None):
+    def run(self, name, namesize, size=None) -> claripy.BVV:
         if not size:
             if self.state.solver.symbolic(namesize):
                 size = minmax(self, namesize, self.state.libc.max_str_len)
@@ -49,7 +49,7 @@ class getlogin_r(SimProcedure):
 
 
 class getlogin(SimProcedure):
-    def run(self):
+    def run(self) -> claripy.BVV:
         malloc = SIM_PROCEDURES["libc"]["malloc"]
         addr = self.inline_call(malloc, self.state.libc.max_str_len).ret_expr
         self.inline_call(getlogin_r, addr, self.state.libc.max_str_len)
@@ -57,7 +57,7 @@ class getlogin(SimProcedure):
 
 
 class getpwuid_r(SimProcedure):
-    def run(self, uid, pwd, buffer, bufsize, result):
+    def run(self, uid, pwd, buffer, bufsize, result) -> claripy.BVV:
         # TODO: add map (uid, passwd) in state, so getpwent may be correct
         pw = passwd(pwd)
         pw.store_all(self)
@@ -89,7 +89,7 @@ class getpwuid_r(SimProcedure):
 
 
 class getpwuid(SimProcedure):
-    def run(self, uid):
+    def run(self, uid) -> claripy.BVV:
         malloc = SIM_PROCEDURES["libc"]["malloc"]
         addr = self.inline_call(malloc, passwd.size).ret_expr  # pylint: disable=E1101
         self.inline_call(getpwuid_r, uid, addr, 0, 0, 0)
@@ -97,15 +97,15 @@ class getpwuid(SimProcedure):
 
 
 class getpwnam_r(SimProcedure):
-    def run(self, name, pwd, buffer, bufsize, result):
+    def run(self, name, pwd, buffer, bufsize, result) -> claripy.BVV:
         return self.inline_call(getpwuid_r, name, pwd, buffer, bufsize, result).ret_expr
 
 
 class getpwnam(SimProcedure):
-    def run(self, name):
+    def run(self, name) -> claripy.BVV:
         return self.inline_call(getpwuid, name).ret_expr
 
 
 class getpwent(SimProcedure):
-    def run(self):
+    def run(self) -> claripy.BVV:
         return self.inline_call(getpwuid, 0).ret_expr
