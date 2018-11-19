@@ -6,8 +6,7 @@ from angr.procedures import SIM_PROCEDURES
 from angr.storage.file import Flags
 
 from ...errors import HaseError
-
-from .helper import errno_success, test_concrete_value, minmax
+from .helper import errno_success, minmax, test_concrete_value
 from .sym_struct import (linux_dirent, linux_dirent64, robust_list_head,
                          sigaction, stat_t, statfs_t, sysinfo_t, timespec)
 
@@ -170,10 +169,9 @@ class set_robust_list(SimProcedure):
         else:
             length = self.state.solver.eval(length)
         self.state.robust_list_size = length
+        size = robust_list_head.size  # type: ignore
         for i in range(length):
-            robust_list_head(head + i * robust_list_head.size).store_all(
-                self
-            )  # pylint: disable=E1101
+            robust_list_head(head + i * size).store_all(self) 
         return errno_success(self)
 
 
