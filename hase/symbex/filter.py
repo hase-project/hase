@@ -10,7 +10,9 @@ from angr.analyses.cfg import CFGFast
 
 from ..pt.events import Instruction
 from .hook import unsupported_symbols
-from .tracer import CoredumpGDB
+
+if False: # for mypy
+    from .tracer import CoredumpGDB
 
 l = logging.getLogger(__name__)
 
@@ -40,7 +42,7 @@ class FilterBase:
         cfg: CFGFast,
         trace: List[Instruction],
         hooked_symbol: Dict[str, SimProcedure],
-        gdb: CoredumpGDB,
+        gdb: "CoredumpGDB",
     ) -> None:
         self.project = project
         self.main_cfg = cfg
@@ -79,7 +81,7 @@ class FilterTrace:
         cfg: CFGFast,
         trace: List[Instruction],
         hooked_symbol: Dict[str, SimProcedure],
-        gdb: CoredumpGDB,
+        gdb: "CoredumpGDB",
         omitted_section: List[List[int]],
         from_initial: bool,
         static_link: bool,
