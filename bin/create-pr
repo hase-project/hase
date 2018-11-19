@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+
+import subprocess
+import sys
+
+
+def main() -> None:
+    if len(sys.argv) < 2:
+        print(f"USAGE: {sys.argv[0]} branchname", file=sys.stderr)
+        sys.exit(1)
+    branchname = sys.argv[1]
+    current_branch = subprocess.check_output(["git", "symbolic-ref", "--short", "HEAD"])
+    if current_branch.strip() != b"master":
+        print("switch to master branch first", file=sys.stderr)
+        sys.exit(1)
+    subprocess.call(["git", "branch", "-d", branchname])
+    subprocess.check_call(["git", "checkout", "-b", branchname])
+    subprocess.check_call(["git", "push", "origin", branchname])
+    if subprocess.call(["hub", "--version"]) == 0:
+        subprocess.check_call(["hub", "pull-request"])
+    subprocess.check_call(["git", "checkout", "-"])
+
+
+if __name__ == "__main__":
+    main()
