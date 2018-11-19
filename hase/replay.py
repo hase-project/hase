@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 from typing import Any, Dict, List, Tuple
 
 from .gdb import GdbServer
-from ._pt import decode
+from .pt.decode import decode
 from .pt.events import Instruction
 from .pwn_wrapper import Coredump, Mapping
 from .symbex.tracer import State, StateManager, Tracer
@@ -64,59 +64,79 @@ def decode_trace(
     )
 
 
+def unpack(report: str, archive_root: Path) -> Dict[str, Any]:
+    subprocess.check_call(["tar", "-xzf", report, "-C", str(archive_root)])
+
+    manifest_path = archive_root.joinpath("manifest.json")
+    with open(str(manifest_path)) as f:
+        manifest = json.load(f)
+
+    for cpu in manifest["trace"]["cpus"]:
+        cpu["event_path"] = str(archive_root.joinpath(cpu["event_path"]))
+        cpu["trace_path"] = str(archive_root.joinpath(cpu["trace_path"]))
+
+    coredump = manifest["coredump"]
+    coredump["executable"] = str(archive_root.joinpath(coredump["executable"]))
+    coredump["file"] = str(archive_root.joinpath(coredump["file"]))
+
+    return manifest
+
+
+def create_tracer(report: str, archive_root: Path) -> Tracer:
+    manifest = unpack(report, archive_root)
+
+    coredump = Coredump(manifest["coredump"]["file"])
+    vdso_x64 = archive_root.joinpath("vdso")
+
+    with open(str(vdso_x64), "wb+") as f:
+        f.write(coredump.vdso.data)
+
+    binaries = archive_root.joinpath("binaries")
+    trace = decode_trace(manifest, coredump.mappings, str(vdso_x64), str(binaries))
+
+    for obj in coredump.mappings:
+        if not obj.path.startswith("/"):
+            continue
+        binary = binaries.joinpath(str(obj.path)[1:])
+        if not binary.exists():
+            continue
+        obj.name = str(binary)
+
+    executable = manifest["coredump"]["executable"]
+    return Tracer(executable, trace, coredump)
+
+
 class Replay:
-    def __init__(self, report):
-        # type: (str) -> None
+    def __init__(self, report: str) -> None:
         self.report = report
         self._tempdir = TemporaryDirectory()
         self.tempdir = Path(self._tempdir.name)
 
-    def __enter__(self):
-        # type: () -> Replay
-        self.prepare_tracer()
+    def __enter__(self) -> "Replay":
+        self.tracer = create_tracer(self.report, self.tempdir)
         return self
 
     def __exit__(self, type, value, traceback):
         self.cleanup()
 
-    def prepare_tracer(self):
-        # type: () -> None
-        manifest = self.unpack()
-
-        coredump = Coredump(manifest["coredump"]["file"])
-        vdso_x64 = self.tempdir.joinpath("vdso")
-
-        with open(str(vdso_x64), "wb+") as f:
-            f.write(coredump.vdso.data)
-
-        binaries = self.tempdir.joinpath("binaries")
-        trace = decode_trace(manifest, coredump.mappings, str(vdso_x64), str(binaries))
-
-        for obj in coredump.mappings:
-            if not obj.path.startswith("/"):
-                continue
-            binary = binaries.joinpath(str(obj.path)[1:])
-            if not binary.exists():
-                continue
-            obj.name = str(binary)
-
-        self.executable = manifest["coredump"]["executable"]
-        self.tracer = Tracer(self.executable, trace, coredump)
+    @property
+    def executable(self) -> str:
+        return self.tracer.executable
 
     def run(self) -> Tuple[StateManager, List[Any]]:
-        if not self.tracer:
-            self.prepare_tracer()
+        if self.tracer is None:
+            self.tracer = create_tracer(self.report, self.tempdir)
+
         states = self.tracer.run()
         start_state = self.tracer.start_state
         active_state = states.major_states[-1]
+        assert active_state is not None
         coredump = self.tracer.coredump
         arip = active_state.simstate.regs.rip
         crip = hex(coredump.registers["rip"])
         arsp = active_state.simstate.regs.rsp
         crsp = hex(coredump.registers["rsp"])
-        import logging
 
-        l = logging.getLogger("hase")
         l.warning(f"{arip} {crip} {arsp} {crsp}")
         low = active_state.simstate.regs.rsp
         high = start_state.regs.rsp
@@ -129,6 +149,7 @@ class Replay:
         except Exception:
             high_v = coredump.stack.stop
         coredump_constraints: List[Any] = []
+        print(low_v, high_v)
         """
         for addr in range(low_v, high_v):
             value = active_state.simstate.memory.load(addr, 1, endness="Iend_LE")
@@ -139,28 +160,8 @@ class Replay:
         """
         return states, coredump_constraints
 
-    def cleanup(self):
-        # type: () -> None
+    def cleanup(self) -> None:
         self._tempdir.cleanup()
-
-    def unpack(self):
-        # type: () -> Dict[str, Any]
-        archive_root = self.tempdir
-        subprocess.check_call(["tar", "-xzf", self.report, "-C", str(archive_root)])
-
-        manifest_path = archive_root.joinpath("manifest.json")
-        with open(str(manifest_path)) as f:
-            manifest = json.load(f)
-
-        for cpu in manifest["trace"]["cpus"]:
-            cpu["event_path"] = str(archive_root.joinpath(cpu["event_path"]))
-            cpu["trace_path"] = str(archive_root.joinpath(cpu["trace_path"]))
-
-        coredump = manifest["coredump"]
-        coredump["executable"] = str(archive_root.joinpath(coredump["executable"]))
-        coredump["file"] = str(archive_root.joinpath(coredump["file"]))
-
-        return manifest
 
 
 def replay_trace(report: str) -> Replay:
@@ -171,7 +172,7 @@ def replay_command(args: argparse.Namespace, debug_cli: bool = False) -> StateMa
     with replay_trace(args.report) as rt:
         states, constraints = rt.run()
         if debug_cli:
-            gdbs = GdbServer(
+            GdbServer(
                 states,
                 rt.tracer.executable,
                 rt.tracer.cdanalyzer,
@@ -180,12 +181,12 @@ def replay_command(args: argparse.Namespace, debug_cli: bool = False) -> StateMa
 
             def add_constraint(state: State) -> None:
                 active_state = state.simstate
-                if not getattr(active_state, "had_coredump_constraints", False):
+                if not active_state.had_coredump_constraints:
                     for c in constraints:
                         old_solver = active_state.simstate.solver._solver.branch()
                         active_state.simstate.se.add(c)
                         if not active_state.simstate.se.satisfiable():
-                            print("Unsatisfiable coredump constraints: " + str(c))
+                            print(f"Unsatisfiable coredump constraints: {c}")
                             active_state.simstate.solver._stored_solver = old_solver
                     active_state.had_coredump_constraints = True
 
@@ -196,5 +197,6 @@ def replay_command(args: argparse.Namespace, debug_cli: bool = False) -> StateMa
 
 
 def unpack_command(args):
-    manifest = Replay(args.report).unpack()
+    replay = Replay(args.report)
+    manifest = replay.unpack()
     json.dump(manifest, sys.stdout, sort_keys=True, indent=4)

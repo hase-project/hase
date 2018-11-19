@@ -171,7 +171,7 @@ class set_robust_list(SimProcedure):
         self.state.robust_list_size = length
         size = robust_list_head.size  # type: ignore
         for i in range(length):
-            robust_list_head(head + i * size).store_all(self) 
+            robust_list_head(head + i * size).store_all(self)
         return errno_success(self)
 
 

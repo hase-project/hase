@@ -91,7 +91,7 @@ class getpwuid_r(SimProcedure):
 class getpwuid(SimProcedure):
     def run(self, uid) -> claripy.BVV:
         malloc = SIM_PROCEDURES["libc"]["malloc"]
-        size = passwd.size # type: ignore
+        size = passwd.size  # type: ignore
         addr = self.inline_call(malloc, size).ret_expr
         self.inline_call(getpwuid_r, uid, addr, 0, 0, 0)
         return null_success(self, addr)

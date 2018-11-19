@@ -141,7 +141,7 @@ def compute_string_size(
 ) -> Callable[["EventStructs", int], Type[ct.Structure]]:
     memo: Dict[int, Type[ct.Structure]] = {}
 
-    def wrapper(self: EventStructs, size: int) -> Type[ct.Structure]:
+    def wrapper(self: "EventStructs", size: int) -> Type[ct.Structure]:
         if size == -1:
             base_type = memo.get(0)
             if base_type:
