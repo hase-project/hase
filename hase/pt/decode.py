@@ -3,7 +3,6 @@ from __future__ import absolute_import, division, print_function
 import bisect
 import ctypes as ct
 import logging
-from pathlib import Path
 from typing import List, Optional, Union
 
 from .. import _pt
@@ -344,7 +343,6 @@ def decode(
     time_zero: int,
     time_shift: int,
     time_mult: int,
-    sysroot: str,
     vdso_x64: str,
 ) -> List[Instruction]:
 
@@ -355,15 +353,9 @@ def decode(
 
     shared_objects = []
 
-    root = Path(sysroot)
-
     for m in mappings:
-        if m.path.startswith("/"):
-            path = str(root.joinpath(m.path[1:]))
-            page_size = 4096
-            shared_objects.append(
-                (path, m.page_offset * page_size, m.stop - m.start, m.start)
-            )
+        page_size = 4096
+        shared_objects.append((m.path, m.page_offset * page_size, m.stop - m.start, m.start))
 
     for (core, trace_path) in enumerate(trace_paths):
         trace = _pt.decode(
