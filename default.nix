@@ -57,7 +57,6 @@ in
   ];
   PYTHON="python2";
   SOURCE_DATE_EPOCH="1523278946";
-  LC_ALL="en_US.utf-8";
   # better not to use tmpfs
   TMPDIR="/tmp";
 
