@@ -787,7 +787,7 @@ class Tracer:
                 ):
                     self.post_execute(old_state, choice)
                     return old_state, choice
-            except angr.SimUnsatError:
+            except angr.SimValueError:
                 pass
         new_state = state.copy()
         new_state.regs.ip = instruction.ip
