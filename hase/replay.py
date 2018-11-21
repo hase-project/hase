@@ -22,7 +22,6 @@ def decode_trace(
     manifest: Dict[str, Any],
     mappings: List[Mapping],
     vdso_x64: str,
-    executable_root: str,
 ) -> List[Instruction]:
     coredump = manifest["coredump"]
     trace = manifest["trace"]
@@ -59,7 +58,6 @@ def decode_trace(
         time_shift=trace["time_shift"],
         time_mult=trace["time_mult"],
         sample_type=trace["sample_type"],
-        sysroot=executable_root,
         vdso_x64=vdso_x64,
     )
 
@@ -82,6 +80,19 @@ def unpack(report: str, archive_root: Path) -> Dict[str, Any]:
     return manifest
 
 
+def sanitize_mappings(mappings: List[Mapping], sysroot: Path) -> List[Mapping]:
+    mappings = []
+    for mapping in mappings:
+        if not mapping.path.startswith("/"):
+            continue
+        binary = sysroot.joinpath(str(mapping.path)[1:])
+        if not binary.exists():
+            continue
+        mapping.name = str(binary)
+        mappings.append(mapping)
+    return mappings
+
+
 def create_tracer(report: str, archive_root: Path) -> Tracer:
     manifest = unpack(report, archive_root)
 
@@ -91,16 +102,9 @@ def create_tracer(report: str, archive_root: Path) -> Tracer:
     with open(str(vdso_x64), "wb+") as f:
         f.write(coredump.vdso.data)
 
-    binaries = archive_root.joinpath("binaries")
-    trace = decode_trace(manifest, coredump.mappings, str(vdso_x64), str(binaries))
-
-    for obj in coredump.mappings:
-        if not obj.path.startswith("/"):
-            continue
-        binary = binaries.joinpath(str(obj.path)[1:])
-        if not binary.exists():
-            continue
-        obj.name = str(binary)
+    sysroot = archive_root.joinpath("binaries")
+    mappings = sanitize_mappings(coredump.mappings, sysroot)
+    trace = decode_trace(manifest, mappings, str(vdso_x64))
 
     executable = manifest["coredump"]["executable"]
     return Tracer(executable, trace, coredump)
