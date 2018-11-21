@@ -168,7 +168,7 @@ def replay_trace(report: str) -> Replay:
     return Replay(report)
 
 
-def replay_command(args: argparse.Namespace, debug_cli: bool = False) -> StateManager:
+def replay_command(args: argparse.Namespace, debug_cli: bool = True) -> StateManager:
     with replay_trace(args.report) as rt:
         states, constraints = rt.run()
         if debug_cli:
