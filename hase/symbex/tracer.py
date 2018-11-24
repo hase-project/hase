@@ -119,9 +119,6 @@ class Tracer:
         self.hook_plt_idx.sort()
         self.filter.entry_check()
 
-        import ipdb
-        ipdb.set_trace()
-
         start_address = self.trace[0].ip
 
         args = [self.coredump.argc]
@@ -217,19 +214,16 @@ class Tracer:
         previous_instruction: Instruction,
         instruction: Instruction,
     ) -> Tuple[bool, str]:
-        # ret: force_jump
         # NOTE: typical case: switch(getchar())
 
         if (
             previous_instruction.iclass == InstructionClass.ptic_other
-            or previous_instruction.ip != state.addr
         ):
             return False, ""
         jump_ins = ["jmp", "call"]  # currently not deal with jcc regs
         capstone = state.block().capstone
         first_ins = capstone.insns[0].insn
         ins_repr = first_ins.mnemonic
-
         if ins_repr.startswith("ret"):
             if not state.solver.symbolic(state.regs.rsp):
                 mem = state.memory.load(state.regs.rsp, 8)
@@ -411,9 +405,10 @@ class Tracer:
         if force_jump:
             new_state = state.copy()
             if force_type == "call":
-                new_state.regs.rsp -= 8
-                ret_addr = state.addr + state.block().capstone.insns[0].size
-                new_state.memory.store(new_state.regs.rsp, ret_addr, endness="Iend_LE")
+                if not self.project.is_hooked(instruction.ip):
+                    new_state.regs.rsp -= 8
+                    ret_addr = state.addr + state.block().capstone.insns[0].size
+                    new_state.memory.store(new_state.regs.rsp, ret_addr, endness="Iend_LE")
             elif force_type == "ret":
                 new_state.regs.rsp += 8
             new_state.regs.ip = instruction.ip
@@ -432,6 +427,8 @@ class Tracer:
         old_state = state
         l.warning(
             repr(state)
+            + " "
+            + repr(previous_instruction)
             + " "
             + repr(instruction)
             + "\n"
@@ -486,9 +483,9 @@ class Tracer:
         else:
             l.warning("RIP mismatch.")
             coredump = self.coredump
-            arip = active_state.simstate.regs.rip
+            arip = state.simstate.regs.rip
             crip = hex(coredump.registers["rip"])
-            arsp = active_state.simstate.regs.rsp
+            arsp = state.simstate.regs.rsp
             crsp = hex(coredump.registers["rsp"])
             l.warning(f"{arip} {crip} {arsp} {crsp}")
 
@@ -499,14 +496,16 @@ class Tracer:
         self.debug_unsat: Optional[SimState] = None
         self.debug_state: deque = deque(maxlen=10)
         self.skip_addr: Dict[int, int] = {}
-        cnt = 0
+        cnt = -1
         interval = max(1, len(self.trace) // 200)
         length = len(self.trace) - 1
-        trace = self.trace[1:]
+        trace = self.trace[0:]
         trace.append(trace[-1])
-        for previous_idx, instruction in enumerate(trace):
-            previous_instruction = trace[previous_idx]
 
+        # prev_instr.ip == state.ip
+        for previous_idx in range(len(trace) - 1):
+            previous_instruction = trace[previous_idx]
+            instruction = trace[previous_idx + 1]
             cnt += 1
             if not cnt % 500:
                 l.warning("Do a garbage collection")

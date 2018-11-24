@@ -83,7 +83,7 @@ def unpack(report: str, archive_root: Path) -> Dict[str, Any]:
 
 
 def sanitize_mappings(mappings: List[Mapping], sysroot: Path) -> List[Mapping]:
-    mappings = []
+    new_mappings = []
     for mapping in mappings:
         if not mapping.path.startswith("/"):
             continue
@@ -91,8 +91,8 @@ def sanitize_mappings(mappings: List[Mapping], sysroot: Path) -> List[Mapping]:
         if not binary.exists():
             continue
         mapping.name = str(binary)
-        mappings.append(mapping)
-    return mappings
+        new_mappings.append(mapping)
+    return new_mappings
 
 
 def create_tracer(report: str, archive_root: Path) -> Tracer:
@@ -103,10 +103,9 @@ def create_tracer(report: str, archive_root: Path) -> Tracer:
 
     with open(str(vdso_x64), "wb+") as f:
         f.write(coredump.vdso.data)
-
     sysroot = archive_root.joinpath("binaries")
-    mappings = sanitize_mappings(coredump.mappings, sysroot)
-    trace = decode_trace(manifest, mappings, str(vdso_x64))
+    coredump.mappings = sanitize_mappings(coredump.mappings, sysroot)
+    trace = decode_trace(manifest, coredump.mappings, str(vdso_x64))
 
     executable = manifest["coredump"]["executable"]
     return Tracer(executable, trace, coredump)
