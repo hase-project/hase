@@ -3,7 +3,6 @@ from __future__ import absolute_import, division, print_function
 import bisect
 import ctypes as ct
 import logging
-from pathlib import Path
 from typing import List, Optional, Union
 
 from .. import _pt
@@ -120,7 +119,7 @@ def get_thread_schedule(
 
 # In future this should become a warning, since bugs can smash the stack! For
 # now we rely on this to figure out if we re-assemble the trace incorrectly
-def sanity_check_order(instructions: List[Instruction]) -> None:
+def sanity_check_order(instructions: List[Instruction], mappings: List[Mapping]) -> None:
     """
     Check that calls matches returns and that syscalls and non-jumps do not change the control flow.
     """
@@ -131,7 +130,14 @@ def sanity_check_order(instructions: List[Instruction]) -> None:
             if previous.iclass == InstructionClass.ptic_return:
                 if len(stack) != 0:
                     return_ip = stack.pop()
-                    assert return_ip == instruction.ip
+                    if return_ip != instruction.ip:
+                        previous_loc = find_location(instructions[i - 1].ip, mappings)
+                        instruction_loc = find_location(instruction.ip, mappings)
+                        return_loc = find_location(return_ip, mappings)
+                        l.warning(
+                            f"unexpected call return {instruction_loc} from {previous_loc} found: expected {return_loc}"
+                        )
+                        stack = []
             elif previous.iclass in (
                 InstructionClass.ptic_far_call,
                 InstructionClass.ptic_other,
@@ -175,6 +181,22 @@ class Chunk:
             self.stop,
             len(self.instructions),
         )
+
+
+def find_mapping(ip: int, mappings: List[Mapping]) -> Optional[Mapping]:
+    for mapping in mappings:
+        if mapping.start <= ip and ip < mapping.stop:
+            return mapping
+    return None
+
+
+def find_location(ip: int, mappings: List[Mapping]) -> str:
+    mapping = find_mapping(ip, mappings)
+    if mapping is None:
+        return f"0x{ip:x} (umapped)"
+    else:
+        offset = ip - mapping.start + mapping.page_offset * 4096
+        return f"0x{ip:x} ({mapping.name}+{offset})"
 
 
 def correlate_traces(
@@ -233,8 +255,7 @@ def correlate_traces(
     return instructions
 
 
-# def is_context_switch(event, instruction):
-#    # type: (TraceEvent, Instruction) -> bool
+# def is_context_switch(event: TraceEvent, instruction: Instruction) -> bool:
 #    if isinstance(event, DisableEvent) and \
 #            instruction.iclass == InstructionClass.ptic_far_call:
 #        # syscall
@@ -322,7 +343,6 @@ def decode(
     time_zero: int,
     time_shift: int,
     time_mult: int,
-    sysroot: str,
     vdso_x64: str,
 ) -> List[Instruction]:
 
@@ -333,15 +353,9 @@ def decode(
 
     shared_objects = []
 
-    root = Path(sysroot)
-
     for m in mappings:
-        if m.path.startswith("/"):
-            path = str(root.joinpath(m.path[1:]))
-            page_size = 4096
-            shared_objects.append(
-                (path, m.page_offset * page_size, m.stop - m.start, m.start)
-            )
+        page_size = 4096
+        shared_objects.append((m.path, m.page_offset * page_size, m.stop - m.start, m.start))
 
     for (core, trace_path) in enumerate(trace_paths):
         trace = _pt.decode(
@@ -364,5 +378,5 @@ def decode(
     schedule = merge_same_core_switches(schedule)
 
     instructions = correlate_traces(traces, schedule, pid, tid)
-    sanity_check_order(instructions)
+    sanity_check_order(instructions, mappings)
     return instructions
