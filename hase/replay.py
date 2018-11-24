@@ -14,6 +14,8 @@ from .pt.decode import decode
 from .pt.events import Instruction
 from .pwn_wrapper import Coredump, Mapping
 from .symbex.tracer import State, StateManager, Tracer
+from .symbex.cdconstraint import calc_constraints, apply_constraints
+
 
 l = logging.getLogger(__name__)
 
@@ -22,7 +24,6 @@ def decode_trace(
     manifest: Dict[str, Any],
     mappings: List[Mapping],
     vdso_x64: str,
-    executable_root: str,
 ) -> List[Instruction]:
     coredump = manifest["coredump"]
     trace = manifest["trace"]
@@ -59,7 +60,6 @@ def decode_trace(
         time_shift=trace["time_shift"],
         time_mult=trace["time_mult"],
         sample_type=trace["sample_type"],
-        sysroot=executable_root,
         vdso_x64=vdso_x64,
     )
 
@@ -82,6 +82,19 @@ def unpack(report: str, archive_root: Path) -> Dict[str, Any]:
     return manifest
 
 
+def sanitize_mappings(mappings: List[Mapping], sysroot: Path) -> List[Mapping]:
+    mappings = []
+    for mapping in mappings:
+        if not mapping.path.startswith("/"):
+            continue
+        binary = sysroot.joinpath(str(mapping.path)[1:])
+        if not binary.exists():
+            continue
+        mapping.name = str(binary)
+        mappings.append(mapping)
+    return mappings
+
+
 def create_tracer(report: str, archive_root: Path) -> Tracer:
     manifest = unpack(report, archive_root)
 
@@ -91,16 +104,9 @@ def create_tracer(report: str, archive_root: Path) -> Tracer:
     with open(str(vdso_x64), "wb+") as f:
         f.write(coredump.vdso.data)
 
-    binaries = archive_root.joinpath("binaries")
-    trace = decode_trace(manifest, coredump.mappings, str(vdso_x64), str(binaries))
-
-    for obj in coredump.mappings:
-        if not obj.path.startswith("/"):
-            continue
-        binary = binaries.joinpath(str(obj.path)[1:])
-        if not binary.exists():
-            continue
-        obj.name = str(binary)
+    sysroot = archive_root.joinpath("binaries")
+    mappings = sanitize_mappings(coredump.mappings, sysroot)
+    trace = decode_trace(manifest, mappings, str(vdso_x64))
 
     executable = manifest["coredump"]["executable"]
     return Tracer(executable, trace, coredump)
@@ -126,39 +132,11 @@ class Replay:
     def run(self) -> Tuple[StateManager, List[Any]]:
         if self.tracer is None:
             self.tracer = create_tracer(self.report, self.tempdir)
-
         states = self.tracer.run()
         start_state = self.tracer.start_state
         active_state = states.major_states[-1]
         assert active_state is not None
-        coredump = self.tracer.coredump
-        arip = active_state.simstate.regs.rip
-        crip = hex(coredump.registers["rip"])
-        arsp = active_state.simstate.regs.rsp
-        crsp = hex(coredump.registers["rsp"])
-
-        l.warning(f"{arip} {crip} {arsp} {crsp}")
-        low = active_state.simstate.regs.rsp
-        high = start_state.regs.rsp
-        try:
-            low_v = active_state.simstate.solver.eval(low)
-        except Exception:
-            low_v = coredump.stack.start
-        try:
-            high_v = start_state.solver.eval(high)
-        except Exception:
-            high_v = coredump.stack.stop
-        coredump_constraints: List[Any] = []
-        print(low_v, high_v)
-        """
-        for addr in range(low_v, high_v):
-            value = active_state.simstate.memory.load(addr, 1, endness="Iend_LE")
-            if value.variables == frozenset():
-                continue
-            cmem = coredump.stack[addr]
-            coredump_constraints.append(value == cmem)
-        """
-        return states, coredump_constraints
+        return states, []
 
     def cleanup(self) -> None:
         self._tempdir.cleanup()
@@ -172,26 +150,16 @@ def replay_command(args: argparse.Namespace, debug_cli: bool = True) -> StateMan
     with replay_trace(args.report) as rt:
         states, constraints = rt.run()
         if debug_cli:
-            GdbServer(
+            gdbs = GdbServer(
                 states,
                 rt.tracer.executable,
                 rt.tracer.cdanalyzer,
                 states.major_states[-1],
             )
 
-            def add_constraint(state: State) -> None:
-                active_state = state.simstate
-                if not active_state.had_coredump_constraints:
-                    for c in constraints:
-                        old_solver = active_state.simstate.solver._solver.branch()
-                        active_state.simstate.se.add(c)
-                        if not active_state.simstate.se.satisfiable():
-                            print(f"Unsatisfiable coredump constraints: {c}")
-                            active_state.simstate.solver._stored_solver = old_solver
-                    active_state.had_coredump_constraints = True
+            # TODO: add stack constraints
 
             import pry
-
             pry()
         return states
 

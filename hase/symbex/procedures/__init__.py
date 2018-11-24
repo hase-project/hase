@@ -231,9 +231,7 @@ add_alias_s(alias_symbols, "free", "cfree")
 add_alias_s(alias_symbols, "memcpy", "__memcpy_sse2_unaligned")
 
 
-S_CHAR = 8
-S_INT = 32
-S_LONG = 64
-S_ARCH = -1
-
-fallback_symbols = {"fgetc": S_CHAR, "lseek": S_ARCH, "fileno": S_INT}
+# Arch-dependent functions
+common_prefix = ['__GI']
+# '_l_sse', '_unaligned' included
+common_suffix = ['_sse', '_avx', '@', '_l_avx']
