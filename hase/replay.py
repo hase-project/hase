@@ -21,9 +21,7 @@ l = logging.getLogger(__name__)
 
 
 def decode_trace(
-    manifest: Dict[str, Any],
-    mappings: List[Mapping],
-    vdso_x64: str,
+    manifest: Dict[str, Any], mappings: List[Mapping], vdso_x64: str
 ) -> List[Instruction]:
     coredump = manifest["coredump"]
     trace = manifest["trace"]
@@ -133,8 +131,8 @@ class Replay:
             self.tracer = create_tracer(self.report, self.tempdir)
         states = self.tracer.run()
         start_state = self.tracer.start_state
-        active_state = states.major_states[-1]
-        assert active_state is not None
+        final_state = states.major_states[-1].simstate
+        assert final_state is not None
         return states, []
 
     def cleanup(self) -> None:
@@ -159,6 +157,7 @@ def replay_command(args: argparse.Namespace, debug_cli: bool = True) -> StateMan
             # TODO: add stack constraints
 
             import pry
+
             pry()
         return states
 

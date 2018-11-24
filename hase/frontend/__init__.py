@@ -70,12 +70,16 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.up_button.clicked.connect(self.push_up)
         self.up_button.setEnabled(False)
 
-        self.upto_button.setIcon(QIcon(str(APP_ROOT.joinpath("frontend/icon/upto.png"))))
+        self.upto_button.setIcon(
+            QIcon(str(APP_ROOT.joinpath("frontend/icon/upto.png")))
+        )
         self.upto_button.setIconSize(QSize(15, 15))
         self.upto_button.clicked.connect(self.push_upto)
         self.upto_button.setEnabled(False)
 
-        self.down_button.setIcon(QIcon(str(APP_ROOT.joinpath("frontend/icon/down.png"))))
+        self.down_button.setIcon(
+            QIcon(str(APP_ROOT.joinpath("frontend/icon/down.png")))
+        )
         self.down_button.setIconSize(QSize(15, 15))
         self.down_button.clicked.connect(self.push_down)
         self.down_button.setEnabled(False)

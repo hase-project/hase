@@ -146,7 +146,9 @@ class Job:
 
 
 class RecordPaths:
-    def __init__(self, path: Path, id: int, log_path: Path, pid_file: Optional[str]) -> None:
+    def __init__(
+        self, path: Path, id: int, log_path: Path, pid_file: Optional[str]
+    ) -> None:
         self.path = path
         self.log_path = log_path
         self.pid_file = pid_file

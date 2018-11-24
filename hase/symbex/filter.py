@@ -6,13 +6,12 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
 from angr import Project, SimProcedure
-from angr.analyses.cfg import CFGFast
 
 from ..pt.events import Instruction
 from .hook import unsupported_symbols, common_prefix, common_suffix
 
 if False:  # for mypy
-    from .tracer import CoredumpGDB
+    from .cdanalyzer import CoredumpGDB
 
 l = logging.getLogger(__name__)
 
@@ -54,7 +53,7 @@ class FilterBase:
         self.new_trace: List[Instruction] = []
         self.omitted_section = omitted_section
         self.hooked_symname = list(self.hooked_symbol.keys())
-        self.hooked_addon : List[Tuple[str, int]] = []
+        self.hooked_addon: List[Tuple[str, int]] = []
 
         self.analyze_unsupported()
 
@@ -65,18 +64,18 @@ class FilterBase:
             self.syms[lib] = list(self.syms_dict[lib].keys())
             self.syms[lib].sort()
 
-    def add_hook_omit_symbol(self, fname : str, name : str, ip : int) -> None:
-        l.warning('Adding new hook: {} with old hook {}'.format(fname, name))
+    def add_hook_omit_symbol(self, fname: str, name: str, ip: int) -> None:
+        l.warning("Adding new hook: {} with old hook {}".format(fname, name))
         func = self.hooked_symbol[name]
         self.project.hook(ip, func(), length=4)
         self.hooked_addon.append((fname, ip))
 
     def analyze_unsupported(self) -> None:
-        for l in unsupported_symbols:
+        for lsym in unsupported_symbols:
             try:
-                r = self.gdb.get_func_range(l[0])
+                r = self.gdb.get_func_range(lsym[0])
             except Exception:
-                l.warning("Unable to fetch {} range by gdb".format(l[0]))
+                l.warning("Unable to fetch {} range by gdb".format(lsym[0]))
                 r = [0, 0]
             self.omitted_section.append(r)
 
@@ -99,13 +98,13 @@ class FilterBase:
                 return True
         return False
 
-    def test_hook_name(self, fname: str, ip : int) -> bool:
+    def test_hook_name(self, fname: str, ip: int) -> bool:
         if fname in self.hooked_addon:
             return True
         is_new, name = self.find_matching_name(fname)
         if is_new:
             self.add_hook_omit_symbol(fname, name, ip)
-        if name == 'invalid_____':
+        if name == "invalid_____":
             return False
         return True
 
@@ -115,7 +114,7 @@ class FilterBase:
                 return lib.reverse_plt[addr]
         return ""
 
-    def find_matching_name(self, fname : str) -> Tuple[bool, str]:
+    def find_matching_name(self, fname: str) -> Tuple[bool, str]:
         for name in self.hooked_symname:
             if fname == name:
                 return False, name
@@ -125,7 +124,7 @@ class FilterBase:
             for suffix in common_suffix:
                 if name + suffix in fname:
                     return True, name
-        return False, 'invalid_____'
+        return False, "invalid_____"
 
     # FIXME return type should be a union of the actual type and FakeSymbol
     def find_function(self, addr: int) -> Optional[FakeSymbol]:
@@ -164,7 +163,7 @@ class FilterTrace(FilterBase):
 
         self.trace_idx: List[int] = []
         self.hook_target: Dict[int, int] = {}
-        self.hook_entry : List[Tuple[int, Instruction, str]] = []
+        self.hook_entry: List[Tuple[int, Instruction, str]] = []
         self.static_link = static_link
         self.analyze_trace()
 
@@ -180,30 +179,29 @@ class FilterTrace(FilterBase):
             if v is not None:
                 name = v.name
                 if isinstance(v, FakeSymbol):
-                    name = 'fake_' + name
+                    name = "fake_" + name
                 chain = [name]
                 while v in self.call_parent.keys():
                     v = self.call_parent[v]
                     if v is not None:
                         name = v.name
                         if isinstance(v, FakeSymbol):
-                            name = 'fake_' + name
+                            name = "fake_" + name
                         chain.append(name)
                     else:
                         break
                 print(k, chain)
-            print(k, 'None')
+            print(k, "None")
 
     def analyze_trace(self) -> None:
         # NOTE: assume the hooked function should have return
         self.new_trace = []
         self.call_parent: defaultdict = defaultdict(lambda: None)
         hooked_parent = None
-        hooked_sym = None
         is_current_hooked = False
         hook_idx = 0
         first_meet = False
-        plt_sym = FakeSymbol('all-plt-entry', 0)
+        plt_sym = FakeSymbol("all-plt-entry", 0)
         previous_instr = None
         for (idx, instruction) in enumerate(self.trace):
             if idx > 0:
@@ -289,14 +287,21 @@ class FilterTrace(FilterBase):
                         and self.test_plt_vdso(previous_instr.ip)
                         and not self.test_function_entry(previous_instr.ip)[0]
                     ):
-                        self.call_parent[sym] = self.find_function(self.trace[idx - 2].ip)
+                        self.call_parent[sym] = self.find_function(
+                            self.trace[idx - 2].ip
+                        )
                     real_parent = self.call_parent[sym]
-                    if self.test_hook_name(fname, instruction.ip) and not self.test_ld(instruction.ip):
+                    if self.test_hook_name(fname, instruction.ip) and not self.test_ld(
+                        instruction.ip
+                    ):
                         assert real_parent is not None and sym is not None
                         l.warning(
-                            parent.name + " -> "
-                            + real_parent.name 
-                            + " ->(hook) " + sym.name)
+                            parent.name
+                            + " -> "
+                            + real_parent.name
+                            + " ->(hook) "
+                            + sym.name
+                        )
                         is_current_hooked = True
                         first_meet = False
                         hooked_parent = real_parent

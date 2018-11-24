@@ -3,7 +3,6 @@ from __future__ import absolute_import, division, print_function
 import ctypes
 import gc
 import logging
-from bisect import bisect_right
 from collections import deque
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -11,7 +10,6 @@ import angr
 import archinfo
 from angr import SimState
 from angr import sim_options as so
-from angr.state_plugins.sim_action import SimActionExit
 from capstone import x86_const
 
 from ..errors import HaseError
@@ -77,7 +75,9 @@ class Tracer:
         start = self.elf.symbols.get("_start")
         main = self.elf.symbols.get("main")
 
-        self.cdanalyzer = CoredumpAnalyzer(self.elf, self.coredump, self.options['lib_opts'])
+        self.cdanalyzer = CoredumpAnalyzer(
+            self.elf, self.coredump, self.options["lib_opts"]
+        )
 
         for (idx, event) in enumerate(self.trace):
             if event.ip == start or event.ip == main:
@@ -102,7 +102,8 @@ class Tracer:
 
         self.use_hook = True
         hooked_symbols, omitted_section = setup_project_hook(
-            self.project, self.cdanalyzer.gdb)
+            self.project, self.cdanalyzer.gdb
+        )
 
         self.filter = FilterTrace(
             self.project,
@@ -127,12 +128,16 @@ class Tracer:
             start_address,
             *args,
             add_options=add_options,
-            remove_options=remove_simplications
+            remove_options=remove_simplications,
         )
         rsp, _ = solve_rsp(self.start_state, self.cdanalyzer)
         self.start_state.regs.rsp = rsp
-        
-        l.warning("Trace length: {} | OldTrace length: {}".format(len(self.trace), len(self.old_trace)))
+
+        l.warning(
+            "Trace length: {} | OldTrace length: {}".format(
+                len(self.trace), len(self.old_trace)
+            )
+        )
 
         self.setup_argv()
 
@@ -140,17 +145,18 @@ class Tracer:
         for i, inst in enumerate(self.trace[start:end]):
             if not filt or filt(inst.ip):
                 print(
-                    i + start, self.trace_idx[i + start],
-                    hex(inst.ip), 
-                    self.project.loader.describe_addr(inst.ip))
+                    i + start,
+                    self.trace_idx[i + start],
+                    hex(inst.ip),
+                    self.project.loader.describe_addr(inst.ip),
+                )
 
     def desc_old_trace(self, start, end=None, filt=None):
         for i, inst in enumerate(self.old_trace[start:end]):
             if not filt or filt(inst.ip):
                 print(
-                    i + start,
-                    hex(inst.ip), 
-                    self.project.loader.describe_addr(inst.ip))
+                    i + start, hex(inst.ip), self.project.loader.describe_addr(inst.ip)
+                )
 
     def desc_addr(self, addr):
         return self.project.loader.describe_addr(addr)
@@ -158,11 +164,14 @@ class Tracer:
     def desc_callstack(self):
         callstack = self.debug_state[-1].callstack
         for i, c in enumerate(callstack):
-            print('Frame {}: {} => {}, sp = {}'.format(
-                i, self.desc_addr(c.call_site_addr),
-                self.desc_addr(c.func_addr),
-                hex(c.stack_ptr)
-            ))
+            print(
+                "Frame {}: {} => {}, sp = {}".format(
+                    i,
+                    self.desc_addr(c.call_site_addr),
+                    self.desc_addr(c.func_addr),
+                    hex(c.stack_ptr),
+                )
+            )
 
     def setup_argv(self) -> None:
         # argv follows argc
@@ -216,9 +225,7 @@ class Tracer:
     ) -> Tuple[bool, str]:
         # NOTE: typical case: switch(getchar())
 
-        if (
-            previous_instruction.iclass == InstructionClass.ptic_other
-        ):
+        if previous_instruction.iclass == InstructionClass.ptic_other:
             return False, ""
         jump_ins = ["jmp", "call"]  # currently not deal with jcc regs
         capstone = state.block().capstone
@@ -408,7 +415,9 @@ class Tracer:
                 if not self.project.is_hooked(instruction.ip):
                     new_state.regs.rsp -= 8
                     ret_addr = state.addr + state.block().capstone.insns[0].size
-                    new_state.memory.store(new_state.regs.rsp, ret_addr, endness="Iend_LE")
+                    new_state.memory.store(
+                        new_state.regs.rsp, ret_addr, endness="Iend_LE"
+                    )
             elif force_type == "ret":
                 new_state.regs.rsp += 8
             new_state.regs.ip = instruction.ip

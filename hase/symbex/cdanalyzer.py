@@ -1,13 +1,14 @@
 from __future__ import absolute_import, division, print_function
 
 from typing import Any, Dict, List, Optional, Tuple
-from ..pwn_wrapper import ELF, Coredump, Mapping
+from ..pwn_wrapper import ELF, Coredump
 from pygdbmi.gdbcontroller import GdbController
 
 
 class CoredumpGDB:
-    def __init__(self, elf: ELF, coredump: Coredump,
-        lib_opts : Dict[str, Dict[str, int]]) -> None:
+    def __init__(
+        self, elf: ELF, coredump: Coredump, lib_opts: Dict[str, Dict[str, int]]
+    ) -> None:
         self.coredump = coredump
         self.elf = elf
         self.corefile = self.coredump.file.name
@@ -22,8 +23,9 @@ class CoredumpGDB:
         self.write_request("core-file {}".format(self.corefile))
         for path, value in self.lib_opts.items():
             self.write_request(
-                'add-symbol-file {} {}'.format(path, value['custom_base_addr']))
-            self.write_request('y')
+                "add-symbol-file {} {}".format(path, value["custom_base_addr"])
+            )
+            self.write_request("y")
 
     def get_response(self) -> List[Dict[str, Any]]:
         resp: List[Dict[str, Any]] = []
@@ -121,11 +123,11 @@ class CoredumpGDB:
     def get_reg(self, reg_name: str) -> int:
         resp = self.write_request("info reg {}".format(reg_name))
         for r in resp:
-            if 'payload' in r.keys():
-                if r['payload'].startswith(reg_name):
-                    vs = r['payload'].split(' ')
+            if "payload" in r.keys():
+                if r["payload"].startswith(reg_name):
+                    vs = r["payload"].split(" ")
                     for v in vs:
-                        if v.startswith('0x'):
+                        if v.startswith("0x"):
                             return int(v, 16)
         return 0
 
@@ -140,25 +142,26 @@ class CoredumpGDB:
         r1 = self.write_request("print &{}".format(name))
         addr = 0
         for r in r1:
-            if 'payload' in r.keys() and r['payload'] is not None:
-                payload = r['payload']
-                if isinstance(payload, str) and payload.startswith('$'):
+            if "payload" in r.keys() and r["payload"] is not None:
+                payload = r["payload"]
+                if isinstance(payload, str) and payload.startswith("$"):
                     addr = self.parse_addr(payload)
                     break
         r2 = self.write_request("disass {}".format(name))
         size = 0
         for r in r2[::-1]:
-            if 'payload' in r.keys() and r['payload'] is not None:
-                payload = r['payload']
-                if isinstance(payload, str) and '<+' in payload:
+            if "payload" in r.keys() and r["payload"] is not None:
+                payload = r["payload"]
+                if isinstance(payload, str) and "<+" in payload:
                     size = self.parse_offset(payload)
                     break
         return [addr, size + 1]
 
 
 class CoredumpAnalyzer:
-    def __init__(self, elf: ELF, coredump: Coredump,
-        lib_opts : Dict[str, Dict[str, int]]) -> None:
+    def __init__(
+        self, elf: ELF, coredump: Coredump, lib_opts: Dict[str, Dict[str, int]]
+    ) -> None:
         self.coredump = coredump
         self.elf = elf
         self.gdb = CoredumpGDB(elf, coredump, lib_opts)

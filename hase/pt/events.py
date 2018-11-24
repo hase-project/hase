@@ -49,7 +49,7 @@ class InstructionClass(IntEnum):
 
 
 class Instruction:
-    __slots__ = ['ip', 'size', 'iclass']
+    __slots__ = ["ip", "size", "iclass"]
 
     def __init__(self, ip: int, size: int, iclass: InstructionClass) -> None:
         self.ip = ip

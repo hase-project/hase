@@ -7,8 +7,16 @@ from angr.storage.file import Flags
 
 from ...errors import HaseError
 from .helper import errno_success, minmax, test_concrete_value
-from .sym_struct import (linux_dirent, linux_dirent64, robust_list_head,
-                         sigaction, stat_t, statfs_t, sysinfo_t, timespec)
+from .sym_struct import (
+    linux_dirent,
+    linux_dirent64,
+    robust_list_head,
+    sigaction,
+    stat_t,
+    statfs_t,
+    sysinfo_t,
+    timespec,
+)
 
 
 class rt_sigaction(SimProcedure):
