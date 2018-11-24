@@ -142,7 +142,7 @@ class CoredumpGDB:
         r1 = self.write_request("print &{}".format(name))
         addr = 0
         for r in r1:
-            if "payload" in r.keys() and r["payload"] is not None:
+            if r.get("payload") is not None:
                 payload = r["payload"]
                 if isinstance(payload, str) and payload.startswith("$"):
                     addr = self.parse_addr(payload)
@@ -150,7 +150,7 @@ class CoredumpGDB:
         r2 = self.write_request("disass {}".format(name))
         size = 0
         for r in r2[::-1]:
-            if "payload" in r.keys() and r["payload"] is not None:
+            if r.get("payload") is not None:
                 payload = r["payload"]
                 if isinstance(payload, str) and "<+" in payload:
                     size = self.parse_offset(payload)
