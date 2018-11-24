@@ -3,8 +3,6 @@ from __future__ import absolute_import, division, print_function
 import ctypes
 import gc
 import logging
-import signal
-from bisect import bisect_right
 from collections import deque
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -12,240 +10,20 @@ import angr
 import archinfo
 from angr import SimState
 from angr import sim_options as so
-from angr.state_plugins.sim_action import SimActionExit
 from capstone import x86_const
-from pygdbmi.gdbcontroller import GdbController
 
 from ..errors import HaseError
 from ..pt.events import Instruction, InstructionClass
 from ..pwn_wrapper import ELF, Coredump, Mapping
 from .filter import FilterTrace
-from .hook import addr_symbols, all_hookable_symbols
+from .hook import setup_project_hook
 from .state import State, StateManager
+from .cdanalyzer import CoredumpAnalyzer
+from .rspsolver import solve_rsp
 
 l = logging.getLogger(__name__)
 
 ELF_MAGIC = b"\x7fELF"
-
-
-class HaseTimeoutException(Exception):
-    pass
-
-
-def timeout(seconds=10):
-    def wrapper(func):
-        original_handler = signal.getsignal(signal.SIGALRM)
-
-        def timeout_handler(signum, frame):
-            signal.signal(signal.SIGALRM, original_handler)
-            raise HaseTimeoutException("Timeout")
-
-        def inner(*args, **kwargs):
-            signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(seconds)
-            try:
-                res = func(*args, **kwargs)
-            finally:
-                signal.alarm(0)
-            return res
-
-        return inner
-
-    return wrapper
-
-
-class CoredumpGDB:
-    def __init__(self, elf: ELF, coredump: Coredump) -> None:
-        self.coredump = coredump
-        self.elf = elf
-        self.corefile = self.coredump.file.name
-        self.execfile = self.elf.file.name
-        # XXX: use --nx will let manually set debug-file-directory
-        # and unknown cause for not showing libc_start_main and argv
-        # FIXME: get all response and retry if failed
-        self.gdb = GdbController(gdb_args=["--quiet", "--interpreter=mi2"])
-        # pwnlibs response
-        self.get_response()
-        self.setup_gdb()
-
-    def setup_gdb(self) -> None:
-        self.write_request("file {}".format(self.execfile))
-        self.write_request("core {}".format(self.corefile))
-
-    def get_response(self) -> List[Dict[str, Any]]:
-        resp: List[Dict[str, Any]] = []
-        while True:
-            try:
-                resp += self.gdb.get_gdb_response()
-            except Exception:
-                break
-        return resp
-
-    def write_request(self, req: str, **kwargs: Any) -> List[Dict[str, Any]]:
-        self.gdb.write(req, timeout_sec=1, read_response=False, **kwargs)
-        resp = self.get_response()
-        return resp
-
-    def parse_frame(self, r: str) -> Dict[str, Any]:
-        attrs: Dict[str, Any] = {}
-        # NOTE: #n  addr in func (args=args[ <name>][@entry=v]) at source_code[:line]\n
-        r = r.replace("\\n", "")
-        attrs["index"] = r.partition(" ")[0][1:]
-        r = r.partition(" ")[2][1:]
-        attrs["addr"] = r.partition(" ")[0]
-        r = r.partition(" ")[2]
-        r = r.partition(" ")[2]
-        attrs["func"] = r.partition(" ")[0]
-        r = r.partition(" ")[2]
-        args = r.partition(")")[0][1:].split(", ")
-        args_list = []
-
-        # NOTE: remove <xxx>
-        def remove_comment(arg: str) -> str:
-            if arg.find("<") != -1:
-                arg = arg.partition("<")[0]
-                arg = arg.replace(" ", "")
-            return arg
-
-        for arg in args:
-            if arg.find("@") != -1:
-                name, _, entry_ = arg.partition("@")
-            else:
-                name = arg
-                entry_ = ""
-            name, _, value = name.partition("=")
-            value = remove_comment(value)
-            if entry_:
-                _, _, entry = entry_.partition("=")
-                entry = remove_comment(entry)
-                args_list.append([name, value, entry])
-            else:
-                args_list.append([name, value, ""])
-        attrs["args"] = args_list
-        r = r.partition(")")[2]
-        r = r.partition(" ")[2]
-        r = r.partition(" ")[2]
-        if r.find(":") != -1:
-            source, _, line = r.partition(":")
-        else:
-            source = r
-            line = "?"
-        attrs["file"] = source
-        attrs["line"] = line
-        return attrs
-
-    def parse_addr(self, r: str) -> int:
-        # $n = (...) 0xaddr <name>
-        l = r.split(" ")
-        for blk in l:
-            if blk.startswith("0x"):
-                return int(blk, 16)
-        return 0
-
-    def parse_offset(self, r: str) -> int:
-        # addr <+offset>:  inst
-        l = r.split(" ")
-        for blk in l:
-            if blk.startswith("<+"):
-                idx = blk.find(">")
-                return int(blk[2:idx])
-        return 0
-
-    def backtrace(self) -> List[Dict[str, Any]]:
-        resp = self.write_request("where")
-        bt = []
-        for r in resp:
-            payload = r["payload"]
-            if payload and payload[0] == "#":
-                print(payload)
-                bt.append(self.parse_frame(payload))
-        return bt
-
-    def get_symbol(self, addr: int) -> str:
-        resp = self.write_request("info symbol {}".format(addr))
-        return resp[1]["payload"]
-
-    def get_reg(self, reg_name: str) -> int:
-        resp = self.write_request("info reg {}".format(reg_name))
-        if len(resp) < 5 or not resp[2]["payload"].startswith("\\t"):
-            return 0
-        return int(resp[2]["payload"][2:].split(" ")[0], 16)
-
-    def get_stack_base(self, n: int) -> Tuple[int, int]:
-        self.write_request("select-frame {}".format(n))
-        rsp_value = self.get_reg("rsp")
-        rbp_value = self.get_reg("rbp")
-        return rsp_value, rbp_value
-
-    def get_func_range(self, name: str) -> List[int]:
-        # FIXME: Not a good idea. Maybe some gdb extension?
-        r1 = self.write_request("print &{}".format(name))
-        addr = self.parse_addr(r1[1]["payload"])
-        r2 = self.write_request("disass {}".format(name))
-        size = self.parse_offset(r2[-3]["payload"])
-        return [addr, size + 1]
-
-
-class CoredumpAnalyzer:
-    def __init__(self, elf: ELF, coredump: Coredump) -> None:
-        self.coredump = coredump
-        self.elf = elf
-        self.gdb = CoredumpGDB(elf, coredump)
-        self.backtrace = self.gdb.backtrace()
-        self.argc = self.coredump.argc
-        self.argv = [self.read_argv(i) for i in range(self.argc)]
-        self.argv_addr = [self.read_argv_addr(i) for i in range(self.argc)]
-
-    def read_stack(self, addr: int, length: int = 0x1) -> str:
-        # NOTE: a op b op c will invoke weird typing
-        assert self.coredump.stack.start <= addr < self.coredump.stack.stop
-        offset = addr - self.coredump.stack.start
-        return self.coredump.stack.data[offset : offset + length]
-
-    def read_argv(self, n: int) -> str:
-        assert 0 <= n < self.coredump.argc
-        return self.coredump.string(self.coredump.argv[n])
-
-    def read_argv_addr(self, n: int) -> str:
-        assert 0 <= n < self.coredump.argc
-        return self.coredump.argv[n]
-
-    @property
-    def env(self):
-        return self.coredump.env
-
-    @property
-    def registers(self):
-        return self.coredump.registers
-
-    @property
-    def stack_start(self):
-        return self.coredump.stack.start
-
-    @property
-    def stack_stop(self):
-        return self.coredump.stack.stop
-
-    def call_argv(self, name: str) -> Optional[List[Optional[int]]]:
-        for bt in self.backtrace:
-            if bt["func"] == name:
-                args: List[Optional[int]] = []
-                for _, value, entry in bt["args"]:
-                    if entry:
-                        args.append(int(entry, 16))
-                    else:
-                        if value != "":
-                            args.append(int(value, 16))
-                        else:
-                            args.append(None)
-                return args
-        return None
-
-    def stack_base(self, name: str) -> Tuple[Optional[int], Optional[int]]:
-        for bt in self.backtrace:
-            if bt["func"] == name:
-                return self.gdb.get_stack_base(int(bt["index"]))
-        return (None, None)
 
 
 def build_load_options(mappings: List[Mapping]) -> Dict[str, Any]:
@@ -282,8 +60,8 @@ class Tracer:
         self, executable: str, trace: List[Instruction], coredump: Coredump
     ) -> None:
         self.executable = executable
-        options = build_load_options(coredump.mappings)
-        self.project = angr.Project(executable, **options)
+        self.options = build_load_options(coredump.mappings)
+        self.project = angr.Project(executable, **self.options)
 
         self.coredump = coredump
         self.debug_unsat: Optional[SimState] = None
@@ -297,7 +75,9 @@ class Tracer:
         start = self.elf.symbols.get("_start")
         main = self.elf.symbols.get("main")
 
-        self.cdanalyzer = CoredumpAnalyzer(self.elf, self.coredump)
+        self.cdanalyzer = CoredumpAnalyzer(
+            self.elf, self.coredump, self.options["lib_opts"]
+        )
 
         for (idx, event) in enumerate(self.trace):
             if event.ip == start or event.ip == main:
@@ -320,92 +100,78 @@ class Tracer:
             # so.ALL_FILES_EXIST, # the problem is, when having this, simfd either None or exist, no If
         } | so.simplification
 
-        self.cfg = self.project.analyses.CFGFast(show_progressbar=True)
-
         self.use_hook = True
-        self.omitted_section: List[List[int]] = []
-
-        if self.use_hook:
-            self.hooked_symbols = all_hookable_symbols.copy()
-            self.setup_hook()
-        else:
-            self.hooked_symbols = {}
-            self.project._sim_procedures = {}
-
-        self.from_initial = True
+        hooked_symbols, omitted_section = setup_project_hook(
+            self.project, self.cdanalyzer.gdb
+        )
 
         self.filter = FilterTrace(
             self.project,
-            self.cfg,
             self.trace,
-            self.hooked_symbols,
+            hooked_symbols,
             self.cdanalyzer.gdb,
-            self.omitted_section,
-            self.from_initial,
+            omitted_section,
             self.elf.statically_linked,
-            self.cdanalyzer.backtrace,
         )
 
         self.old_trace = self.trace
         self.trace, self.trace_idx, self.hook_target = self.filter.filtered_trace()
         self.hook_plt_idx = list(self.hook_target.keys())
         self.hook_plt_idx.sort()
+        self.filter.entry_check()
 
         start_address = self.trace[0].ip
 
-        if self.filter.start_funcname == "main":
-            args = self.cdanalyzer.call_argv("main")
-            if not args:
-                self.start_state = self.project.factory.blank_state(
-                    addr=start_address,
-                    add_options=add_options,
-                    remove_options=remove_simplications,
-                )
-            else:
-                # NOTE: gdb sometimes take this wrong
-                args[0] = self.coredump.argc
-                self.start_state = self.project.factory.call_state(
-                    start_address,
-                    *args,
-                    add_options=add_options,
-                    remove_options=remove_simplications
-                )
-            rsp, rbp = self.cdanalyzer.stack_base("main")
-            # TODO: or just stop?
-            if not rbp:
-                rbp = 0x7FFFFFFCF00
-            if not rsp:
-                rsp = 0x7FFFFFFCF00
-        else:
-            rsp, rbp = self.cdanalyzer.stack_base(self.filter.start_funcname)
-            if not rbp:
-                rbp = 0x7FFFFFFCF00
-            if not rsp:
-                rsp = 0x7FFFFFFCF00
-            self.start_state = self.project.factory.blank_state(
-                addr=start_address,
-                add_options=add_options,
-                remove_options=remove_simplications,
+        args = [self.coredump.argc]
+        args += [self.coredump.string(argv) for argv in self.coredump.argv]
+        self.start_state = self.project.factory.call_state(
+            start_address,
+            *args,
+            add_options=add_options,
+            remove_options=remove_simplications,
+        )
+        rsp, _ = solve_rsp(self.start_state, self.cdanalyzer)
+        self.start_state.regs.rsp = rsp
+
+        l.warning(
+            "Trace length: {} | OldTrace length: {}".format(
+                len(self.trace), len(self.old_trace)
             )
-
-        l.warning("{} {}".format(len(self.trace), len(self.old_trace)))
-
-        if self.filter.is_start_entry:
-            self.start_state.regs.rsp = rbp + 8
-        else:
-            self.start_state.regs.rsp = rsp
-            self.start_state.regs.rbp = rbp
-
-        self.setup_argv()
-        self.simgr = self.project.factory.simgr(
-            self.start_state, save_unsat=True, hierarchy=False, save_unconstrained=True
         )
 
-        # self.setup_breakpoint()
+        self.setup_argv()
 
-        # For debugging
-        # self.project.pt = self
-        self.constraints_index: Dict[int, int] = {}
+    def desc_trace(self, start, end=None, filt=None):
+        for i, inst in enumerate(self.trace[start:end]):
+            if not filt or filt(inst.ip):
+                print(
+                    i + start,
+                    self.trace_idx[i + start],
+                    hex(inst.ip),
+                    self.project.loader.describe_addr(inst.ip),
+                )
+
+    def desc_old_trace(self, start, end=None, filt=None):
+        for i, inst in enumerate(self.old_trace[start:end]):
+            if not filt or filt(inst.ip):
+                print(
+                    i + start, hex(inst.ip), self.project.loader.describe_addr(inst.ip)
+                )
+
+    def desc_addr(self, addr):
+        return self.project.loader.describe_addr(addr)
+
+    def desc_callstack(self):
+        callstack = self.debug_state[-1].callstack
+        for i, c in enumerate(callstack):
+            print(
+                "Frame {}: {} => {}, sp = {}".format(
+                    i,
+                    self.desc_addr(c.call_site_addr),
+                    self.desc_addr(c.func_addr),
+                    hex(c.stack_ptr),
+                )
+            )
 
     def setup_argv(self) -> None:
         # argv follows argc
@@ -420,81 +186,6 @@ class Tracer:
                 self.coredump.string(self.coredump.argv[i])[::-1],
                 endness=archinfo.Endness.LE,
             )
-
-    def setup_hook(self) -> None:
-        self.hooked_symbols.pop("abort", None)
-        self.hooked_symbols.pop("__assert_fail", None)
-        self.hooked_symbols.pop("__stack_chk_fail", None)
-        try:
-            abort_addr = self.project.loader.find_symbol("abort").rebased_addr
-            assert_addr = self.project.loader.find_symbol("__assert_fail").rebased_addr
-            stack_addr = self.project.loader.find_symbol(
-                "__stack_chk_fail"
-            ).rebased_addr
-            kill_addr = self.project.loader.find_symbol("kill").rebased_addr
-            self.project._sim_procedures.pop(abort_addr, None)
-            self.project._sim_procedures.pop(assert_addr, None)
-            self.project._sim_procedures.pop(stack_addr, None)
-            self.project._sim_procedures.pop(kill_addr, None)
-        except Exception:
-            pass
-
-        for symname, func in self.hooked_symbols.items():
-            self.project.hook_symbol(symname, func())
-        for symname in addr_symbols:
-            if symname in self.hooked_symbols.keys():
-                r = self.cdanalyzer.gdb.get_func_range(symname)
-                func = self.hooked_symbols[symname]
-                if r != [0, 0]:
-                    self.project.hook(r[0], func(), length=r[1])
-                    self.omitted_section.append(r)
-
-    def setup_breakpoint(self) -> None:
-        self.start_state.inspect.b(
-            "mem_write", when=angr.BP_AFTER, action=Tracer.inspect_mem_write
-        )
-
-    @staticmethod
-    def inspect_mem_write(state: SimState) -> None:
-        length = state.inspect.mem_write_length
-        if not state.solver.symbolic(length) and state.solver.eval(length) > 0x1000:
-            l.warning(
-                hex(state.addr)
-                + ": write "
-                + str(state.inspect.mem_write_expr)
-                + "with length "
-                + str(state.inspect.mem_write_length)
-            )
-            input()
-
-    def test_rep_ins(self, state: SimState) -> bool:
-        # NOTE: rep -> sat or unsat
-        capstone = state.block().capstone
-        first_ins = capstone.insns[0].insn
-        # NOTE: maybe better way is use prefix == 0xf2, 0xf3 (crc32 exception)
-        ins_repr = first_ins.mnemonic
-        return ins_repr.startswith("rep")
-
-    def repair_hook_return(self, state: SimState, index: int) -> Tuple[bool, SimState]:
-        # given a force_jump, from hook -> last
-        # caller -> plt -> hook
-        if self.project.is_hooked(state.addr):
-            """
-                it might be that call -> jmp -> real plt
-                or it could be add rsp 0x8, jmp -> directly ret
-                the only way seems to be sacrifice some execution
-                or look back to old_trace
-            """
-            old_branch_idx = self.trace_idx[index] - 1
-            # should be plt
-            plt_idx = bisect_right(self.hook_plt_idx, old_branch_idx) - 1
-            ret_addr = self.hook_target[self.hook_plt_idx[plt_idx]]
-            # like a ret
-            new_state = state.copy()
-            new_state.regs.rsp += 8
-            new_state.regs.ip = ret_addr
-            return True, new_state
-        return False, None
 
     def repair_exit_handler(self, state: SimState, step: SimState) -> SimState:
         artifacts = getattr(step, "artifacts", None)
@@ -532,19 +223,14 @@ class Tracer:
         previous_instruction: Instruction,
         instruction: Instruction,
     ) -> Tuple[bool, str]:
-        # ret: force_jump
         # NOTE: typical case: switch(getchar())
 
-        if (
-            previous_instruction.iclass == InstructionClass.ptic_other
-            or previous_instruction.ip != state.addr
-        ):
+        if previous_instruction.iclass == InstructionClass.ptic_other:
             return False, ""
         jump_ins = ["jmp", "call"]  # currently not deal with jcc regs
         capstone = state.block().capstone
         first_ins = capstone.insns[0].insn
         ins_repr = first_ins.mnemonic
-
         if ins_repr.startswith("ret"):
             if not state.solver.symbolic(state.regs.rsp):
                 mem = state.memory.load(state.regs.rsp, 8)
@@ -665,39 +351,13 @@ class Tracer:
             return True
         return False
 
-    def jump_was_not_taken(self, old_state: SimState, new_state: SimState) -> bool:
-        # was the last control flow change an exit vs call/jump?
-        ev = new_state.history.recent_events[-1]
-        if not isinstance(ev, SimActionExit):  # and len(instructions) == 1
-            return False
-        instructions = old_state.block().capstone.insns
-        size = instructions[0].insn.size
-        return (new_state.addr - size) == old_state.addr
-
     def repair_satness(self, old_state: SimState, new_state: SimState) -> None:
         if not new_state.solver.satisfiable():
-            """
-            sat_constraints = old_state.solver._solver.constraints
-            unsat_constraints = list(new_state.solver._solver.constraints)
-            sat_uuid = map(lambda c: c.uuid, sat_constraints)
-            for i, c in enumerate(unsat_constraints):
-                if c.uuid not in sat_uuid:
-                    unsat_constraints[i] = claripy.Not(c)
-            """
             new_state.solver._stored_solver = old_state.solver._solver.branch()
 
             if not self.debug_unsat:
                 self.debug_sat = old_state
                 self.debug_unsat = new_state
-
-    def record_constraints_index(
-        self, old_state: SimState, new_state: SimState, index: int
-    ) -> None:
-        sat_uuid = map(lambda c: c.uuid, old_state.solver.constraints)
-        unsat_constraints = list(new_state.solver.constraints)
-        for c in unsat_constraints:
-            if c.uuid not in sat_uuid:
-                self.constraints_index[c] = index
 
     def repair_ip_at_syscall(self, old_state: SimState, new_state: SimState) -> None:
         capstone = old_state.block().capstone
@@ -740,27 +400,30 @@ class Tracer:
                 state, num_inst=1  # , force_addr=addr
             )
             step = self.repair_syscall_jump(state, step)
+            step = self.repair_func_resolver(state, step)
+            step = self.repair_exit_handler(state, step)
         except Exception as e:
             l.warning(repr(e))
             new_state = state.copy()
             new_state.regs.ip = instruction.ip
             self.post_execute(state, new_state)
             return state, new_state
+
         if force_jump:
             new_state = state.copy()
             if force_type == "call":
-                new_state.regs.rsp -= 8
-                ret_addr = state.addr + state.block().capstone.insns[0].size
-                new_state.memory.store(new_state.regs.rsp, ret_addr, endness="Iend_LE")
+                if not self.project.is_hooked(instruction.ip):
+                    new_state.regs.rsp -= 8
+                    ret_addr = state.addr + state.block().capstone.insns[0].size
+                    new_state.memory.store(
+                        new_state.regs.rsp, ret_addr, endness="Iend_LE"
+                    )
             elif force_type == "ret":
                 new_state.regs.rsp += 8
             new_state.regs.ip = instruction.ip
             all_choices = {"sat": [new_state], "unsat": [], "unconstrained": []}
             choices = [new_state]
         else:
-            step = self.repair_func_resolver(state, step)
-            step = self.repair_exit_handler(state, step)
-
             all_choices = {
                 "sat": step.successors,
                 "unsat": step.unsat_successors,
@@ -773,6 +436,8 @@ class Tracer:
         old_state = state
         l.warning(
             repr(state)
+            + " "
+            + repr(previous_instruction)
             + " "
             + repr(instruction)
             + "\n"
@@ -826,22 +491,30 @@ class Tracer:
                 state.registers[name] = self.coredump.registers[name]
         else:
             l.warning("RIP mismatch.")
+            coredump = self.coredump
+            arip = state.simstate.regs.rip
+            crip = hex(coredump.registers["rip"])
+            arsp = state.simstate.regs.rsp
+            crsp = hex(coredump.registers["rsp"])
+            l.warning(f"{arip} {crip} {arsp} {crsp}")
 
     def run(self) -> StateManager:
-        simstate = self.simgr.active[0]
+        simstate = self.start_state
         states = StateManager(self, len(self.trace) + 1)
         states.add_major(State(0, None, self.trace[0], None, simstate))
         self.debug_unsat: Optional[SimState] = None
-        self.debug_state: deque = deque(maxlen=5)
+        self.debug_state: deque = deque(maxlen=10)
         self.skip_addr: Dict[int, int] = {}
-        cnt = 0
+        cnt = -1
         interval = max(1, len(self.trace) // 200)
         length = len(self.trace) - 1
-        trace = self.trace[1:]
+        trace = self.trace[0:]
         trace.append(trace[-1])
-        for previous_idx, instruction in enumerate(trace):
-            previous_instruction = trace[previous_idx]
 
+        # prev_instr.ip == state.ip
+        for previous_idx in range(len(trace) - 1):
+            previous_instruction = trace[previous_idx]
+            instruction = trace[previous_idx + 1]
             cnt += 1
             if not cnt % 500:
                 l.warning("Do a garbage collection")

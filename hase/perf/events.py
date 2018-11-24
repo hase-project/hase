@@ -41,7 +41,9 @@ def switch_event(tid: int) -> bytearray:
     return bytearray(event)
 
 
-def mmap2_event(tid: int, path: str, start: int, stop: int, page_offset: int) -> bytearray:
+def mmap2_event(
+    tid: int, path: str, start: int, stop: int, page_offset: int
+) -> bytearray:
     event_type = EVENTS[PerfRecord.PERF_RECORD_MMAP2]
     base_size = ct.sizeof(event_type(-1))
     size = base_size + string_size(path)

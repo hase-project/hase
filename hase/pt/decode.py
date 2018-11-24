@@ -9,8 +9,14 @@ from .. import _pt
 from ..perf.consts import PerfRecord
 from ..perf.reader import perf_events
 from ..pwn_wrapper import Mapping
-from .events import (AsyncDisableEvent, DisableEvent, EnableEvent, Instruction,
-                     InstructionClass, TraceEvent)
+from .events import (
+    AsyncDisableEvent,
+    DisableEvent,
+    EnableEvent,
+    Instruction,
+    InstructionClass,
+    TraceEvent,
+)
 
 l = logging.getLogger(__name__)
 
@@ -119,7 +125,9 @@ def get_thread_schedule(
 
 # In future this should become a warning, since bugs can smash the stack! For
 # now we rely on this to figure out if we re-assemble the trace incorrectly
-def sanity_check_order(instructions: List[Instruction], mappings: List[Mapping]) -> None:
+def sanity_check_order(
+    instructions: List[Instruction], mappings: List[Mapping]
+) -> None:
     """
     Check that calls matches returns and that syscalls and non-jumps do not change the control flow.
     """
@@ -355,7 +363,9 @@ def decode(
 
     for m in mappings:
         page_size = 4096
-        shared_objects.append((m.path, m.page_offset * page_size, m.stop - m.start, m.start))
+        shared_objects.append(
+            (m.path, m.page_offset * page_size, m.stop - m.start, m.start)
+        )
 
     for (core, trace_path) in enumerate(trace_paths):
         trace = _pt.decode(

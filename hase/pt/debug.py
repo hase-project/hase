@@ -13,13 +13,17 @@ def to_file(data: DefaultDict[str, List[Any]], filename: str) -> pd.DataFrame:
     return df
 
 
-def traces_to_file(traces: List[List[Union[TraceEvent, Instruction]]], filename: str) -> pd.DataFrame:
+def traces_to_file(
+    traces: List[List[Union[TraceEvent, Instruction]]], filename: str
+) -> pd.DataFrame:
     df = trace_to_dataframe(traces)
     df.to_csv(filename, sep="\t")
     return df
 
 
-def instructions_to_file(instructions: List[Instruction], filename: str) -> pd.DataFrame:
+def instructions_to_file(
+    instructions: List[Instruction], filename: str
+) -> pd.DataFrame:
     data: DefaultDict[str, List[Any]] = defaultdict(list)
 
     for instruction in instructions:

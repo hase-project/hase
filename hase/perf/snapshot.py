@@ -7,11 +7,22 @@ import os
 from typing import Any, Dict, Generator, Iterator, List, Optional
 
 from ..mmap import MMap
-from .consts import (CAP_USER_TIME_ZERO, PERF_COUNT_SW_DUMMY,
-                     PERF_FLAG_FD_CLOEXEC, PERF_TYPE_SOFTWARE, AttrFlags,
-                     EventStructs, Ioctls, Libc, PerfRecord, SampleFlags,
-                     SYS_perf_event_open, perf_event_attr, perf_event_header,
-                     perf_event_mmap_page)
+from .consts import (
+    CAP_USER_TIME_ZERO,
+    PERF_COUNT_SW_DUMMY,
+    PERF_FLAG_FD_CLOEXEC,
+    PERF_TYPE_SOFTWARE,
+    AttrFlags,
+    EventStructs,
+    Ioctls,
+    Libc,
+    PerfRecord,
+    SampleFlags,
+    SYS_perf_event_open,
+    perf_event_attr,
+    perf_event_header,
+    perf_event_mmap_page,
+)
 from .cpuid import CPUID
 
 event_structs = EventStructs(SampleFlags.PERF_SAMPLE_MASK)

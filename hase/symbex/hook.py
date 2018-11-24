@@ -1,34 +1,32 @@
 from __future__ import absolute_import, division, print_function
 
 from typing import Any, Dict, List, Tuple
-
+from copy import deepcopy
 from angr import SimProcedure
 from angr.procedures import SIM_LIBRARIES, SIM_PROCEDURES
+from .cdanalyzer import CoredumpGDB
 
-from .procedures import (alias_symbols, all_IO_hook, file_operation,
-                         group_operation, memory_operation, miscs,
-                         socket_operation, string_operation, syscall,
-                         time_operation)
+from .procedures import (
+    alias_symbols,
+    all_IO_hook,
+    file_operation,
+    group_operation,
+    memory_operation,
+    miscs,
+    socket_operation,
+    string_operation,
+    syscall,
+    time_operation,
+    common_prefix,
+    common_suffix,
+)
 
 # TODO: How to deal with overload function hook?
 # TODO: wchar functions support?
 # TODO: rearrange this
 
 
-addr_symbols = [
-    "__strcmp_sse2",
-    "__strchr_sse2",
-    "__strncpy_sse2",
-    "__memcpy_sse2",
-    "__memcpy_sse2_unaligned",
-    "__memset_sse2",
-    "__strncasecmp_l_avx",
-    "malloc",
-    "calloc",
-    "realloc",
-    "free",
-    "memalign",
-]
+addr_symbols = ["malloc", "calloc", "realloc", "free", "memalign"]
 
 
 unsupported_symbols: List[Tuple[str]] = []
@@ -97,12 +95,6 @@ def hook_alias_procedures(dct: Dict[str, Any]) -> None:
                 break
 
 
-# FIXME: it would be too hack to use inspect or something to generate
-# Simprocedure, but the argument may have weird case
-def hook_fallback_procedures(dct: Dict[str, Any]) -> None:
-    pass
-
-
 all_hookable_symbols: Dict[str, Any] = {}
 
 libs = ["libc", "glibc", "linux_kernel", "posix", "linux_loader"]
@@ -111,3 +103,34 @@ libs = ["libc", "glibc", "linux_kernel", "posix", "linux_loader"]
 hook_angr_procedures(all_hookable_symbols, libs, skip_hook, True)
 hook_user_procedures(all_hookable_symbols, True)
 hook_alias_procedures(all_hookable_symbols)
+
+
+def setup_project_hook(
+    project: Any, gdb: "CoredumpGDB", omit_hook=[]
+) -> Tuple[Dict[str, Any], List[List[int]]]:
+    hooked_syms = deepcopy(all_hookable_symbols)
+    for symname in omit_hook:
+        hooked_syms.pop(symname, None)
+
+    deadend_syms = ["kill", "raise", "abort", "__assert_fail", "__stack_chk_fail"]
+    for symname in deadend_syms:
+        hooked_syms.pop(symname, None)
+        try:
+            project.loader.find_symbol(symname).rebased_addr
+            project._sim_procedures.pop(symname, None)
+        except Exception:
+            pass
+
+    omitted_section = []
+    for symname, func in hooked_syms.items():
+        project.hook_symbol(symname, func())
+
+    for symname in addr_symbols:
+        if symname in hooked_syms.keys():
+            r = gdb.get_func_range(symname)
+            func = hooked_syms[symname]
+            if r != [0, 0]:
+                project.hook(r[0], func(), length=r[1])
+                omitted_section.append(r)
+
+    return hooked_syms, omitted_section

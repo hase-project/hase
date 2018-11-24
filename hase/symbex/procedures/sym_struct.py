@@ -1,7 +1,19 @@
 from __future__ import absolute_import, division, print_function
 
-from ctypes import (CFUNCTYPE, POINTER, Structure, c_char, c_char_p, c_int,
-                    c_long, c_uint, c_ulong, c_ushort, c_void_p, sizeof)
+from ctypes import (
+    CFUNCTYPE,
+    POINTER,
+    Structure,
+    c_char,
+    c_char_p,
+    c_int,
+    c_long,
+    c_uint,
+    c_ulong,
+    c_ushort,
+    c_void_p,
+    sizeof,
+)
 
 from ...errors import HaseError
 
