@@ -4,12 +4,12 @@ from typing import Any, List
 try:
     import gdb  # type: ignore
 except ImportError as e:
-    print(f"this file is intended to run inside gdb: {e}", file=sys.stderr)
+    print("this file is intended to run inside gdb: {}".format(e))
 
 
 frame = gdb.selected_frame()
 blk = frame.block()
-res: List[Any] = []
+res = []  # type: ignore
 names = set()
 while not blk.is_global and not blk.is_static:
     for s in blk:
@@ -24,7 +24,7 @@ while not blk.is_global and not blk.is_static:
         break
 
 
-def parse_addr(s: str) -> str:
+def parse_addr(s):
     l = s.split(" ")
     # NOTE: ['$n', '=', '('qualifier', 'type', '*)', 'addr\n']
     has_type = False

@@ -117,6 +117,7 @@ class StateManager:
         # Better have something like skip-table
         self.ordered_index: List[int] = []
         self.major_index: List[int] = []
+        self.last_main_state: Optional[State] = None
 
     def add(self, state: State) -> None:
         self.index_to_state[state.index] = state

@@ -14,7 +14,8 @@ from .pt.decode import decode
 from .pt.events import Instruction
 from .pwn_wrapper import Coredump, Mapping
 from .symbex.tracer import State, StateManager, Tracer
-from .symbex.cdconstraint import calc_constraints, apply_constraints
+from .symbex.cdconstraint import general_apply
+from .symbex.evaluate import report_variable
 
 
 l = logging.getLogger(__name__)
@@ -130,7 +131,6 @@ class Replay:
         if self.tracer is None:
             self.tracer = create_tracer(self.report, self.tempdir)
         states = self.tracer.run()
-        start_state = self.tracer.start_state
         final_state = states.major_states[-1].simstate
         assert final_state is not None
         return states, []
@@ -147,14 +147,20 @@ def replay_command(args: argparse.Namespace, debug_cli: bool = True) -> StateMan
     with replay_trace(args.report) as rt:
         states, constraints = rt.run()
         if debug_cli:
+            if (
+                states.major_states[-1].simstate.reg_concrete("rsp")
+                == rt.tracer.coredump.registers["rsp"]
+            ):
+                general_apply(rt.tracer, states)
             gdbs = GdbServer(
                 states,
                 rt.tracer.executable,
                 rt.tracer.cdanalyzer,
                 states.major_states[-1],
             )
-
-            # TODO: add stack constraints
+            assert states.last_main_state is not None
+            gdbs.active_state = states.last_main_state
+            gdbs.update_active()
 
             import pry
 
