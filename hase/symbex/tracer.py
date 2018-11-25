@@ -461,7 +461,7 @@ class Tracer:
     def valid_address(self, address: int) -> bool:
         return self.project.loader.find_object_containing(address)
 
-    def constrain_registers(self, state: State) -> None:
+    def constrain_registers(self, state: State) -> bool:
         # FIXME: if exception caught is omitted by hook?
         # If same address, then give registers
         if state.registers["rip"].value == self.coredump.registers["rip"]:
@@ -489,6 +489,7 @@ class Tracer:
             ]
             for name in registers:
                 state.registers[name] = self.coredump.registers[name]
+            return True
         else:
             l.warning("RIP mismatch.")
             coredump = self.coredump
@@ -497,6 +498,7 @@ class Tracer:
             arsp = state.simstate.regs.rsp
             crsp = hex(coredump.registers["rsp"])
             l.warning(f"{arip} {crip} {arsp} {crsp}")
+        return False
 
     def run(self) -> StateManager:
         simstate = self.start_state
@@ -540,6 +542,14 @@ class Tracer:
                         new_simstate,
                     )
                 )
+            if (
+                self.project.loader.find_object_containing(instruction.ip)
+                == self.project.loader.main_object
+            ):
+                states.last_main_state = State(
+                    cnt, previous_instruction, instruction, old_simstate, new_simstate
+                )
+
         self.constrain_registers(states.major_states[-1])
 
         return states
