@@ -149,9 +149,9 @@ def replay_command(args: argparse.Namespace, debug_cli: bool = True) -> StateMan
             gdbs.active_state = states.last_main_state
             gdbs.update_active()
 
-            import pry
+            import ipdb
 
-            pry()
+            ipdb.set_trace()
         return states
 
 
