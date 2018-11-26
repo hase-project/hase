@@ -341,7 +341,7 @@ def decode(
     start_times: List[int],
     pid: int,
     tid: int,
-    mappings: List[Mapping],
+    shared_objects: List[Mapping],
     cpu_family: int,
     cpu_model: int,
     cpu_stepping: int,
@@ -359,11 +359,11 @@ def decode(
     traces: List[List[Chunk]] = []
     raw_trace = []
 
-    shared_objects = []
+    shared_objects_ = []
 
-    for m in mappings:
+    for m in shared_objects:
         page_size = 4096
-        shared_objects.append(
+        shared_objects_.append(
             (m.path, m.page_offset * page_size, m.stop - m.start, m.start)
         )
 
@@ -378,7 +378,7 @@ def decode(
             time_zero=time_zero,
             time_mult=time_mult,
             time_shift=time_shift,
-            shared_objects=shared_objects,
+            shared_objects=shared_objects_,
         )
         raw_trace.append(trace)
         traces.append(chunk_trace(core, trace))
@@ -388,5 +388,5 @@ def decode(
     schedule = merge_same_core_switches(schedule)
 
     instructions = correlate_traces(traces, schedule, pid, tid)
-    sanity_check_order(instructions, mappings)
+    sanity_check_order(instructions, shared_objects_)
     return instructions

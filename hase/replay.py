@@ -10,19 +10,19 @@ from tempfile import TemporaryDirectory
 from typing import Any, Dict, List, Tuple
 
 from .gdb import GdbServer
+from .loader import Loader
 from .pt.decode import decode
 from .pt.events import Instruction
 from .pwn_wrapper import Coredump, Mapping
-from .symbex.tracer import State, StateManager, Tracer
 from .symbex.cdconstraint import general_apply
 from .symbex.evaluate import report_variable
-
+from .symbex.tracer import State, StateManager, Tracer
 
 l = logging.getLogger(__name__)
 
 
 def decode_trace(
-    manifest: Dict[str, Any], mappings: List[Mapping], vdso_x64: str
+    manifest: Dict[str, Any], shared_objects: List[Mapping], vdso_x64: str
 ) -> List[Instruction]:
     coredump = manifest["coredump"]
     trace = manifest["trace"]
@@ -47,7 +47,7 @@ def decode_trace(
         perf_event_paths=perf_event_paths,
         start_thread_ids=start_thread_ids,
         start_times=start_times,
-        mappings=mappings,
+        shared_objects=shared_objects,
         pid=pid,
         tid=tid,
         cpu_family=trace["cpu_family"],
@@ -81,19 +81,6 @@ def unpack(report: str, archive_root: Path) -> Dict[str, Any]:
     return manifest
 
 
-def sanitize_mappings(mappings: List[Mapping], sysroot: Path) -> List[Mapping]:
-    new_mappings = []
-    for mapping in mappings:
-        if not mapping.path.startswith("/"):
-            continue
-        binary = sysroot.joinpath(str(mapping.path)[1:])
-        if not binary.exists():
-            continue
-        mapping.name = str(binary)
-        new_mappings.append(mapping)
-    return new_mappings
-
-
 def create_tracer(report: str, archive_root: Path) -> Tracer:
     manifest = unpack(report, archive_root)
 
@@ -103,11 +90,11 @@ def create_tracer(report: str, archive_root: Path) -> Tracer:
     with open(str(vdso_x64), "wb+") as f:
         f.write(coredump.vdso.data)
     sysroot = archive_root.joinpath("binaries")
-    coredump.mappings = sanitize_mappings(coredump.mappings, sysroot)
-    trace = decode_trace(manifest, coredump.mappings, str(vdso_x64))
+    loader = Loader(coredump.mappings, sysroot)
+    trace = decode_trace(manifest, loader.shared_objects, str(vdso_x64))
 
     executable = manifest["coredump"]["executable"]
-    return Tracer(executable, trace, coredump)
+    return Tracer(executable, trace, coredump, loader.load_options())
 
 
 class Replay:

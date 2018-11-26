@@ -15,53 +15,25 @@ from capstone import x86_const
 from ..errors import HaseError
 from ..pt.events import Instruction, InstructionClass
 from ..pwn_wrapper import ELF, Coredump, Mapping
+from .cdanalyzer import CoredumpAnalyzer
 from .filter import FilterTrace
 from .hook import setup_project_hook
-from .state import State, StateManager
-from .cdanalyzer import CoredumpAnalyzer
 from .rspsolver import solve_rsp
+from .state import State, StateManager
 
 l = logging.getLogger(__name__)
-
-ELF_MAGIC = b"\x7fELF"
-
-
-def build_load_options(mappings: List[Mapping]) -> Dict[str, Any]:
-    """
-    Extract shared object memory mapping from coredump
-    """
-    # FIXME: actually this library path different will cause
-    # simulation path different? need re-record if original
-    # executable is recompiled
-    main = mappings[0]
-    lib_opts: Dict[str, Dict[str, int]] = {}
-    force_load_libs = []
-    for m in mappings[1:]:
-        if not m.path.startswith("/") or m.path in lib_opts:
-            continue
-        with open(m.path, "rb") as f:
-            magic = f.read(len(ELF_MAGIC))
-            if magic != ELF_MAGIC:
-                continue
-        lib_opts[m.path] = dict(custom_base_addr=m.start)
-        force_load_libs.append(m.path)
-
-    # TODO: extract libraries from core dump instead ?
-    return dict(
-        main_opts={"custom_base_addr": main.start},
-        force_load_libs=force_load_libs,
-        lib_opts=lib_opts,
-        load_options={"except_missing_libs": True},
-    )
 
 
 class Tracer:
     def __init__(
-        self, executable: str, trace: List[Instruction], coredump: Coredump
+        self,
+        executable: str,
+        trace: List[Instruction],
+        coredump: Coredump,
+        load_options: Dict[str, Any],
     ) -> None:
         self.executable = executable
-        self.options = build_load_options(coredump.mappings)
-        self.project = angr.Project(executable, **self.options)
+        self.project = angr.Project(executable, **load_options)
 
         self.coredump = coredump
         self.debug_unsat: Optional[SimState] = None
@@ -76,7 +48,7 @@ class Tracer:
         main = self.elf.symbols.get("main")
 
         self.cdanalyzer = CoredumpAnalyzer(
-            self.elf, self.coredump, self.options["lib_opts"]
+            self.elf, self.coredump, load_options["lib_opts"]
         )
 
         for (idx, event) in enumerate(self.trace):
