@@ -158,9 +158,9 @@ class HaseMagics(Magics):
                             addr_map[i] = (new_f, p[1])
                 addr_map[k] = (new_f, v[1])
 
-        l.warning("Caching tokens")
+        l.info("Caching tokens")
         self.window.cache_tokens(addr_map)
-        l.warning("Add states")
+        l.info("Add states")
         # self.window.add_states(user_ns["states"], user_ns["tracer"])
         self.window.enable_buttons()
         self.window.set_slider(user_ns["addr_map"], user_ns["states"])
