@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import copy
 
 from .pwn_wrapper import ELF, Coredump, Mapping
@@ -30,6 +30,20 @@ def filter_mappings(mappings: List[Mapping], sysroot: Path) -> List[Mapping]:
 class Loader:
     def __init__(self, mappings: List[Mapping], sysroot: Path):
         self.shared_objects = filter_mappings(mappings, sysroot)
+
+    def find_mapping(self, ip: int) -> Optional[Mapping]:
+        for mapping in self.shared_objects:
+            if mapping.start <= ip and ip < mapping.stop:
+                return mapping
+        return None
+
+    def find_location(self, ip: int) -> str:
+        mapping = self.find_mapping(ip)
+        if mapping is None:
+            return f"0x{ip:x} (umapped)"
+        else:
+            offset = ip - mapping.start + mapping.page_offset * 4096
+            return f"0x{ip:x} ({mapping.name}+{offset})"
 
     def load_options(self) -> Dict[str, Any]:
         """
