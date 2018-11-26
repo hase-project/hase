@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from angr import Project, SimProcedure
 
 from ..pt.events import Instruction
-from .hook import unsupported_symbols, common_prefix, common_suffix
+from .hook import common_prefix, common_suffix, unsupported_symbols
 
 if False:  # for mypy
     from .cdanalyzer import CoredumpGDB
@@ -102,10 +102,10 @@ class FilterBase:
         if fname in self.hooked_addon:
             return True
         is_new, name = self.find_matching_name(fname)
+        if name is None:
+            return False
         if is_new:
             self.add_hook_omit_symbol(fname, name, ip)
-        if name == "invalid_____":
-            return False
         return True
 
     def solve_name_plt(self, addr: int) -> str:
@@ -114,7 +114,7 @@ class FilterBase:
                 return lib.reverse_plt[addr]
         return ""
 
-    def find_matching_name(self, fname: str) -> Tuple[bool, str]:
+    def find_matching_name(self, fname: str) -> Tuple[bool, Optional[str]]:
         for name in self.hooked_symname:
             if fname == name:
                 return False, name
@@ -124,7 +124,7 @@ class FilterBase:
             for suffix in common_suffix:
                 if name + suffix in fname:
                     return True, name
-        return False, "invalid_____"
+        return False, None
 
     # FIXME return type should be a union of the actual type and FakeSymbol
     def find_function(self, addr: int) -> Optional[FakeSymbol]:
@@ -172,7 +172,8 @@ class FilterTrace(FilterBase):
             if not self.project.is_hooked(entry.ip):
                 print(idx, entry, fname)
                 _, name = self.find_matching_name(fname)
-                self.add_hook_omit_symbol(fname, name, entry.ip)
+                if name is not None:
+                    self.add_hook_omit_symbol(fname, name, entry.ip)
 
     def desc_call_parent(self) -> None:
         for k, v in self.call_parent.items():

@@ -6,17 +6,12 @@ import logging
 from typing import List, Optional, Union
 
 from .. import _pt
+from ..loader import Loader
 from ..perf.consts import PerfRecord
 from ..perf.reader import perf_events
 from ..pwn_wrapper import Mapping
-from .events import (
-    AsyncDisableEvent,
-    DisableEvent,
-    EnableEvent,
-    Instruction,
-    InstructionClass,
-    TraceEvent,
-)
+from .events import (AsyncDisableEvent, DisableEvent, EnableEvent, Instruction,
+                     InstructionClass, TraceEvent)
 
 l = logging.getLogger(__name__)
 
@@ -125,9 +120,7 @@ def get_thread_schedule(
 
 # In future this should become a warning, since bugs can smash the stack! For
 # now we rely on this to figure out if we re-assemble the trace incorrectly
-def sanity_check_order(
-    instructions: List[Instruction], mappings: List[Mapping]
-) -> None:
+def sanity_check_order(instructions: List[Instruction], loader: Loader) -> None:
     """
     Check that calls matches returns and that syscalls and non-jumps do not change the control flow.
     """
@@ -139,9 +132,9 @@ def sanity_check_order(
                 if len(stack) != 0:
                     return_ip = stack.pop()
                     if return_ip != instruction.ip:
-                        previous_loc = find_location(instructions[i - 1].ip, mappings)
-                        instruction_loc = find_location(instruction.ip, mappings)
-                        return_loc = find_location(return_ip, mappings)
+                        previous_loc = loader.find_location(instructions[i - 1].ip)
+                        instruction_loc = loader.find_location(instruction.ip)
+                        return_loc = loader.find_location(return_ip)
                         l.warning(
                             f"unexpected call return {instruction_loc} from {previous_loc} found: expected {return_loc}"
                         )
@@ -189,22 +182,6 @@ class Chunk:
             self.stop,
             len(self.instructions),
         )
-
-
-def find_mapping(ip: int, mappings: List[Mapping]) -> Optional[Mapping]:
-    for mapping in mappings:
-        if mapping.start <= ip and ip < mapping.stop:
-            return mapping
-    return None
-
-
-def find_location(ip: int, mappings: List[Mapping]) -> str:
-    mapping = find_mapping(ip, mappings)
-    if mapping is None:
-        return f"0x{ip:x} (umapped)"
-    else:
-        offset = ip - mapping.start + mapping.page_offset * 4096
-        return f"0x{ip:x} ({mapping.name}+{offset})"
 
 
 def correlate_traces(
@@ -341,7 +318,7 @@ def decode(
     start_times: List[int],
     pid: int,
     tid: int,
-    shared_objects: List[Mapping],
+    loader: Loader,
     cpu_family: int,
     cpu_model: int,
     cpu_stepping: int,
@@ -361,7 +338,7 @@ def decode(
 
     shared_objects_ = []
 
-    for m in shared_objects:
+    for m in loader.shared_objects:
         page_size = 4096
         shared_objects_.append(
             (m.path, m.page_offset * page_size, m.stop - m.start, m.start)
@@ -388,5 +365,5 @@ def decode(
     schedule = merge_same_core_switches(schedule)
 
     instructions = correlate_traces(traces, schedule, pid, tid)
-    sanity_check_order(instructions, shared_objects_)
+    sanity_check_order(instructions, loader)
     return instructions
