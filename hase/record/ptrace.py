@@ -1,5 +1,3 @@
-from __future__ import absolute_import, division, print_function
-
 import ctypes as ct
 
 libc = ct.CDLL("libc.so.6", use_errno=True)

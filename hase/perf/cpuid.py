@@ -5,8 +5,6 @@
 # source: https://github.com/flababah/cpuid.py
 # license: MIT
 
-from __future__ import absolute_import, division, print_function
-
 import ctypes
 import os
 import platform

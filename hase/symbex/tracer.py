@@ -1,5 +1,3 @@
-from __future__ import absolute_import, division, print_function
-
 import ctypes
 import gc
 import logging
@@ -34,6 +32,7 @@ class Tracer:
     ) -> None:
         self.executable = executable
         self.project = angr.Project(executable, **load_options)
+        import pry; pry()
 
         self.coredump = coredump
         self.debug_unsat: Optional[SimState] = None

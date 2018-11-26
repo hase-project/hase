@@ -1,5 +1,3 @@
-from __future__ import absolute_import, division, print_function
-
 from .state import SimState
 from ..gdb import GdbServer
 from typing import Any, Dict, Tuple
