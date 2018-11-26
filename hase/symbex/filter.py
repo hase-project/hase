@@ -227,7 +227,7 @@ class FilterTrace(FilterBase):
                     recursive_level = 4
                     if sym == hooked_parent:
                         is_current_hooked = False
-                        l.warning(" ->(back) " + sym.name)
+                        l.debug(" ->(back) " + sym.name)
                         hooked_parent = None
                         present = True
                         self.hook_target[hook_idx] = instruction.ip
@@ -242,7 +242,7 @@ class FilterTrace(FilterBase):
                                     hooked_parent = None
                                     self.call_parent[cur_func] = None
                                     self.hook_target[hook_idx] = instruction.ip
-                                    l.warning(" ->(back) " + sym.name)
+                                    l.debug(" ->(back) " + sym.name)
                                     break
                                 else:
                                     cur_func = parent
@@ -261,7 +261,7 @@ class FilterTrace(FilterBase):
                         is_current_hooked = False
                         hooked_parent = None
                         self.hook_target[hook_idx] = instruction.ip
-                        l.warning(" ->(back) main_object")
+                        l.debug(" ->(back) main_object")
 
             else:
                 flg, fname = self.test_function_entry(instruction.ip)
@@ -296,7 +296,7 @@ class FilterTrace(FilterBase):
                         instruction.ip
                     ):
                         assert real_parent is not None and sym is not None
-                        l.warning(
+                        l.debug(
                             parent.name
                             + " -> "
                             + real_parent.name
@@ -324,7 +324,7 @@ class FilterTrace(FilterBase):
             ):
                 present = True
                 first_meet = True
-                l.warning("entry: " + fname + " " + hex(instruction.ip))
+                l.debug("entry: " + fname + " " + hex(instruction.ip))
                 self.hook_entry.append((idx, instruction, fname))
             if present:
                 self.new_trace.append(instruction)
