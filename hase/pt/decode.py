@@ -1,7 +1,7 @@
 import bisect
 import ctypes as ct
 import logging
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Any, IO
 
 from .. import _pt
 from ..loader import Loader
@@ -326,7 +326,6 @@ def decode(
     time_zero: int,
     time_shift: int,
     time_mult: int,
-    vdso_x64: str,
 ) -> List[Instruction]:
 
     assert len(trace_paths) > 0
@@ -355,6 +354,7 @@ def decode(
             time_shift=time_shift,
             shared_objects=shared_objects_,
         )
+
         raw_trace.append(trace)
         traces.append(chunk_trace(core, trace))
 

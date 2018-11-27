@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Tuple
 from .gdb import GdbServer
 from .loader import Loader
 from .pt.decode import decode
-from .pt.events import Instruction
+from .pt.events import Instruction, InstructionClass
 from .pwn_wrapper import Coredump
 from .symbex.cdconstraint import general_apply
 from .symbex.evaluate import report_variable
@@ -20,7 +20,7 @@ l = logging.getLogger(__name__)
 
 
 def decode_trace(
-    manifest: Dict[str, Any], loader: Loader, vdso_x64: str
+    manifest: Dict[str, Any], loader: Loader
 ) -> List[Instruction]:
     coredump = manifest["coredump"]
     trace = manifest["trace"]
@@ -57,7 +57,6 @@ def decode_trace(
         time_shift=trace["time_shift"],
         time_mult=trace["time_mult"],
         sample_type=trace["sample_type"],
-        vdso_x64=vdso_x64,
     )
 
 
@@ -78,6 +77,12 @@ def unpack(report: str, archive_root: Path) -> Dict[str, Any]:
 
     return manifest
 
+# useful for debugging
+# def print_call_trace(trace: List[Instruction], loader: Loader) -> None:
+#     for instr in trace:
+#         if instr.iclass == InstructionClass.ptic_call:
+#             print(loader.find_location(instr.ip))
+
 
 def create_tracer(report: str, archive_root: Path) -> Tracer:
     manifest = unpack(report, archive_root)
@@ -88,8 +93,8 @@ def create_tracer(report: str, archive_root: Path) -> Tracer:
     with open(str(vdso_x64), "wb+") as f:
         f.write(coredump.vdso.data)
     sysroot = archive_root.joinpath("binaries")
-    loader = Loader(coredump.mappings, sysroot)
-    trace = decode_trace(manifest, loader, str(vdso_x64))
+    loader = Loader(coredump.mappings, sysroot, vdso_x64)
+    trace = decode_trace(manifest, loader)
 
     executable = manifest["coredump"]["executable"]
     return Tracer(executable, trace, coredump, loader.load_options())

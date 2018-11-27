@@ -32,7 +32,6 @@ class Tracer:
     ) -> None:
         self.executable = executable
         self.project = angr.Project(executable, **load_options)
-        import pry; pry()
 
         self.coredump = coredump
         self.debug_unsat: Optional[SimState] = None
