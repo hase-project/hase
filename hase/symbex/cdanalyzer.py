@@ -1,5 +1,3 @@
-from __future__ import absolute_import, division, print_function
-
 from typing import Any, Dict, List, Optional, Tuple
 from ..pwn_wrapper import ELF, Coredump
 from pygdbmi.gdbcontroller import GdbController

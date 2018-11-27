@@ -1,5 +1,3 @@
-from __future__ import absolute_import, division, print_function
-
 import ctypes
 import gc
 import logging
@@ -105,7 +103,7 @@ class Tracer:
         rsp, _ = solve_rsp(self.start_state, self.cdanalyzer)
         self.start_state.regs.rsp = rsp
 
-        l.warning(
+        l.info(
             "Trace length: {} | OldTrace length: {}".format(
                 len(self.trace), len(self.old_trace)
             )
@@ -406,7 +404,7 @@ class Tracer:
             choices += all_choices["unsat"]
 
         old_state = state
-        l.warning(
+        l.info(
             repr(state)
             + " "
             + repr(previous_instruction)
@@ -491,7 +489,6 @@ class Tracer:
             instruction = trace[previous_idx + 1]
             cnt += 1
             if not cnt % 500:
-                l.warning("Do a garbage collection")
                 gc.collect()
             l.debug(
                 "look for jump: 0x%x -> 0x%x"
