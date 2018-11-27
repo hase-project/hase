@@ -1,6 +1,6 @@
+import copy
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import copy
 
 from .pwn_wrapper import ELF, Coredump, Mapping
 
@@ -58,12 +58,12 @@ class Loader:
         for m in self.shared_objects[1:]:
             if m.path in lib_opts:
                 continue
-            lib_opts[m.path] = dict(custom_base_addr=m.start)
+            lib_opts[m.path] = dict(base_addr=m.start)
             force_load_libs.append(m.path)
 
         return dict(
-            main_opts={"custom_base_addr": main.start},
+            main_opts=dict(base_addr=main.start),
             force_load_libs=force_load_libs,
             lib_opts=lib_opts,
-            load_options={"except_missing_libs": True},
+            load_options=dict(except_missing_libs=True),
         )
