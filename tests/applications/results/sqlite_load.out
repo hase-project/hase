@@ -1,0 +1,33 @@
+java -cp /home/harveylu/tools/ycsb-0.15.0/jdbc-binding/conf:/home/harveylu/tools/ycsb-0.15.0/conf:/home/harveylu/tools/ycsb-0.15.0/lib/core-0.15.0.jar:/home/harveylu/tools/ycsb-0.15.0/lib/htrace-core4-4.1.0-incubating.jar:/home/harveylu/tools/ycsb-0.15.0/lib/jackson-core-asl-1.9.4.jar:/home/harveylu/tools/ycsb-0.15.0/lib/HdrHistogram-2.1.4.jar:/home/harveylu/tools/ycsb-0.15.0/lib/jackson-mapper-asl-1.9.4.jar:/home/harveylu/tools/ycsb-0.15.0/jdbc-binding/lib/commons-collections-3.2.1.jar:/home/harveylu/tools/ycsb-0.15.0/jdbc-binding/lib/geronimo-jta_1.1_spec-1.1.1.jar:/home/harveylu/tools/ycsb-0.15.0/jdbc-binding/lib/serp-1.13.1.jar:/home/harveylu/tools/ycsb-0.15.0/jdbc-binding/lib/jdbc-binding-0.15.0.jar:/home/harveylu/tools/ycsb-0.15.0/jdbc-binding/lib/commons-pool-1.5.4.jar:/home/harveylu/tools/ycsb-0.15.0/jdbc-binding/lib/openjpa-kernel-2.1.1.jar:/home/harveylu/tools/ycsb-0.15.0/jdbc-binding/lib/sqlite-jdbc-3.23.1.jar:/home/harveylu/tools/ycsb-0.15.0/jdbc-binding/lib/openjpa-lib-2.1.1.jar:/home/harveylu/tools/ycsb-0.15.0/jdbc-binding/lib/commons-lang-2.4.jar:/home/harveylu/tools/ycsb-0.15.0/jdbc-binding/lib/openjpa-jdbc-2.1.1.jar:/home/harveylu/tools/ycsb-0.15.0/jdbc-binding/lib/geronimo-jms_1.1_spec-1.1.1.jar com.yahoo.ycsb.Client -db com.yahoo.ycsb.db.JdbcDBClient -P workloads/workloada -p db.driver=org.sqlite.JDBC -p db.url=jdbc:sqlite://home/harveylu/hello.db -load
+Command line: -db com.yahoo.ycsb.db.JdbcDBClient -P workloads/workloada -p db.driver=org.sqlite.JDBC -p db.url=jdbc:sqlite://home/harveylu/hello.db -load
+YCSB Client 0.15.0
+
+Loading workload...
+Starting test.
+Adding shard node URL: jdbc:sqlite://home/harveylu/hello.db
+Using shards: 1, batchSize:-1, fetchSize: -1
+DBWrapper: report latency for each error is false and specific error codes to track for latency are: []
+[OVERALL], RunTime(ms), 350700
+[OVERALL], Throughput(ops/sec), 2.85143997718848
+[TOTAL_GCS_PS_Scavenge], Count, 0
+[TOTAL_GC_TIME_PS_Scavenge], Time(ms), 0
+[TOTAL_GC_TIME_%_PS_Scavenge], Time(%), 0.0
+[TOTAL_GCS_PS_MarkSweep], Count, 0
+[TOTAL_GC_TIME_PS_MarkSweep], Time(ms), 0
+[TOTAL_GC_TIME_%_PS_MarkSweep], Time(%), 0.0
+[TOTAL_GCs], Count, 0
+[TOTAL_GC_TIME], Time(ms), 0
+[TOTAL_GC_TIME_%], Time(%), 0.0
+[CLEANUP], Operations, 1
+[CLEANUP], AverageLatency(us), 1141.0
+[CLEANUP], MinLatency(us), 1141
+[CLEANUP], MaxLatency(us), 1141
+[CLEANUP], 95thPercentileLatency(us), 1141
+[CLEANUP], 99thPercentileLatency(us), 1141
+[INSERT], Operations, 1000
+[INSERT], AverageLatency(us), 350264.0
+[INSERT], MinLatency(us), 178176
+[INSERT], MaxLatency(us), 970751
+[INSERT], 95thPercentileLatency(us), 586751
+[INSERT], 99thPercentileLatency(us), 807935
+[INSERT], Return=OK, 1000
