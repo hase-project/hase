@@ -97,13 +97,11 @@ class SymStruct:
 
 
 # https://code.woboq.org/userspace/glibc/sysdeps/unix/sysv/linux/bits/types/__sigset_t.h.html
-class sigset_t(SymStruct):
-    __metaclass__ = SymbolicMeta
+class sigset_t(SymStruct, metaclass=SymbolicMeta):
     _fields_ = [("__bits", c_ulong * (128 // sizeof(c_long)))]
 
 
-class sigaction(SymStruct):
-    __metaclass__ = SymbolicMeta
+class sigaction(SymStruct, metaclass=SymbolicMeta):
     _fields_ = [
         ("sa_handler", POINTER(CFUNCTYPE(None, c_int))),
         # void (*sa_sigaction)(int, siginfo_t*, void*)
@@ -114,8 +112,7 @@ class sigaction(SymStruct):
     ]
 
 
-class linux_dirent(SymStruct):
-    __metaclass__ = SymbolicMeta
+class linux_dirent(SymStruct, metaclass=SymbolicMeta):
     _fields_ = [
         ("d_ino", c_ulong),
         ("d_off", c_ulong),
@@ -126,8 +123,7 @@ class linux_dirent(SymStruct):
     ]
 
 
-class linux_dirent64(SymStruct):
-    __metaclass__ = SymbolicMeta
+class linux_dirent64(SymStruct, metaclass=SymbolicMeta):
     _fields_ = [
         # ino64_t d_ino
         ("d_ino", c_ulong),
@@ -139,8 +135,7 @@ class linux_dirent64(SymStruct):
     ]
 
 
-class robust_list_head(SymStruct):
-    __metaclass__ = SymbolicMeta
+class robust_list_head(SymStruct, metaclass=SymbolicMeta):
     _fields_ = [
         ("list", c_void_p),
         ("futex_offset", c_long),
@@ -148,8 +143,7 @@ class robust_list_head(SymStruct):
     ]
 
 
-class timespec(SymStruct):
-    __metaclass__ = SymbolicMeta
+class timespec(SymStruct, metaclass=SymbolicMeta):
     _fields_ = [
         # time_t tv_sec
         ("tv_sec", c_ulong),
@@ -157,8 +151,7 @@ class timespec(SymStruct):
     ]
 
 
-class sysinfo_t(SymStruct):
-    __metaclass__ = SymbolicMeta
+class sysinfo_t(SymStruct, metaclass=SymbolicMeta):
     _fields_ = [
         ("uptime", c_long),
         ("loads", c_ulong * 3),
@@ -176,8 +169,7 @@ class sysinfo_t(SymStruct):
     ]
 
 
-class stat_t(SymStruct):
-    __metaclass__ = SymbolicMeta
+class stat_t(SymStruct, metaclass=SymbolicMeta):
     _fields_ = [
         ("st_dev", c_ulong),
         ("st_ino", c_ulong),
@@ -200,8 +192,7 @@ class stat_t(SymStruct):
     ]
 
 
-class statfs_t(SymStruct):
-    __metaclass__ = SymbolicMeta
+class statfs_t(SymStruct, metaclass=SymbolicMeta):
     _fields_ = [
         ("f_type", c_long),
         ("f_bsize", c_long),
@@ -218,8 +209,7 @@ class statfs_t(SymStruct):
     ]
 
 
-class passwd(SymStruct):
-    __metaclass__ = SymbolicMeta
+class passwd(SymStruct, metaclass=SymbolicMeta):
     _fields_ = [
         ("pw_name", c_char_p),
         ("pw_passwd", c_char_p),
