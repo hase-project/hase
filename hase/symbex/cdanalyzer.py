@@ -21,7 +21,7 @@ class CoredumpGDB:
         self.write_request("core-file {}".format(self.corefile))
         for path, value in self.lib_opts.items():
             self.write_request(
-                "add-symbol-file {} {}".format(path, value["custom_base_addr"])
+                "add-symbol-file {} {}".format(path, value["base_addr"])
             )
             self.write_request("y")
 
