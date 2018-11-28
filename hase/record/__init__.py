@@ -5,6 +5,7 @@ import os
 import resource
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from signal import SIGUSR2
 from tempfile import NamedTemporaryFile, TemporaryDirectory
@@ -66,7 +67,7 @@ def record_process(
 
         ptrace_detach(process.pid)
         rusage_result = None
-        if rusage is not None:
+        if rusage:
             _, exit_code, _rusage = os.wait4(process.pid, 0)
             rusage_result = tuple(_rusage)
         else:
@@ -81,6 +82,47 @@ def record_process(
         trace = perf.write(str(record_paths.perf_directory))
 
         return Recording(coredump, trace, exit_code, rusage_result)
+
+def record_process_pid(
+    pid: int,
+    record_paths: "RecordPaths",
+) -> Recording:
+    handler = coredumps.Handler(
+        str(record_paths.coredump),
+        str(record_paths.fifo),
+        str(record_paths.manifest),
+        log_path=str(record_paths.log_path.joinpath("coredump.log")),
+    )
+
+    # work around missing nonlocal keyword in python2 with a list
+    got_coredump = [False]
+
+    def received_coredump(signum: int, frame_type: FrameType) -> None:
+        got_coredump[0] = True
+
+    with IncreasePerfBuffer(100 * 1024), Perf(
+        pid
+    ) as perf, handler as _coredump, SignalHandler(SIGUSR2, received_coredump):
+        write_pid_file(record_paths.pid_file)
+
+        rusage_result = None
+        while True:
+            time.sleep(1)
+            status, output = subprocess.getstatusoutput(f'cat /proc/{pid}/stat')
+            if status:
+                break
+
+            rusage_result = output
+
+        if not got_coredump[0]:
+            coredump = None
+        else:
+            coredump = _coredump
+
+        record_paths.perf_directory.mkdir(parents=True, exist_ok=True)
+        trace = perf.write(str(record_paths.perf_directory))
+
+        return Recording(coredump, trace, 0, rusage_result)
 
 
 def _record(
@@ -110,6 +152,7 @@ def _record(
         env=extra_env,
     )
     return record_process(proc, record_paths, timeout, rusage=rusage)
+
 
 
 def write_pid_file(pid_file: Optional[str]) -> None:
@@ -316,6 +359,30 @@ def record(
 
     return None
 
+def record_pid(
+    record_path: Path,
+    log_path: Path,
+    pid: int,
+    pid_file: Optional[str] = None,
+) -> Optional[Recording]:
+    try:
+        i = 1
+        record_paths = RecordPaths(record_path, i, log_path, pid_file)
+        recording = record_process_pid(
+            pid,
+            record_paths,
+        )
+        if recording.coredump is None:
+            return recording
+        recording.report_path = store_report(recording, record_paths)
+
+        return recording
+    except KeyboardInterrupt:
+        pass
+    finally:
+        l.info("execution was interrupted by user")
+
+    return None
 
 def record_command(args: argparse.Namespace) -> None:
 
