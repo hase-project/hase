@@ -137,11 +137,6 @@ def sanity_check_order(instructions: List[Instruction], loader: Loader) -> None:
                             f"unexpected call return {instruction_loc} from {previous_loc} found: expected {return_loc}"
                         )
                         stack = []
-            elif previous.iclass in (
-                InstructionClass.ptic_far_call,
-                InstructionClass.ptic_other,
-            ):
-                assert instruction.ip == previous.ip + previous.size
 
         if instruction.iclass == InstructionClass.ptic_call:
             return_ip = instruction.ip + instruction.size
