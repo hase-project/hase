@@ -276,6 +276,7 @@ class Tracer:
                     if libf:
                         addr = libf.rebased_addr
         except Exception:
+            logging.exception("Error while repairing ip")
             # NOTE: currently just try to repair ip for syscall
             addr = self.debug_state[-2].addr
         return addr
@@ -372,8 +373,8 @@ class Tracer:
             step = self.repair_syscall_jump(state, step)
             step = self.repair_func_resolver(state, step)
             step = self.repair_exit_handler(state, step)
-        except Exception as e:
-            l.warning(repr(e))
+        except Exception:
+            logging.exception("Error while finding successor")
             new_state = state.copy()
             new_state.regs.ip = instruction.ip
             self.post_execute(state, new_state)
@@ -423,6 +424,7 @@ class Tracer:
                     self.post_execute(old_state, choice)
                     return old_state, choice
             except angr.SimValueError:
+                logging.exception("Error while jumping")
                 pass
         new_state = state.copy()
         new_state.regs.ip = instruction.ip
