@@ -1,5 +1,3 @@
-from __future__ import absolute_import, division, print_function
-
 import logging
 import os
 import sys
@@ -382,7 +380,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
     def cache_tokens(self, addr_map: Dict[int, Tuple[str, int]]):
         for filename, line in addr_map.values():
-            l.warning("caching file: " + str(filename) + " at line: " + str(line))
+            l.info("caching file: " + str(filename) + " at line: " + str(line))
             if filename != "??":
                 if filename not in self.file_read_cache.keys():
                     self.file_cache[filename] = {}
