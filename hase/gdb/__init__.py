@@ -17,7 +17,7 @@ from pygdbmi.gdbcontroller import GdbController
 from ..errors import HaseError
 from ..path import APP_ROOT
 from ..symbex.state import State, StateManager
-from ..symbex.tracer import CoredumpAnalyzer
+from ..symbex.cdanalyzer import CoredumpAnalyzer
 
 l = logging.getLogger(__name__)
 

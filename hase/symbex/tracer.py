@@ -374,7 +374,12 @@ class Tracer:
             step = self.repair_func_resolver(state, step)
             step = self.repair_exit_handler(state, step)
         except Exception:
-            logging.exception("Error while finding successor")
+            logging.exception(
+                "Error while finding successor on instruction "
+                + repr(previous_instruction)
+                + " "
+                + self.project.loader.describe_addr(previous_instruction.ip))
+            raise
             new_state = state.copy()
             new_state.regs.ip = instruction.ip
             self.post_execute(state, new_state)
@@ -499,9 +504,12 @@ class Tracer:
             assert self.valid_address(previous_instruction.ip) and self.valid_address(
                 instruction.ip
             )
-            old_simstate, new_simstate = self.execute(
-                simstate, previous_instruction, instruction, cnt
-            )
+            try:
+                old_simstate, new_simstate = self.execute(
+                    simstate, previous_instruction, instruction, cnt
+                )
+            except:
+                import ipdb; ipdb.set_trace()
             simstate = new_simstate
             if cnt % interval == 0 or length - cnt < 15:
                 states.add_major(
