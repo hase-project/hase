@@ -62,6 +62,7 @@ class Tracer:
             so.BYPASS_UNSUPPORTED_IRCCALL,
             so.BYPASS_UNSUPPORTED_IRDIRTY,
             so.CONSTRAINT_TRACKING_IN_SOLVER,
+            so.COPY_STATES,
             # so.DOWNSIZE_Z3,
         }
 
