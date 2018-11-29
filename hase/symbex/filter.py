@@ -63,7 +63,7 @@ class FilterBase:
             self.syms[lib].sort()
 
     def add_hook_omit_symbol(self, fname: str, name: str, ip: int) -> None:
-        l.warning("Adding new hook: {} with old hook {}".format(fname, name))
+        l.info(f"Adding new hook: {fname} with old hook {name}")
         func = self.hooked_symbol[name]
         self.project.hook(ip, func(), length=4)
         self.hooked_addon.append((fname, ip))

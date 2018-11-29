@@ -97,7 +97,7 @@ def create_tracer(report: str, archive_root: Path) -> Tracer:
     trace = decode_trace(manifest, loader)
 
     executable = manifest["coredump"]["executable"]
-    return Tracer(executable, trace, coredump, loader.load_options())
+    return Tracer(executable, trace, coredump, loader.load_options(), name=report)
 
 
 class Replay:
