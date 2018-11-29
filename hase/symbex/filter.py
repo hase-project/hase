@@ -32,6 +32,13 @@ class FakeSymbol:
         return "FakeSymbol '{}' at {}".format(self.name, hex(self.rebased_addr))
 
 
+def symbol_name(symbol: Optional[FakeSymbol]) -> str:
+    if symbol is None:
+        return "unknown"
+    else:
+        return symbol.name
+
+
 class FilterBase:
     def __init__(
         self,
@@ -293,13 +300,8 @@ class FilterTrace(FilterBase):
                     if self.test_hook_name(fname, instruction.ip) and not self.test_ld(
                         instruction.ip
                     ):
-                        assert real_parent is not None and sym is not None
                         l.debug(
-                            parent.name
-                            + " -> "
-                            + real_parent.name
-                            + " ->(hook) "
-                            + sym.name
+                            f"{symbol_name(parent)} -> {symbol_name(real_parent)} ->(hook) {symbol_name(sym)}"
                         )
                         is_current_hooked = True
                         first_meet = False
