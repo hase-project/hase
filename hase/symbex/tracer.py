@@ -29,7 +29,9 @@ class Tracer:
         trace: List[Instruction],
         coredump: Coredump,
         load_options: Dict[str, Any],
+        name: str = "unamed"
     ) -> None:
+        self.name = name
         self.executable = executable
         self.project = angr.Project(executable, **load_options)
 
@@ -110,6 +112,7 @@ class Tracer:
         )
 
         self.setup_argv()
+        self.name = name
 
     def desc_trace(self, start, end=None, filt=None):
         for i, inst in enumerate(self.trace[start:end]):
@@ -276,7 +279,7 @@ class Tracer:
                     if libf:
                         addr = libf.rebased_addr
         except Exception:
-            logging.exception("Error while repairing ip")
+            logging.exception(f"Error while repairing ip for {self.name}")
             # NOTE: currently just try to repair ip for syscall
             addr = self.debug_state[-2].addr
         return addr
@@ -374,7 +377,7 @@ class Tracer:
             step = self.repair_func_resolver(state, step)
             step = self.repair_exit_handler(state, step)
         except Exception:
-            logging.exception("Error while finding successor")
+            logging.exception(f"Error while finding successor for {self.name}")
             new_state = state.copy()
             new_state.regs.ip = instruction.ip
             self.post_execute(state, new_state)
@@ -424,7 +427,7 @@ class Tracer:
                     self.post_execute(old_state, choice)
                     return old_state, choice
             except angr.SimValueError:
-                logging.exception("Error while jumping")
+                logging.exception(f"Error while jumping in {self.name}")
                 pass
         new_state = state.copy()
         new_state.regs.ip = instruction.ip
