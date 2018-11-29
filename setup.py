@@ -1,7 +1,4 @@
 import glob
-import os
-import shutil
-import subprocess
 
 from setuptools import Extension, find_packages, setup
 
@@ -11,7 +8,7 @@ setup(
     description="Time-travel failures",
     packages=find_packages(),
     install_requires=[
-        "angr @ https://github.com/hase-project/angr/archive/4e6f9d6f6821f5911d6c1a9d6f0d664b45b7d55d.zip",
+        "angr @ https://github.com/hase-project/angr/archive/a997996b2d6486e709ba09dd79cad4cd58113eb8.zip",
         "pwntools @ https://github.com/hase-project/pwntools/archive/74a98908a19e00df399abd4b8e956abeabbd62ae.zip",
         "monkeyhex",
         "ipython",
