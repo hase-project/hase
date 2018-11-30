@@ -1,7 +1,24 @@
 pull_request_rules:
-  - name: automatic merge on CI success
+  - name: automatic merge on CI success [Mic92]
     conditions:
       - status-success=continuous-integration/travis-ci/pr
+      - author=Mic92
+    actions:
+      merge:
+        method: merge
+      delete_head_branch: {}
+  - name: automatic merge on CI success [Airtnp]
+    conditions:
+      - status-success=continuous-integration/travis-ci/pr
+      - author=Airtnp
+    actions:
+      merge:
+        method: merge
+      delete_head_branch: {}
+  - name: automatic merge on CI success [Harvey-Lu]
+    conditions:
+      - status-success=continuous-integration/travis-ci/pr
+      - author=Harvey-Lu
     actions:
       merge:
         method: merge
