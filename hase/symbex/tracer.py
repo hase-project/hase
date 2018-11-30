@@ -29,7 +29,7 @@ class Tracer:
         trace: List[Instruction],
         coredump: Coredump,
         load_options: Dict[str, Any],
-        name: str = "unamed"
+        name: str = "unamed",
     ) -> None:
         self.name = name
         self.executable = executable
