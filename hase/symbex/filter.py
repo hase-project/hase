@@ -182,13 +182,13 @@ class FilterTrace(FilterBase):
 
     def desc_call_parent(self) -> None:
         for k, v in self.call_parent.items():
-            if v is not None:
+            if v and v[0] is not None:
                 name = v.name
-                if isinstance(v, FakeSymbol):
+                if isinstance(v[0], FakeSymbol):
                     name = "fake_" + name
                 chain = [name]
                 while v in self.call_parent.keys():
-                    v = self.call_parent[v]
+                    v = self.call_parent[v][0]
                     if v is not None:
                         name = v.name
                         if isinstance(v, FakeSymbol):
@@ -204,8 +204,9 @@ class FilterTrace(FilterBase):
         self.new_trace = []
         self.call_parent: defaultdict = defaultdict(lambda: None)
         hooked_parent = None
-        is_current_hooked = False
         hook_idx = 0
+        hook_addr = 0
+        is_current_hooked = False
         first_meet = False
         plt_sym = FakeSymbol("all-plt-entry", 0)
         previous_instr = None
@@ -242,7 +243,7 @@ class FilterTrace(FilterBase):
                         for _ in range(recursive_level):
                             parent = self.call_parent[cur_func]
                             if parent:
-                                if sym == parent:
+                                if sym == parent[0]:
                                     is_current_hooked = False
                                     hooked_parent = None
                                     self.call_parent[cur_func] = None
@@ -253,6 +254,15 @@ class FilterTrace(FilterBase):
                                     cur_func = parent
                             else:
                                 break
+                if is_current_hooked:
+                    for inst in hook_addr:
+                        if 0 < instruction.ip - inst.ip <= 0x40:
+                            is_current_hooked = False
+                            l.debug(" ->(back) " + hex(instruction.ip))
+                            hooked_parent = None
+                            present = True
+                            self.hook_target[hook_idx] = instruction.ip
+                            break
                 # At least when we get back to main object, it should be unhooked
                 # NOTE: that doesn't work for static compiled object
                 if not self.static_link:
@@ -274,18 +284,19 @@ class FilterTrace(FilterBase):
                     # NOTE: function entry, testing is hooked
                     sym = self.find_function(instruction.ip)
                     parent = self.find_function(previous_instr.ip)
-                    self.call_parent[sym] = parent
+                    parent_addr = previous_instr.ip
+                    self.call_parent[sym] = (parent, parent_addr)
                     # NOTE: main -> plt -> dso -> libc
                     if self.test_plt_vdso(instruction.ip):
                         if not self.test_plt_vdso(previous_instr.ip):
-                            self.call_parent[plt_sym] = parent
-                            self.call_parent[sym] = plt_sym
+                            self.call_parent[plt_sym] = (parent, previous_instr.ip)
+                            self.call_parent[sym] = (plt_sym, -1)
                         else:
-                            self.call_parent[parent] = plt_sym
+                            self.call_parent[parent] = (plt_sym, -1)
                     if self.test_ld(previous_instr.ip) and not self.test_ld(
                         instruction.ip
                     ):
-                        self.call_parent[sym] = plt_sym
+                        self.call_parent[sym] = (plt_sym, -1)
                     # NOTE: plt.jumptable (non-entry) -> libc (in libc)
                     if (
                         not self.test_plt_vdso(instruction.ip)
@@ -293,10 +304,11 @@ class FilterTrace(FilterBase):
                         and self.test_plt_vdso(previous_instr.ip)
                         and not self.test_function_entry(previous_instr.ip)[0]
                     ):
-                        self.call_parent[sym] = self.find_function(
+                        self.call_parent[sym] = (self.find_function(
                             self.trace[idx - 2].ip
-                        )
-                    real_parent = self.call_parent[sym]
+                        ), self.trace[idx - 2].ip)
+                        parent_addr = self.trace[idx - 2].ip
+                    real_parent = self.call_parent[sym][0]
                     if self.test_hook_name(fname, instruction.ip) and not self.test_ld(
                         instruction.ip
                     ):
@@ -307,6 +319,7 @@ class FilterTrace(FilterBase):
                         first_meet = False
                         hooked_parent = real_parent
                         hook_idx = idx
+                        hook_addr = self.trace[idx-1:idx-10:-1]
                 else:
                     if self.test_omit(instruction.ip):
                         is_current_hooked = True
