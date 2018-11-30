@@ -20,9 +20,7 @@ class CoredumpGDB:
         self.write_request("file {}".format(self.execfile))
         self.write_request("core-file {}".format(self.corefile))
         for path, value in self.lib_opts.items():
-            self.write_request(
-                "add-symbol-file {} {}".format(path, value["base_addr"])
-            )
+            self.write_request("add-symbol-file {} {}".format(path, value["base_addr"]))
             self.write_request("y")
 
     def get_response(self) -> List[Dict[str, Any]]:
@@ -92,7 +90,7 @@ class CoredumpGDB:
         l = r.split(" ")
         for blk in l:
             if blk.startswith("0x"):
-                blk = blk.replace('\\t', '').replace('\\n', '')
+                blk = blk.replace("\\t", "").replace("\\n", "")
                 return int(blk, 16)
         return 0
 
@@ -127,7 +125,7 @@ class CoredumpGDB:
                     vs = r["payload"].split(" ")
                     for v in vs:
                         if v.startswith("0x"):
-                            v = v.replace('\\n', '').replace('\\t', '')
+                            v = v.replace("\\n", "").replace("\\t", "")
                             return int(v, 16)
         return 0
 

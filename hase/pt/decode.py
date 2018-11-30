@@ -8,8 +8,14 @@ from ..loader import Loader
 from ..perf.consts import PerfRecord
 from ..perf.reader import perf_events
 from ..pwn_wrapper import Mapping
-from .events import (AsyncDisableEvent, DisableEvent, EnableEvent, Instruction,
-                     InstructionClass, TraceEvent)
+from .events import (
+    AsyncDisableEvent,
+    DisableEvent,
+    EnableEvent,
+    Instruction,
+    InstructionClass,
+    TraceEvent,
+)
 
 l = logging.getLogger(__name__)
 

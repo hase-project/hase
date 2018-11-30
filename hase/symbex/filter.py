@@ -205,7 +205,7 @@ class FilterTrace(FilterBase):
         self.call_parent: defaultdict = defaultdict(lambda: None)
         hooked_parent = None
         hook_idx = 0
-        hook_addr = 0
+        hook_addr: List[Instruction] = []
         is_current_hooked = False
         first_meet = False
         plt_sym = FakeSymbol("all-plt-entry", 0)
@@ -304,9 +304,10 @@ class FilterTrace(FilterBase):
                         and self.test_plt_vdso(previous_instr.ip)
                         and not self.test_function_entry(previous_instr.ip)[0]
                     ):
-                        self.call_parent[sym] = (self.find_function(
-                            self.trace[idx - 2].ip
-                        ), self.trace[idx - 2].ip)
+                        self.call_parent[sym] = (
+                            self.find_function(self.trace[idx - 2].ip),
+                            self.trace[idx - 2].ip,
+                        )
                         parent_addr = self.trace[idx - 2].ip
                     real_parent = self.call_parent[sym][0]
                     if self.test_hook_name(fname, instruction.ip) and not self.test_ld(
@@ -319,7 +320,7 @@ class FilterTrace(FilterBase):
                         first_meet = False
                         hooked_parent = real_parent
                         hook_idx = idx
-                        hook_addr = self.trace[idx-1:idx-10:-1]
+                        hook_addr = self.trace[idx - 1 : idx - 10 : -1]
                 else:
                     if self.test_omit(instruction.ip):
                         is_current_hooked = True

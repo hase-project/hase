@@ -19,9 +19,7 @@ from .symbex.tracer import State, StateManager, Tracer
 l = logging.getLogger(__name__)
 
 
-def decode_trace(
-    manifest: Dict[str, Any], loader: Loader
-) -> List[Instruction]:
+def decode_trace(manifest: Dict[str, Any], loader: Loader) -> List[Instruction]:
     coredump = manifest["coredump"]
     trace = manifest["trace"]
 
@@ -76,6 +74,7 @@ def unpack(report: str, archive_root: Path) -> Dict[str, Any]:
     coredump["file"] = str(archive_root.joinpath(coredump["file"]))
 
     return manifest
+
 
 # useful for debugging
 # def print_call_trace(trace: List[Instruction], loader: Loader) -> None:
