@@ -92,6 +92,7 @@ class CoredumpGDB:
         l = r.split(" ")
         for blk in l:
             if blk.startswith("0x"):
+                blk = blk.replace('\\t', '').replace('\\n', '')
                 return int(blk, 16)
         return 0
 
@@ -126,6 +127,7 @@ class CoredumpGDB:
                     vs = r["payload"].split(" ")
                     for v in vs:
                         if v.startswith("0x"):
+                            v = v.replace('\\n', '').replace('\\t', '')
                             return int(v, 16)
         return 0
 
