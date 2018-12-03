@@ -1,4 +1,5 @@
 import logging
+import time
 from bisect import bisect
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
@@ -210,10 +211,31 @@ class FilterTrace(FilterBase):
         first_meet = False
         plt_sym = FakeSymbol("all-plt-entry", 0)
         previous_instr = None
+        trace_len = len(self.trace)
+        report_idx = {}
+        report_segment = 4
+        report_start_time = time.time()
+        report_segment_len = trace_len // report_segment
+        for i in range(1, report_segment):
+            report_idx[report_segment_len * i] = (
+                "{}%".format(100 // report_segment * i),
+                (report_segment - i) / i,
+            )
+        report_idx[trace_len - 1] = ("100%", 0)
         for (idx, instruction) in enumerate(self.trace):
             if idx > 0:
                 previous_instr = self.trace[idx - 1]
-
+            if idx in report_idx:
+                elapsed_seconds = time.time() - report_start_time
+                elapsed_time = time.gmtime(elapsed_seconds)
+                estimated_time = time.gmtime(elapsed_seconds * report_idx[idx][1])
+                l.warning(
+                    "Filtering progress: {} Elapsed:{}/Estimated Remain:{}".format(
+                        report_idx[idx][0],
+                        time.strftime("%H:%M:%S", elapsed_time),
+                        time.strftime("%H:%M:%S", estimated_time),
+                    )
+                )
             present = True
             if (
                 self.test_plt_vdso(instruction.ip)
