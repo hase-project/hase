@@ -30,7 +30,7 @@ static std::optional<const char *> getFilename(PyObject *pyFilename) {
 #if PY_MAJOR_VERSION >= 3
   } else if (PyUnicode_Check(pyFilename)) {
     Py_ssize_t size;
-    char *utf8 = PyUnicode_AsUTF8AndSize(pyFilename, &size);
+    const char *utf8 = PyUnicode_AsUTF8AndSize(pyFilename, &size);
     str = checkNullByte(utf8, size);
     if (!str) {
       return {};
