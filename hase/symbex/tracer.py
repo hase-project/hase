@@ -2,6 +2,7 @@ import ctypes
 import gc
 import logging
 from collections import deque
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import angr
@@ -11,6 +12,7 @@ from angr import sim_options as so
 from capstone import x86_const
 
 from ..errors import HaseError
+from ..loader import Loader
 from ..pt.events import Instruction, InstructionClass
 from ..pwn_wrapper import ELF, Coredump, Mapping
 from .cdanalyzer import CoredumpAnalyzer
@@ -28,11 +30,14 @@ class Tracer:
         executable: str,
         trace: List[Instruction],
         coredump: Coredump,
-        load_options: Dict[str, Any],
+        loader: Loader,
         name: str = "unamed",
     ) -> None:
         self.name = name
         self.executable = executable
+        # we keep this for debugging in ipdb
+        self.loader = loader
+        load_options = loader.load_options()
         self.project = angr.Project(executable, **load_options)
 
         self.coredump = coredump
