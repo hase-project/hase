@@ -15,8 +15,6 @@ def main() -> None:
         record(
             target=args.pid, record_path=temppath, log_path=temppath.joinpath("logs")
         )
-        __import__('pdb').set_trace()
-        print("foo")
     return
 
 
