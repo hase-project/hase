@@ -5,6 +5,9 @@ from typing import Any, Dict, List, Optional
 from .pwn_wrapper import ELF, Coredump, Mapping
 
 ELF_MAGIC = b"\x7fELF"
+PERM_EXEC = 1
+PERM_WRITE = 2
+PERM_READ = 4
 
 
 def filter_mappings(
@@ -58,13 +61,18 @@ class Loader:
         lib_opts: Dict[str, Dict[str, int]] = {}
         force_load_libs = []
         for m in self.shared_objects[1:]:
-            if m.path in lib_opts:
+            # the linker puts libraries with executable bit first,
+            # we ignore other mmaps as those might be loaded by other
+            # libraries such as libasan
+            if m.path in lib_opts or (m.flags & PERM_EXEC) == 0:
                 continue
             lib_opts[m.path] = dict(base_addr=m.start)
             force_load_libs.append(m.path)
 
         return dict(
             main_opts=dict(base_addr=main.start),
+            use_system_libs=False,
+            auto_load_libs=False,
             force_load_libs=force_load_libs,
             lib_opts=lib_opts,
             load_options=dict(except_missing_libs=True),
