@@ -159,7 +159,6 @@ def _record(
     else:
         return record_other_pid(target, record_paths)
 
-
 def write_pid_file(pid_file: Optional[str]) -> None:
     if pid_file is not None:
         with open(pid_file, "w") as f:
