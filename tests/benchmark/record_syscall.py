@@ -10,9 +10,16 @@ from time import sleep
 from typing import IO, Any, Optional
 
 perf_cmd = [
-    "perf", "record", "--no-buildid", "--no-buildid-cache", "-e",
-    "raw_syscalls:*", "--switch-output", "--overwrite", "-a",
-    "--tail-synthesize"
+    "perf",
+    "record",
+    "--no-buildid",
+    "--no-buildid-cache",
+    "-e",
+    "raw_syscalls:*",
+    "--switch-output",
+    "--overwrite",
+    "-a",
+    "--tail-synthesize",
 ]
 
 server_cmd = ["redis-server", "--port"]
@@ -34,20 +41,27 @@ def bench_redis(repeat=3, n=1000000):
 
     def read_result(name, file):
         # type: (str, Optional[IO[Any]]) -> pandas.DataFrame
-        df = pandas.read_csv(file, names=['Type', 'Req/s'])
+        df = pandas.read_csv(file, names=["Type", "Req/s"])
         df["Name"] = name
         return df
 
     bench_cmd = [
-        "redis-benchmark", "-r", "100000", "-t", "set,lpush", "-n",
-        str(n), "--csv", "-p"
+        "redis-benchmark",
+        "-r",
+        "100000",
+        "-t",
+        "set,lpush",
+        "-n",
+        str(n),
+        "--csv",
+        "-p",
     ]
 
     init_port = 10000
 
     results = []
 
-    with open(os.devnull, 'w') as fnull:
+    with open(os.devnull, "w") as fnull:
         for i in range(repeat):
 
             print("\nRunning the {}th benchmark\n".format(i + 1))
@@ -57,10 +71,12 @@ def bench_redis(repeat=3, n=1000000):
                 init_port += 1
 
             serv = subprocess.Popen(
-                perf_cmd + server_cmd + [str(init_port)], stdout=fnull)
+                perf_cmd + server_cmd + [str(init_port)], stdout=fnull
+            )
             sleep(1)  # for setup
             bench = subprocess.Popen(
-                bench_cmd + [str(init_port)], stdout=subprocess.PIPE)
+                bench_cmd + [str(init_port)], stdout=subprocess.PIPE
+            )
             bench.wait()
             serv.terminate()
             results.append(read_result("perf", bench.stdout))
@@ -70,11 +86,11 @@ def bench_redis(repeat=3, n=1000000):
             while check_port_inuse(init_port):
                 init_port += 1
 
-            serv = subprocess.Popen(
-                server_cmd + [str(init_port)], stdout=fnull)
+            serv = subprocess.Popen(server_cmd + [str(init_port)], stdout=fnull)
             sleep(1)  # for setup
             bench = subprocess.Popen(
-                bench_cmd + [str(init_port)], stdout=subprocess.PIPE)
+                bench_cmd + [str(init_port)], stdout=subprocess.PIPE
+            )
             bench.wait()
             serv.terminate()
             results.append(read_result("no-perf", bench.stdout))

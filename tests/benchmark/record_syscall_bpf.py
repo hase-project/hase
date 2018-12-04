@@ -27,7 +27,7 @@ def read_syscall():
     with open("syscall_64.tbl") as sf:
         for line in sf:
             line = line.strip()
-            if line.startswith('#'):
+            if line.startswith("#"):
                 continue
             args = line.split()
             if args:
@@ -55,13 +55,20 @@ def bench_redis(repeat=3, n=1000000):
 
     def read_result(name, file):
         # type: (str, Optional[IO[Any]]) -> pandas.DataFrame
-        df = pandas.read_csv(file, names=['Type', 'Req/s'])
+        df = pandas.read_csv(file, names=["Type", "Req/s"])
         df["Name"] = name
         return df
 
     bench_cmd = [
-        "redis-benchmark", "-r", "100000", "-t", "set,lpush", "-n",
-        str(n), "--csv", "-p"
+        "redis-benchmark",
+        "-r",
+        "100000",
+        "-t",
+        "set,lpush",
+        "-n",
+        str(n),
+        "--csv",
+        "-p",
     ]
 
     init_port = 10000
@@ -70,18 +77,18 @@ def bench_redis(repeat=3, n=1000000):
 
     syscalls, bpf_prog = read_syscall()
 
-    with open(os.devnull, 'w') as fnull:
+    with open(os.devnull, "w") as fnull:
         for i in range(repeat):
             print("Record {}th performance without bpf".format(i))
 
             while check_port_inuse(init_port):
                 init_port += 1
 
-            serv = subprocess.Popen(
-                server_cmd + [str(init_port)], stdout=fnull)
+            serv = subprocess.Popen(server_cmd + [str(init_port)], stdout=fnull)
             sleep(1)  # for setup
             bench = subprocess.Popen(
-                bench_cmd + [str(init_port)], stdout=subprocess.PIPE)
+                bench_cmd + [str(init_port)], stdout=subprocess.PIPE
+            )
             bench.wait()
             serv.terminate()
             results.append(read_result("no-bpf", bench.stdout))
@@ -100,11 +107,11 @@ def bench_redis(repeat=3, n=1000000):
             while check_port_inuse(init_port):
                 init_port += 1
 
-            serv = subprocess.Popen(
-                server_cmd + [str(init_port)], stdout=fnull)
+            serv = subprocess.Popen(server_cmd + [str(init_port)], stdout=fnull)
             sleep(1)  # for setup
             bench = subprocess.Popen(
-                bench_cmd + [str(init_port)], stdout=subprocess.PIPE)
+                bench_cmd + [str(init_port)], stdout=subprocess.PIPE
+            )
             bench.wait()
             serv.terminate()
             results.append(read_result("bpf", bench.stdout))

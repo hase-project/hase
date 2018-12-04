@@ -49,7 +49,7 @@ def parse_shell_command(cmdline: str) -> BenchCommand:
 
 def measure(benchmark: str) -> Dict[str, Any]:
     result: Dict[str, Any] = dict(original=[], hase=[])
-    bench_path = SUITE_PATH + SUITE[benchmark]["name"] + RUN_PATH # type: ignore
+    bench_path = SUITE_PATH + SUITE[benchmark]["name"] + RUN_PATH  # type: ignore
     os.chdir(bench_path)
 
     # Get run commands
@@ -76,16 +76,16 @@ def measure(benchmark: str) -> Dict[str, Any]:
     # print(validate_commands)
 
     for run in range(args.run):
-        result["hase"].append(dict(run= run, result=[], valid=True))
+        result["hase"].append(dict(run=run, result=[], valid=True))
         if args.group in ("both", "hase"):
             for i, command in enumerate(run_commands):
                 LOGGER.info(
                     f"Benchmark: {benchmark}, Run: {run}, Command: {i}, with hase"
                 )
                 LOGGER.debug(f"{' '.join(command.args)}")
-                with TemporaryDirectory() as tempdir, \
-                    open(command.stdout_file, "w+") as stdout, \
-                    open(command.stderr_file, "w+") as stderr:
+                with TemporaryDirectory() as tempdir, open(
+                    command.stdout_file, "w+"
+                ) as stdout, open(command.stderr_file, "w+") as stderr:
                     temppath = Path(tempdir)
                     recording = record(
                         temppath,
@@ -94,7 +94,7 @@ def measure(benchmark: str) -> Dict[str, Any]:
                         command=command.args,
                         rusage=True,
                         stdout=stdout,
-                        stderr=stderr
+                        stderr=stderr,
                     )
                     rusage = recording.rusage
                     result["hase"][run]["result"].append(list(rusage))
@@ -119,9 +119,12 @@ def measure(benchmark: str) -> Dict[str, Any]:
                 )
                 LOGGER.debug(f"{' '.join(command.args)}")
 
-                with open(command.stdout_file, "w+") as stdout, \
-                    open(command.stderr_file, "w+") as stderr:
-                    process = subprocess.Popen(command.args, stdout=stdout, stderr=stderr)
+                with open(command.stdout_file, "w+") as stdout, open(
+                    command.stderr_file, "w+"
+                ) as stderr:
+                    process = subprocess.Popen(
+                        command.args, stdout=stdout, stderr=stderr
+                    )
                 _, _, rusage = os.wait4(process.pid, 0)
                 result["original"][run]["result"].append(list(rusage))
 
@@ -156,7 +159,7 @@ def main() -> None:
 
     results: Dict[str, Any] = {}
     result_file = Path(args.record_path).joinpath(args.name + ".json").resolve()
-    #import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     if result_file.exists():
         with open(result_file, "r") as f:
             results = json.load(f)
@@ -175,7 +178,7 @@ def main() -> None:
         # write result benchmark after each run in case we have an error
         result_file.parent.mkdir(parents=True, exist_ok=True)
         with open(result_file, "w") as file:
-            json.dump(results, file, sort_keys=True, indent=4, separators=(',', ': '))
+            json.dump(results, file, sort_keys=True, indent=4, separators=(",", ": "))
             file.write("\n")
     return
 
