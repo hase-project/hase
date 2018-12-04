@@ -6,15 +6,16 @@ import resource
 import shutil
 import subprocess
 import time
+from contextlib import ExitStack
 from pathlib import Path
 from signal import SIGUSR2
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from types import FrameType
-from typing import IO, Any, Dict, List, Optional, Tuple
+from typing import IO, Any, Dict, List, Optional, Tuple, Union
 
-from . import coredumps
 from .. import pwn_wrapper
 from ..perf import IncreasePerfBuffer, Perf, Trace
+from .coredumps import Coredump, Handler
 from .ptrace import ptrace_detach, ptrace_me
 from .signal_handler import SignalHandler
 
@@ -25,10 +26,14 @@ DEFAULT_LOG_DIR = Path("/var/lib/hase")
 PROT_EXEC = 4
 
 
+class TimeoutExpired(Exception):
+    pass
+
+
 class Recording:
     def __init__(
         self,
-        coredump: Optional[coredumps.Coredump],
+        coredump: Optional[Coredump],
         trace: Trace,
         exit_status: int,
         rusage: Optional[Tuple[Any, ...]] = None,
@@ -41,100 +46,98 @@ class Recording:
         self.report_path: Optional[str] = None
 
 
-def record_process(
-    process: subprocess.Popen,
-    record_paths: "RecordPaths",
-    timeout: Optional[int] = None,
-    rusage: bool = False,
-) -> Recording:
-    handler = coredumps.Handler(
-        str(record_paths.coredump),
-        str(record_paths.fifo),
-        str(record_paths.manifest),
-        log_path=str(record_paths.log_path.joinpath("coredump.log")),
-    )
+class RecordProcess(ExitStack):
+    def __init__(self, pid: int, record_paths: "RecordPaths"):
+        super().__init__()
+        self._coredump_handler = Handler(
+            str(record_paths.coredump),
+            str(record_paths.fifo),
+            str(record_paths.manifest),
+            log_path=str(record_paths.log_path.joinpath("coredump.log")),
+        )
+        self._increase_buffer = IncreasePerfBuffer(100 * 1024)
+        self._perf = Perf(pid)
+        self._signal_handler = SignalHandler(SIGUSR2, self.received_coredump)
 
-    # work around missing nonlocal keyword in python2 with a list
-    got_coredump = [False]
+        # work around missing nonlocal keyword in python2 with a list
+        self._got_coredump = [False]
+        self._record_paths = record_paths
 
-    def received_coredump(signum: int, frame_type: FrameType) -> None:
-        got_coredump[0] = True
+    def received_coredump(self, signum: int, frame_type: FrameType) -> None:
+        self._got_coredump[0] = True
 
-    with IncreasePerfBuffer(100 * 1024), Perf(
-        process.pid
-    ) as perf, handler as _coredump, SignalHandler(SIGUSR2, received_coredump):
-        write_pid_file(record_paths.pid_file)
+    def __enter__(self) -> "RecordProcess":
+        super().__enter__()
+        self._coredump = self.enter_context(self._coredump_handler)
+        self.enter_context(self._increase_buffer)
+        self.enter_context(self._signal_handler)
+        self.enter_context(self._perf)
+        write_pid_file(self._record_paths.pid_file)
+        return self
 
-        ptrace_detach(process.pid)
-        rusage_result = None
-        if rusage:
-            _, exit_code, _rusage = os.wait4(process.pid, 0)
-            rusage_result = tuple(_rusage)
-        else:
-            exit_code = process.wait(timeout)
-
-        if not got_coredump[0]:
+    def result(self) -> Tuple[Optional[Coredump], Trace]:
+        if not self._got_coredump[0]:
             coredump = None
         else:
-            coredump = _coredump
+            coredump = self._coredump
 
-        record_paths.perf_directory.mkdir(parents=True, exist_ok=True)
-        trace = perf.write(str(record_paths.perf_directory))
+        self._record_paths.perf_directory.mkdir(parents=True, exist_ok=True)
+        trace = self._perf.write(str(self._record_paths.perf_directory))
 
-        return Recording(coredump, trace, exit_code, rusage_result)
+        return (coredump, trace)
 
-def record_process_pid(
-    pid: int,
-    record_paths: "RecordPaths",
+
+def record_child_pid(
+    pid: int, record_paths: "RecordPaths", timeout: Optional[int] = None
 ) -> Recording:
-    handler = coredumps.Handler(
-        str(record_paths.coredump),
-        str(record_paths.fifo),
-        str(record_paths.manifest),
-        log_path=str(record_paths.log_path.joinpath("coredump.log")),
-    )
 
-    # work around missing nonlocal keyword in python2 with a list
-    got_coredump = [False]
+    if timeout is None:
+        options = 0
+    else:
+        options = os.WNOHANG
 
-    def received_coredump(signum: int, frame_type: FrameType) -> None:
-        got_coredump[0] = True
+    record = RecordProcess(pid, record_paths)
 
-    with IncreasePerfBuffer(100 * 1024), Perf(
-        pid
-    ) as perf, handler as _coredump, SignalHandler(SIGUSR2, received_coredump):
-        write_pid_file(record_paths.pid_file)
+    with record:
+        ptrace_detach(pid)
+        start = time.time()
 
-        rusage_result = None
         while True:
-            time.sleep(1)
-            status, output = subprocess.getstatusoutput(f'cat /proc/{pid}/stat')
-            if status:
+            pid, exit_code, rusage = os.wait4(pid, options)
+            if pid != 0:
                 break
+            elif timeout is not None and time.time() - start <= 0:
+                raise TimeoutExpired(f"process did not finish within {timeout} seconds")
+            time.sleep(0.10)
+        coredump, trace = record.result()
+        return Recording(coredump, trace, exit_code, rusage)
 
-            rusage_result = output
 
-        if not got_coredump[0]:
-            coredump = None
-        else:
-            coredump = _coredump
-
-        record_paths.perf_directory.mkdir(parents=True, exist_ok=True)
-        trace = perf.write(str(record_paths.perf_directory))
-
-        return Recording(coredump, trace, 0, rusage_result)
+def record_other_pid(pid: int, record_paths: "RecordPaths") -> Recording:
+    record = RecordProcess(pid, record_paths)
+    with record:
+        print("recording started")
+        while True:
+            try:
+                os.kill(pid, 0)
+                time.sleep(0.10)
+            except OSError:
+                break
+            except KeyboardInterrupt:
+                break
+        coredump, trace = record.result()
+        return Recording(coredump, trace, 0, None)
 
 
 def _record(
     record_paths: "RecordPaths",
-    command: List[str],
+    target: Union[List[str], int],
     stdin: Optional[IO[Any]] = None,
     stdout: Optional[IO[Any]] = None,
     stderr: Optional[IO[Any]] = None,
     working_directory: Optional[Path] = None,
     timeout: Optional[int] = None,
     extra_env: Optional[Dict[str, str]] = None,
-    rusage: bool = False,
 ) -> Recording:
 
     env = None
@@ -142,17 +145,19 @@ def _record(
         env = os.environ.copy()
         env.update(extra_env)
 
-    proc = subprocess.Popen(
-        command,
-        preexec_fn=ptrace_me,
-        stdin=stdin,
-        stdout=stdout,
-        stderr=stderr,
-        cwd=working_directory,
-        env=extra_env,
-    )
-    return record_process(proc, record_paths, timeout, rusage=rusage)
-
+    if isinstance(target, list):
+        proc = subprocess.Popen(
+            target,
+            preexec_fn=ptrace_me,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            cwd=working_directory,
+            env=extra_env,
+        )
+        return record_child_pid(proc.pid, record_paths, timeout)
+    else:
+        return record_other_pid(target, record_paths)
 
 
 def write_pid_file(pid_file: Optional[str]) -> None:
@@ -187,19 +192,16 @@ class Job:
 
 
 class RecordPaths:
-    def __init__(
-        self, path: Path, id: int, log_path: Path, pid_file: Optional[str]
-    ) -> None:
+    def __init__(self, path: Path, log_path: Path, pid_file: Optional[str]) -> None:
         self.path = path
         self.log_path = log_path
         self.pid_file = pid_file
-        self.id = id
 
         self.state_dir = self.path
-        self.perf_directory = self.path.joinpath("traces-%d" % self.id)
-        self.coredump = self.path.joinpath("core.%d" % self.id)
+        self.perf_directory = self.path.joinpath("traces")
+        self.coredump = self.path.joinpath("core")
 
-        self.fifo = self.path.joinpath("fifo.%d" % self.id)
+        self.fifo = self.path.joinpath("fifo")
         self.manifest = self.path.joinpath("manifest.json")
 
     def report_archive(self, executable: str, timestamp: str) -> Path:
@@ -322,7 +324,7 @@ def store_report(recording: Recording, record_paths: "RecordPaths") -> str:
 def record(
     record_path: Path,
     log_path: Path,
-    command: List[str],
+    target: Union[List[str], int],
     pid_file: Optional[str] = None,
     limit: int = 0,
     stdin: Optional[IO[Any]] = None,
@@ -331,21 +333,18 @@ def record(
     working_directory: Optional[Path] = None,
     timeout: Optional[int] = None,
     extra_env: Optional[Dict[str, str]] = None,
-    rusage: bool = True,
 ) -> Optional[Recording]:
     try:
-        i = 1
-        record_paths = RecordPaths(record_path, i, log_path, pid_file)
+        record_paths = RecordPaths(record_path, log_path, pid_file)
         recording = _record(
             record_paths,
-            command,
+            target,
             stdin=stdin,
             stdout=stdout,
             stderr=stderr,
             working_directory=working_directory,
             timeout=timeout,
             extra_env=extra_env,
-            rusage=rusage,
         )
         if recording.coredump is None:
             return recording
@@ -359,30 +358,6 @@ def record(
 
     return None
 
-def record_pid(
-    record_path: Path,
-    log_path: Path,
-    pid: int,
-    pid_file: Optional[str] = None,
-) -> Optional[Recording]:
-    try:
-        i = 1
-        record_paths = RecordPaths(record_path, i, log_path, pid_file)
-        recording = record_process_pid(
-            pid,
-            record_paths,
-        )
-        if recording.coredump is None:
-            return recording
-        recording.report_path = store_report(recording, record_paths)
-
-        return recording
-    except KeyboardInterrupt:
-        pass
-    finally:
-        l.info("execution was interrupted by user")
-
-    return None
 
 def record_command(args: argparse.Namespace) -> None:
 
@@ -395,7 +370,7 @@ def record_command(args: argparse.Namespace) -> None:
 
     with TemporaryDirectory() as tempdir:
         record(
-            command=command,
+            target=command,
             record_path=Path(tempdir),
             log_path=log_path,
             pid_file=args.pid_file,

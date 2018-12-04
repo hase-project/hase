@@ -3,6 +3,9 @@ from typing import Any, List, Union
 
 from .consts import PerfRecord
 from .snapshot import CpuId, Snapshot, TscConversion
+import logging
+
+l = logging.getLogger(__name__)
 
 
 class CpuTrace:
@@ -91,6 +94,9 @@ class Perf:
                 start_tid=itrace.tid,
             )
             cpus.append(cpu_trace)
+
+        if len(cpus) == 0:
+            l.warning("No cpu traces were recorded")
 
         conversion = self.snapshot.tsc_conversion()
         cpuid = self.snapshot.cpuid()
