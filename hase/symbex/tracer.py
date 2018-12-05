@@ -14,6 +14,7 @@ from capstone import x86_const
 
 from ..errors import HaseError
 from ..loader import Loader
+from ..progress_log import ProgressLog
 from ..pt.events import Instruction, InstructionClass
 from ..pwn_wrapper import ELF, Coredump, Mapping
 from .cdanalyzer import CoredumpAnalyzer
@@ -23,6 +24,9 @@ from .rspsolver import solve_rsp
 from .state import State, StateManager
 
 l = logging.getLogger(__name__)
+handler = logging.FileHandler(Path.home().joinpath("symbex-errors.log"))
+handler.setLevel(logging.ERROR)
+l.addHandler(handler)
 
 
 class Tracer:
@@ -32,7 +36,7 @@ class Tracer:
         trace: List[Instruction],
         coredump: Coredump,
         loader: Loader,
-        name: str = "unamed",
+        name: str = "(unamed)",
     ) -> None:
         self.name = name
         self.executable = executable
@@ -533,38 +537,20 @@ class Tracer:
         trace = self.trace[0:]
         trace.append(trace[-1])
 
-        trace_len = len(trace)
-        report_idx = {}
-        report_segment = max(4, min(100, trace_len // 4000))
-        report_start_time = time.time()
-        report_segment_len = trace_len // report_segment
-        for i in range(1, report_segment):
-            report_idx[report_segment_len * i] = (
-                "{}%".format(100 // report_segment * i),
-                (report_segment - i) / i,
-            )
-        report_idx[trace_len - 1] = ("100%", 0)
+        l.info("start processing trace")
+        progress_log = ProgressLog(
+            name=f"process trace of {self.name}",
+            total_steps=len(trace),
+            log_frequency=int(1e3),
+            kill_limit=60 * 60 * 24,
+        )
 
         # prev_instr.ip == state.ip
         for previous_idx in range(len(trace) - 1):
-            if previous_idx in report_idx:
-                elapsed_seconds = time.time() - report_start_time
-                elapsed_time = time.gmtime(elapsed_seconds)
-                estimated_time = time.gmtime(
-                    elapsed_seconds * report_idx[previous_idx][1]
-                )
-                l.warning(
-                    "{} | Tracer progress: {} Elapsed:{} / Estimated Remain:{}".format(
-                        self.name,
-                        report_idx[previous_idx][0],
-                        time.strftime("%H:%M:%S", elapsed_time),
-                        time.strftime("%H:%M:%S", estimated_time),
-                    )
-                )
-
             previous_instruction = trace[previous_idx]
             instruction = trace[previous_idx + 1]
             cnt += 1
+            progress_log.update(cnt)
             if not cnt % 500:
                 gc.collect()
             l.debug(
