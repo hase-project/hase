@@ -8,6 +8,7 @@ from angr import Project, SimProcedure
 
 from ..pt.events import Instruction
 from .hook import common_prefix, common_suffix, unsupported_symbols
+from ..progress_log import ProgressLog
 
 if False:  # for mypy
     from .cdanalyzer import CoredumpGDB
@@ -164,6 +165,7 @@ class FilterTrace(FilterBase):
         gdb: "CoredumpGDB",
         omitted_section: List[List[int]],
         static_link: bool,
+        name: str = "(unamed)",
     ) -> None:
         super().__init__(project, trace, hooked_symbol, gdb, omitted_section)
 
@@ -171,12 +173,12 @@ class FilterTrace(FilterBase):
         self.hook_target: Dict[int, int] = {}
         self.hook_entry: List[Tuple[int, Instruction, str]] = []
         self.static_link = static_link
+        self.name = name
         self.analyze_trace()
 
     def entry_check(self) -> None:
         for idx, entry, fname in self.hook_entry:
             if not self.project.is_hooked(entry.ip):
-                print(idx, entry, fname)
                 _, name = self.find_matching_name(fname)
                 if name is not None:
                     self.add_hook_omit_symbol(fname, name, entry.ip)
@@ -212,30 +214,12 @@ class FilterTrace(FilterBase):
         plt_sym = FakeSymbol("all-plt-entry", 0)
         previous_instr = None
         trace_len = len(self.trace)
-        report_idx = {}
-        report_segment = 4
-        report_start_time = time.time()
-        report_segment_len = trace_len // report_segment
-        for i in range(1, report_segment):
-            report_idx[report_segment_len * i] = (
-                "{}%".format(100 // report_segment * i),
-                (report_segment - i) / i,
-            )
-        report_idx[trace_len - 1] = ("100%", 0)
+        l.info("start analyzing")
+        progress_log = ProgressLog(name=f"analyze trace of {self.name}", total_steps=trace_len, kill_limit=60 * 20)
         for (idx, instruction) in enumerate(self.trace):
+            progress_log.update(idx)
             if idx > 0:
                 previous_instr = self.trace[idx - 1]
-            if idx in report_idx:
-                elapsed_seconds = time.time() - report_start_time
-                elapsed_time = time.gmtime(elapsed_seconds)
-                estimated_time = time.gmtime(elapsed_seconds * report_idx[idx][1])
-                l.warning(
-                    "Filtering progress: {} Elapsed:{}/Estimated Remain:{}".format(
-                        report_idx[idx][0],
-                        time.strftime("%H:%M:%S", elapsed_time),
-                        time.strftime("%H:%M:%S", estimated_time),
-                    )
-                )
             present = True
             if (
                 self.test_plt_vdso(instruction.ip)
@@ -270,6 +254,7 @@ class FilterTrace(FilterBase):
                                     hooked_parent = None
                                     self.call_parent[cur_func] = None
                                     self.hook_target[hook_idx] = instruction.ip
+                                    present = True
                                     l.debug(" ->(back) " + sym.name)
                                     break
                                 else:
@@ -297,6 +282,7 @@ class FilterTrace(FilterBase):
                     ):
                         is_current_hooked = False
                         hooked_parent = None
+                        present = True
                         self.hook_target[hook_idx] = instruction.ip
                         l.debug(" ->(back) main_object")
 
@@ -342,7 +328,7 @@ class FilterTrace(FilterBase):
                         first_meet = False
                         hooked_parent = real_parent
                         hook_idx = idx
-                        hook_addr = self.trace[idx - 1 : idx - 10 : -1]
+                        hook_addr = self.trace[idx - 1 : idx - 4 : -1]
                 else:
                     if self.test_omit(instruction.ip):
                         is_current_hooked = True
