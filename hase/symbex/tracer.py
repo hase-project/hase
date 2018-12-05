@@ -1,6 +1,7 @@
 import ctypes
 import gc
 import logging
+import time
 from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -96,6 +97,7 @@ class Tracer:
             self.cdanalyzer.gdb,
             omitted_section,
             self.elf.statically_linked,
+            name,
         )
 
         self.old_trace = self.trace
@@ -126,6 +128,8 @@ class Tracer:
         self.setup_argv()
         self.name = name
 
+        # self.start_state.inspect.b('reg_write', when=angr.BP_BEFORE, action=breakpoint_reg)
+
     def desc_trace(self, start, end=None, filt=None):
         for i, inst in enumerate(self.trace[start:end]):
             if not filt or filt(inst.ip):
@@ -146,8 +150,37 @@ class Tracer:
     def desc_addr(self, addr):
         return self.project.loader.describe_addr(addr)
 
-    def desc_callstack(self):
-        callstack = self.debug_state[-1].callstack
+    def desc_stack_inst(self, start, end=None, show_extra=True):
+        for i, inst in enumerate(self.trace[start:end]):
+            blk = self.project.factory.block(inst.ip)
+            first_ins = blk.capstone.insns[0]
+            if (
+                first_ins.mnemonic == "push"
+                or first_ins.mnemonic == "pop"
+                or first_ins.mnemonic == "enter"
+                or first_ins.mnemonic == "leave"
+                # or first_ins.mnemonic == 'call'
+                # or first_ins.mnemonic == 'retn'
+                or (
+                    len(first_ins.operands) > 0
+                    and first_ins.operands[0].reg
+                    in (x86_const.X86_REG_RSP, x86_const.X86_REG_RBP)
+                )
+            ):
+                if show_extra:
+                    print(
+                        i + start,
+                        self.trace_idx[i + start],
+                        hex(inst.ip),
+                        self.desc_addr(inst.ip),
+                        str(first_ins),
+                    )
+                else:
+                    print(str(first_ins))
+
+    def desc_callstack(self, state=None):
+        state = self.debug_state[-1] if state is None else state
+        callstack = state.callstack
         for i, c in enumerate(callstack):
             print(
                 "Frame {}: {} => {}, sp = {}".format(
@@ -492,7 +525,7 @@ class Tracer:
         states = StateManager(self, len(self.trace) + 1)
         states.add_major(State(0, None, self.trace[0], None, simstate))
         self.debug_unsat: Optional[SimState] = None
-        self.debug_state: deque = deque(maxlen=10)
+        self.debug_state: deque = deque(maxlen=50)
         self.skip_addr: Dict[int, int] = {}
         cnt = -1
         interval = max(1, len(self.trace) // 200)
@@ -500,8 +533,35 @@ class Tracer:
         trace = self.trace[0:]
         trace.append(trace[-1])
 
+        trace_len = len(trace)
+        report_idx = {}
+        report_segment = max(4, min(100, trace_len // 4000))
+        report_start_time = time.time()
+        report_segment_len = trace_len // report_segment
+        for i in range(1, report_segment):
+            report_idx[report_segment_len * i] = (
+                "{}%".format(100 // report_segment * i),
+                (report_segment - i) / i,
+            )
+        report_idx[trace_len - 1] = ("100%", 0)
+
         # prev_instr.ip == state.ip
         for previous_idx in range(len(trace) - 1):
+            if previous_idx in report_idx:
+                elapsed_seconds = time.time() - report_start_time
+                elapsed_time = time.gmtime(elapsed_seconds)
+                estimated_time = time.gmtime(
+                    elapsed_seconds * report_idx[previous_idx][1]
+                )
+                l.warning(
+                    "{} | Tracer progress: {} Elapsed:{} / Estimated Remain:{}".format(
+                        self.name,
+                        report_idx[previous_idx][0],
+                        time.strftime("%H:%M:%S", elapsed_time),
+                        time.strftime("%H:%M:%S", estimated_time),
+                    )
+                )
+
             previous_instruction = trace[previous_idx]
             instruction = trace[previous_idx + 1]
             cnt += 1

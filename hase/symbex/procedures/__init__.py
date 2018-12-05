@@ -231,4 +231,13 @@ add_alias_s(alias_symbols, "memcpy", "__memcpy_sse2_unaligned")
 
 # Arch-dependent functions
 common_prefix = ["__GI_", "__interceptor___", "__interceptor_"]
-common_suffix = ["_sse", "_avx", "@", "_l_avx", "_l_sse", "_unaligned", "_ssse"]
+common_suffix = [
+    "_sse",
+    "_avx",
+    "@",
+    "_l_avx",
+    "_l_sse",
+    "_l_internal",
+    "_unaligned",
+    "_ssse",
+]
