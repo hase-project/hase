@@ -97,7 +97,7 @@ class Tracer:
             self.cdanalyzer.gdb,
             omitted_section,
             self.elf.statically_linked,
-            name
+            name,
         )
 
         self.old_trace = self.trace
@@ -155,10 +155,10 @@ class Tracer:
             blk = self.project.factory.block(inst.ip)
             first_ins = blk.capstone.insns[0]
             if (
-                first_ins.mnemonic == 'push'
-                or first_ins.mnemonic == 'pop'
-                or first_ins.mnemonic == 'enter'
-                or first_ins.mnemonic == 'leave'
+                first_ins.mnemonic == "push"
+                or first_ins.mnemonic == "pop"
+                or first_ins.mnemonic == "enter"
+                or first_ins.mnemonic == "leave"
                 # or first_ins.mnemonic == 'call'
                 # or first_ins.mnemonic == 'retn'
                 or (
@@ -173,12 +173,10 @@ class Tracer:
                         self.trace_idx[i + start],
                         hex(inst.ip),
                         self.desc_addr(inst.ip),
-                        str(first_ins)
+                        str(first_ins),
                     )
                 else:
-                    print(
-                        str(first_ins)
-                    )                    
+                    print(str(first_ins))
 
     def desc_callstack(self, state=None):
         state = self.debug_state[-1] if state is None else state
@@ -553,7 +551,8 @@ class Tracer:
                 elapsed_seconds = time.time() - report_start_time
                 elapsed_time = time.gmtime(elapsed_seconds)
                 estimated_time = time.gmtime(
-                    elapsed_seconds * report_idx[previous_idx][1])
+                    elapsed_seconds * report_idx[previous_idx][1]
+                )
                 l.warning(
                     "{} | Tracer progress: {} Elapsed:{} / Estimated Remain:{}".format(
                         self.name,
