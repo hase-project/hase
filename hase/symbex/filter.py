@@ -164,6 +164,7 @@ class FilterTrace(FilterBase):
         gdb: "CoredumpGDB",
         omitted_section: List[List[int]],
         static_link: bool,
+        name: str,
     ) -> None:
         super().__init__(project, trace, hooked_symbol, gdb, omitted_section)
 
@@ -171,6 +172,7 @@ class FilterTrace(FilterBase):
         self.hook_target: Dict[int, int] = {}
         self.hook_entry: List[Tuple[int, Instruction, str]] = []
         self.static_link = static_link
+        self.name = name
         self.analyze_trace()
 
     def entry_check(self) -> None:
@@ -213,7 +215,7 @@ class FilterTrace(FilterBase):
         previous_instr = None
         trace_len = len(self.trace)
         report_idx = {}
-        report_segment = 4
+        report_segment = max(4, min(10, trace_len // 40000))
         report_start_time = time.time()
         report_segment_len = trace_len // report_segment
         for i in range(1, report_segment):
@@ -230,7 +232,8 @@ class FilterTrace(FilterBase):
                 elapsed_time = time.gmtime(elapsed_seconds)
                 estimated_time = time.gmtime(elapsed_seconds * report_idx[idx][1])
                 l.warning(
-                    "Filtering progress: {} Elapsed:{}/Estimated Remain:{}".format(
+                    "{} | Filtering progress: {} Elapsed:{} / Estimated Remain:{}".format(
+                        self.name,
                         report_idx[idx][0],
                         time.strftime("%H:%M:%S", elapsed_time),
                         time.strftime("%H:%M:%S", estimated_time),
@@ -270,6 +273,7 @@ class FilterTrace(FilterBase):
                                     hooked_parent = None
                                     self.call_parent[cur_func] = None
                                     self.hook_target[hook_idx] = instruction.ip
+                                    present = True
                                     l.debug(" ->(back) " + sym.name)
                                     break
                                 else:
@@ -297,6 +301,7 @@ class FilterTrace(FilterBase):
                     ):
                         is_current_hooked = False
                         hooked_parent = None
+                        present = True
                         self.hook_target[hook_idx] = instruction.ip
                         l.debug(" ->(back) main_object")
 
@@ -342,7 +347,7 @@ class FilterTrace(FilterBase):
                         first_meet = False
                         hooked_parent = real_parent
                         hook_idx = idx
-                        hook_addr = self.trace[idx - 1 : idx - 10 : -1]
+                        hook_addr = self.trace[idx - 1 : idx - 4 : -1]
                 else:
                     if self.test_omit(instruction.ip):
                         is_current_hooked = True
