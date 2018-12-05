@@ -1,0 +1,33 @@
+Adding shard node URL: jdbc:sqlite://home/harveylu/hello.db
+Using shards: 1, batchSize:-1, fetchSize: -1
+[OVERALL], RunTime(ms), 5620
+[OVERALL], Throughput(ops/sec), 177.93594306049823
+[TOTAL_GCS_PS_Scavenge], Count, 0
+[TOTAL_GC_TIME_PS_Scavenge], Time(ms), 0
+[TOTAL_GC_TIME_%_PS_Scavenge], Time(%), 0.0
+[TOTAL_GCS_PS_MarkSweep], Count, 0
+[TOTAL_GC_TIME_PS_MarkSweep], Time(ms), 0
+[TOTAL_GC_TIME_%_PS_MarkSweep], Time(%), 0.0
+[TOTAL_GCs], Count, 0
+[TOTAL_GC_TIME], Time(ms), 0
+[TOTAL_GC_TIME_%], Time(%), 0.0
+[READ], Operations, 496
+[READ], AverageLatency(us), 75.49395161290323
+[READ], MinLatency(us), 30
+[READ], MaxLatency(us), 417
+[READ], 95thPercentileLatency(us), 136
+[READ], 99thPercentileLatency(us), 214
+[READ], Return=OK, 496
+[CLEANUP], Operations, 1
+[CLEANUP], AverageLatency(us), 582.0
+[CLEANUP], MinLatency(us), 582
+[CLEANUP], MaxLatency(us), 582
+[CLEANUP], 95thPercentileLatency(us), 582
+[CLEANUP], 99thPercentileLatency(us), 582
+[UPDATE], Operations, 504
+[UPDATE], AverageLatency(us), 10740.781746031746
+[UPDATE], MinLatency(us), 7984
+[UPDATE], MaxLatency(us), 30799
+[UPDATE], 95thPercentileLatency(us), 11495
+[UPDATE], 99thPercentileLatency(us), 18863
+[UPDATE], Return=OK, 504

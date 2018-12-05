@@ -1,0 +1,26 @@
+Adding shard node URL: jdbc:sqlite://home/harveylu/hello.db
+Using shards: 1, batchSize:-1, fetchSize: -1
+[OVERALL], RunTime(ms), 11022
+[OVERALL], Throughput(ops/sec), 90.72763563781528
+[TOTAL_GCS_PS_Scavenge], Count, 0
+[TOTAL_GC_TIME_PS_Scavenge], Time(ms), 0
+[TOTAL_GC_TIME_%_PS_Scavenge], Time(%), 0.0
+[TOTAL_GCS_PS_MarkSweep], Count, 0
+[TOTAL_GC_TIME_PS_MarkSweep], Time(ms), 0
+[TOTAL_GC_TIME_%_PS_MarkSweep], Time(%), 0.0
+[TOTAL_GCs], Count, 0
+[TOTAL_GC_TIME], Time(ms), 0
+[TOTAL_GC_TIME_%], Time(%), 0.0
+[CLEANUP], Operations, 1
+[CLEANUP], AverageLatency(us), 575.0
+[CLEANUP], MinLatency(us), 575
+[CLEANUP], MaxLatency(us), 575
+[CLEANUP], 95thPercentileLatency(us), 575
+[CLEANUP], 99thPercentileLatency(us), 575
+[INSERT], Operations, 1000
+[INSERT], AverageLatency(us), 10852.756
+[INSERT], MinLatency(us), 7660
+[INSERT], MaxLatency(us), 27183
+[INSERT], 95thPercentileLatency(us), 11615
+[INSERT], 99thPercentileLatency(us), 22367
+[INSERT], Return=OK, 1000
