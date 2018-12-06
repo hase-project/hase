@@ -9,7 +9,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import angr
 import archinfo
 from angr import SimState
-from angr import sim_options as so
 from capstone import x86_const
 
 from ..errors import HaseError
@@ -20,7 +19,7 @@ from ..pwn_wrapper import ELF, Coredump, Mapping
 from .cdanalyzer import CoredumpAnalyzer
 from .filter import FilterTrace
 from .hook import setup_project_hook
-from .rspsolver import solve_rsp
+from .start_state import create_start_state
 from .state import State, StateManager
 
 l = logging.getLogger(__name__)
@@ -44,13 +43,12 @@ class Tracer:
         self.loader = loader
         load_options = loader.load_options()
         self.project = angr.Project(executable, **load_options)
+        assert self.project.loader.main_object.os.startswith("UNIX")
 
         self.coredump = coredump
         self.debug_unsat: Optional[SimState] = None
 
         self.trace = trace
-
-        assert self.project.loader.main_object.os.startswith("UNIX")
 
         self.elf = ELF(executable)
 
@@ -64,30 +62,6 @@ class Tracer:
         for (idx, event) in enumerate(self.trace):
             if event.ip == start or event.ip == main:
                 self.trace = trace[idx:]
-
-        add_options = {
-            so.TRACK_JMP_ACTIONS,
-            so.CONSERVATIVE_READ_STRATEGY,
-            so.CONSERVATIVE_WRITE_STRATEGY,
-            so.BYPASS_UNSUPPORTED_IRCCALL,
-            so.BYPASS_UNSUPPORTED_IRDIRTY,
-            so.CONSTRAINT_TRACKING_IN_SOLVER,
-            so.COPY_STATES,
-            so.BYPASS_UNSUPPORTED_IROP,
-            so.BYPASS_UNSUPPORTED_IREXPR,
-            so.BYPASS_UNSUPPORTED_IRSTMT,
-            so.BYPASS_UNSUPPORTED_SYSCALL,
-            so.BYPASS_ERRORED_IROP,
-            so.BYPASS_ERRORED_IRCCALL,
-            # so.DOWNSIZE_Z3,
-        }
-
-        remove_simplications = {
-            so.LAZY_SOLVES,
-            so.EFFICIENT_STATE_MERGING,
-            so.TRACK_CONSTRAINT_ACTIONS,
-            # so.ALL_FILES_EXIST, # the problem is, when having this, simfd either None or exist, no If
-        } | so.simplification
 
         self.use_hook = True
         hooked_symbols, omitted_section = setup_project_hook(
@@ -106,31 +80,16 @@ class Tracer:
 
         self.old_trace = self.trace
         self.trace, self.trace_idx, self.hook_target = self.filter.filtered_trace()
-        self.hook_plt_idx = list(self.hook_target.keys())
-        self.hook_plt_idx.sort()
-        self.filter.entry_check()
-
-        start_address = self.trace[0].ip
-
-        args = [self.coredump.argc]
-        args += [self.coredump.string(argv) for argv in self.coredump.argv]
-        self.start_state = self.project.factory.call_state(
-            start_address,
-            *args,
-            add_options=add_options,
-            remove_options=remove_simplications,
-        )
-        rsp, _ = solve_rsp(self.start_state, self.cdanalyzer)
-        self.start_state.regs.rsp = rsp
-
         l.info(
             "Trace length: {} | OldTrace length: {}".format(
                 len(self.trace), len(self.old_trace)
             )
         )
 
-        self.setup_argv()
-        self.name = name
+        self.hook_plt_idx = list(self.hook_target.keys())
+        self.hook_plt_idx.sort()
+        self.filter.entry_check()
+        self.start_state = create_start_state(self.project, self.trace, self.cdanalyzer)
 
         # self.start_state.inspect.b('reg_write', when=angr.BP_BEFORE, action=breakpoint_reg)
 
@@ -193,20 +152,6 @@ class Tracer:
                     self.desc_addr(c.func_addr),
                     hex(c.stack_ptr),
                 )
-            )
-
-    def setup_argv(self) -> None:
-        # argv follows argc
-        argv_addr = self.coredump.argc_address + ctypes.sizeof(ctypes.c_int)
-        # TODO: if argv is modified by users, this won't help
-        for i in range(len(self.coredump.argv)):
-            self.start_state.memory.store(
-                argv_addr + i * 8, self.coredump.argv[i], endness=archinfo.Endness.LE
-            )
-            self.start_state.memory.store(
-                self.coredump.argv[i],
-                self.coredump.string(self.coredump.argv[i])[::-1],
-                endness=archinfo.Endness.LE,
             )
 
     def repair_exit_handler(self, state: SimState, step: SimState) -> SimState:
