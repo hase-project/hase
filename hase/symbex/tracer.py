@@ -1,6 +1,7 @@
 import ctypes
 import gc
 import logging
+import time
 from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -13,6 +14,7 @@ from capstone import x86_const
 
 from ..errors import HaseError
 from ..loader import Loader
+from ..progress_log import ProgressLog
 from ..pt.events import Instruction, InstructionClass
 from ..pwn_wrapper import ELF, Coredump, Mapping
 from .cdanalyzer import CoredumpAnalyzer
@@ -22,6 +24,9 @@ from .rspsolver import solve_rsp
 from .state import State, StateManager
 
 l = logging.getLogger(__name__)
+handler = logging.FileHandler(Path.home().joinpath("symbex-errors.log"))
+handler.setLevel(logging.ERROR)
+l.addHandler(handler)
 
 
 class Tracer:
@@ -31,7 +36,7 @@ class Tracer:
         trace: List[Instruction],
         coredump: Coredump,
         loader: Loader,
-        name: str = "unamed",
+        name: str = "(unamed)",
     ) -> None:
         self.name = name
         self.executable = executable
@@ -96,6 +101,7 @@ class Tracer:
             self.cdanalyzer.gdb,
             omitted_section,
             self.elf.statically_linked,
+            name,
         )
 
         self.old_trace = self.trace
@@ -126,6 +132,8 @@ class Tracer:
         self.setup_argv()
         self.name = name
 
+        # self.start_state.inspect.b('reg_write', when=angr.BP_BEFORE, action=breakpoint_reg)
+
     def desc_trace(self, start, end=None, filt=None):
         for i, inst in enumerate(self.trace[start:end]):
             if not filt or filt(inst.ip):
@@ -146,8 +154,37 @@ class Tracer:
     def desc_addr(self, addr):
         return self.project.loader.describe_addr(addr)
 
-    def desc_callstack(self):
-        callstack = self.debug_state[-1].callstack
+    def desc_stack_inst(self, start, end=None, show_extra=True):
+        for i, inst in enumerate(self.trace[start:end]):
+            blk = self.project.factory.block(inst.ip)
+            first_ins = blk.capstone.insns[0]
+            if (
+                first_ins.mnemonic == "push"
+                or first_ins.mnemonic == "pop"
+                or first_ins.mnemonic == "enter"
+                or first_ins.mnemonic == "leave"
+                # or first_ins.mnemonic == 'call'
+                # or first_ins.mnemonic == 'retn'
+                or (
+                    len(first_ins.operands) > 0
+                    and first_ins.operands[0].reg
+                    in (x86_const.X86_REG_RSP, x86_const.X86_REG_RBP)
+                )
+            ):
+                if show_extra:
+                    print(
+                        i + start,
+                        self.trace_idx[i + start],
+                        hex(inst.ip),
+                        self.desc_addr(inst.ip),
+                        str(first_ins),
+                    )
+                else:
+                    print(str(first_ins))
+
+    def desc_callstack(self, state=None):
+        state = self.debug_state[-1] if state is None else state
+        callstack = state.callstack
         for i, c in enumerate(callstack):
             print(
                 "Frame {}: {} => {}, sp = {}".format(
@@ -492,7 +529,7 @@ class Tracer:
         states = StateManager(self, len(self.trace) + 1)
         states.add_major(State(0, None, self.trace[0], None, simstate))
         self.debug_unsat: Optional[SimState] = None
-        self.debug_state: deque = deque(maxlen=10)
+        self.debug_state: deque = deque(maxlen=50)
         self.skip_addr: Dict[int, int] = {}
         cnt = -1
         interval = max(1, len(self.trace) // 200)
@@ -500,11 +537,20 @@ class Tracer:
         trace = self.trace[0:]
         trace.append(trace[-1])
 
+        l.info("start processing trace")
+        progress_log = ProgressLog(
+            name=f"process trace of {self.name}",
+            total_steps=len(trace),
+            log_frequency=int(1e3),
+            kill_limit=60 * 60 * 24,
+        )
+
         # prev_instr.ip == state.ip
         for previous_idx in range(len(trace) - 1):
             previous_instruction = trace[previous_idx]
             instruction = trace[previous_idx + 1]
             cnt += 1
+            progress_log.update(cnt)
             if not cnt % 500:
                 gc.collect()
             l.debug(
