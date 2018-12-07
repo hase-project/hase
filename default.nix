@@ -43,14 +43,13 @@ in
     git-lfs
     openssl
     # cannot be installed with pip
-    python3Packages.pyqt5
+    python36Packages.pyqt5
     pip_18_1
     musl-gcc
     # does not find ffi when installed with pip
-    python3Packages.cffi
+    python36Packages.cffi
 
-    python3Packages.virtualenv
-    python3Packages.pandas
+    python36Packages.virtualenv
     qt5.qttools
     pkgconfig
     glibcLocales
