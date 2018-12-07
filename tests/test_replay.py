@@ -13,10 +13,10 @@ def test_loopy() -> None:
     state = main(
         ["hase", "replay", str(TEST_TRACES.joinpath("loopy-20181009T182008.tar.gz"))]
     )
-    last_state = state[-1]
+    (last_state, is_new) = state[len(state) - 2]
     # We called loopy with 6 arguments:
     # ./loopy a b c d e
-    s = last_state[0].simstate
+    s = last_state.simstate
     # loopy does not touch rsp so we can get the location of argc by dereferencing
     # the top of the stack
     argc = s.mem[s.solver.eval(s.regs.rsp)].uint64_t.concrete
