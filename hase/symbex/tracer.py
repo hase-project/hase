@@ -68,13 +68,6 @@ def constrain_registers(state: State, coredump: Coredump) -> bool:
     return False
 
 
-def concretize_ip(step: SimSuccessors, ip: int) -> None:
-    # TODO what to do with multiple successors?
-    if len(step.successors) == 1:
-        if step.successors[0].ip.symbolic:
-            step.successors[0].ip = ip
-
-
 def repair_syscall_jump(old_state: SimState, step: SimSuccessors) -> SimState:
     capstone = old_state.block().capstone
     first_ins = capstone.insns[0].insn
@@ -108,7 +101,7 @@ class Tracer:
         self.coredump = coredump
         self.debug_unsat: Optional[SimState] = None
 
-        self.instruction_idx: Optional[int] = 1
+        self.instruction: Optional[Instruction] = None
         self.trace = trace
 
         elf = ELF(executable)
@@ -153,19 +146,23 @@ class Tracer:
             "call", when=angr.BP_BEFORE, action=self.concretize_indirect_calls
         )
         res = self.start_state.inspect.b(
-            "successor", when=angr.BP_AFTER, action=self.concretize_state_ip
+            "successor", when=angr.BP_AFTER, action=self.concretize_ip
         )
 
     def concretize_indirect_calls(self, state: SimState) -> None:
-        assert self.instruction_idx is not None
-        assert state.ip.symbolic or state.ip == self.trace[self.instruction_idx].ip
-        state.inspect.function_address = self.trace[self.instruction_idx].ip
+        assert self.instruction is not None
+        assert state.ip.symbolic or state.ip == self.instruction.ip
+        state.inspect.function_address = self.instruction.ip
 
-    def concretize_state_ip(self, state: SimState) -> None:
-        assert self.instruction_idx is not None
+    def concretize_ip(self, state: SimState) -> None:
+        assert self.instruction is not None
+
+        ip = self.instruction.ip
         if state.scratch.target.symbolic:
-            state.ip = self.trace[self.instruction_idx].ip
-            state.scratch.target = self.trace[self.instruction_idx].ip
+            state.ip = ip
+            state.add_constraints(state.scratch.target == ip, action=True)
+            # avoid evaluation of symbolic target
+            state.scratch.target = ip
 
     def desc_trace(
         self,
@@ -389,7 +386,6 @@ class Tracer:
             and self.trace[-1].ip == self.trace[-2].ip
         ):
             if choice.addr == instruction.ip:
-                l.debug("jump 0%x -> 0%x", choice.addr, choice.addr)
                 return True
         return False
 
@@ -441,7 +437,6 @@ class Tracer:
             step = self.project.factory.successors(
                 state, num_inst=1  # , force_addr=addr
             )
-            concretize_ip(step, instruction.ip)
             step = repair_syscall_jump(state, step)
             step = self.repair_func_resolver(state, step)
             step = self.repair_exit_handler(state, step)
@@ -464,17 +459,9 @@ class Tracer:
             elif force_type == "ret":
                 new_state.regs.rsp += 8
             new_state.regs.ip = instruction.ip
-            all_choices = {"sat": [new_state], "unsat": [], "unconstrained": []}
             choices = [new_state]
         else:
-            all_choices = {
-                "sat": step.successors,
-                "unsat": step.unsat_successors,
-                "unconstrained": step.unconstrained_successors,
-            }
-            choices = []
-            choices += all_choices["sat"]
-            choices += all_choices["unsat"]
+            choices = step.successors + step.unsat_successors
 
         old_state = state
         l.info(
@@ -483,7 +470,6 @@ class Tracer:
             + repr(previous_instruction)
             + " "
             + repr(instruction)
-            + "\n"
         )
 
         for choice in choices:
@@ -516,33 +502,30 @@ class Tracer:
         cnt = -1
         interval = max(1, len(self.trace) // 200)
         length = len(self.trace) - 1
-        trace = self.trace[0:]
-        trace.append(trace[-1])
 
         l.info("start processing trace")
         progress_log = ProgressLog(
             name=f"process trace of {self.name}",
-            total_steps=len(trace),
+            total_steps=len(self.trace),
             log_frequency=int(1e3),
             kill_limit=60 * 60 * 24,
         )
 
         # prev_instr.ip == state.ip
-        for previous_idx in range(len(trace) - 1):
-            previous_instruction = trace[previous_idx]
-            self.instruction_idx = previous_idx + 1
-            instruction = trace[self.instruction_idx]
+        for previous_idx in range(len(self.trace) - 1):
+            previous_instruction = self.trace[previous_idx]
+            if previous_idx + 1 >= len(self.trace):
+                self.instruction = self.trace[previous_idx]
+            else:
+                self.instruction = self.trace[previous_idx + 1]
+
             cnt += 1
             progress_log.update(cnt)
             if not cnt % 500:
                 gc.collect()
-            l.debug(
-                "look for jump: 0x%x -> 0x%x"
-                % (previous_instruction.ip, instruction.ip)
-            )
-            assert self.valid_address(instruction.ip)
+            assert self.valid_address(self.instruction.ip)
             old_simstate, new_simstate = self.execute(
-                simstate, previous_instruction, instruction, cnt
+                simstate, previous_instruction, self.instruction, cnt
             )
             simstate = new_simstate
             if cnt % interval == 0 or length - cnt < 15:
@@ -550,17 +533,17 @@ class Tracer:
                     State(
                         cnt,
                         previous_instruction,
-                        instruction,
+                        self.instruction,
                         old_simstate,
                         new_simstate,
                     )
                 )
             if (
-                self.project.loader.find_object_containing(instruction.ip)
+                self.project.loader.find_object_containing(self.instruction.ip)
                 == self.project.loader.main_object
             ):
                 states.last_main_state = State(
-                    cnt, previous_instruction, instruction, old_simstate, new_simstate
+                    cnt, previous_instruction, self.instruction, old_simstate, new_simstate
                 )
 
         constrain_registers(states.major_states[-1], self.coredump)
