@@ -504,9 +504,7 @@ class Tracer:
                 "look for jump: 0x%x -> 0x%x"
                 % (previous_instruction.ip, instruction.ip)
             )
-            assert self.valid_address(previous_instruction.ip) and self.valid_address(
-                instruction.ip
-            )
+            assert self.valid_address(instruction.ip)
             old_simstate, new_simstate = self.execute(
                 simstate, previous_instruction, instruction, cnt
             )
