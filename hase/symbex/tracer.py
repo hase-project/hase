@@ -8,7 +8,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import angr
 import archinfo
-from angr import SimState
+from angr import Project, SimState
+from angr.engines.successors import SimSuccessors
 from capstone import x86_const
 
 from ..errors import HaseError
@@ -208,7 +209,7 @@ class Tracer:
                 )
             )
 
-    def repair_exit_handler(self, state: SimState, step: SimState) -> SimState:
+    def repair_exit_handler(self, state: SimState, step: SimSuccessors) -> SimState:
         artifacts = getattr(step, "artifacts", None)
         if (
             artifacts
@@ -332,7 +333,7 @@ class Tracer:
             addr = self.debug_state[-2].addr
         return addr
 
-    def repair_func_resolver(self, state: SimState, step: SimState) -> SimState:
+    def repair_func_resolver(self, state: SimState, step: SimSuccessors) -> SimState:
         artifacts = getattr(step, "artifacts", None)
         if (
             artifacts
