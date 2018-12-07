@@ -67,6 +67,21 @@ def constrain_registers(state: State, coredump: Coredump) -> bool:
     return False
 
 
+
+
+def repair_syscall_jump(old_state: SimState, step: SimSuccessors) -> SimState:
+    capstone = old_state.block().capstone
+    first_ins = capstone.insns[0].insn
+    ins_repr = first_ins.mnemonic
+    # manually syscall will have no entry and just execute it.
+    if (
+        ins_repr.startswith("syscall")
+        and 0x3000000 <= step.successors[0].reg_concrete("rip") < 0x3002000
+    ):
+        return step.successors[0].step(num_inst=1)
+    return step
+
+
 class Tracer:
     def __init__(
         self,
@@ -377,18 +392,6 @@ class Tracer:
         self.repair_satness(old_state, state)
         self.repair_ip_at_syscall(old_state, state)
 
-    def repair_syscall_jump(self, old_state: SimState, step: SimState) -> SimState:
-        capstone = old_state.block().capstone
-        first_ins = capstone.insns[0].insn
-        ins_repr = first_ins.mnemonic
-        # manually syscall will have no entry and just execute it.
-        if (
-            ins_repr.startswith("syscall")
-            and 0x3000000 <= step.successors[0].reg_concrete("rip") < 0x3002000
-        ):
-            return step.successors[0].step(num_inst=1)
-        return step
-
     def execute(
         self,
         state: SimState,
@@ -406,7 +409,7 @@ class Tracer:
             step = self.project.factory.successors(
                 state, num_inst=1  # , force_addr=addr
             )
-            step = self.repair_syscall_jump(state, step)
+            step = repair_syscall_jump(state, step)
             step = self.repair_func_resolver(state, step)
             step = self.repair_exit_handler(state, step)
         except Exception:
