@@ -97,7 +97,7 @@ class Tracer:
         # we keep this for debugging in ipdb
         self.loader = loader
         load_options = loader.load_options()
-        self.project = angr.Project(executable, **load_options)
+        self.project = Project(executable, **load_options)
         assert self.project.loader.main_object.os.startswith("UNIX")
 
         self.coredump = coredump
@@ -105,14 +105,12 @@ class Tracer:
 
         self.trace = trace
 
-        self.elf = ELF(executable)
+        elf = ELF(executable)
 
-        start = self.elf.symbols.get("_start")
-        main = self.elf.symbols.get("main")
+        start = elf.symbols.get("_start")
+        main = elf.symbols.get("main")
 
-        self.cdanalyzer = CoredumpAnalyzer(
-            self.elf, self.coredump, load_options["lib_opts"]
-        )
+        self.cdanalyzer = CoredumpAnalyzer(elf, self.coredump, load_options["lib_opts"])
 
         for (idx, event) in enumerate(self.trace):
             if event.ip == start or event.ip == main:
@@ -129,7 +127,7 @@ class Tracer:
             hooked_symbols,
             self.cdanalyzer.gdb,
             omitted_section,
-            self.elf.statically_linked,
+            elf.statically_linked,
             name,
         )
 
