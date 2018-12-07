@@ -28,6 +28,45 @@ handler.setLevel(logging.ERROR)
 l.addHandler(handler)
 
 
+def constrain_registers(state: State, coredump: Coredump) -> bool:
+    # FIXME: if exception caught is omitted by hook?
+    # If same address, then give registers
+    if state.registers["rip"].value == coredump.registers["rip"]:
+        # don't give rbp, rsp
+        assert state.registers["rsp"].value == coredump.registers["rsp"]
+        registers = [
+            "gs",
+            "rip",
+            "rdx",
+            "r15",
+            "rax",
+            "rsi",
+            "rcx",
+            "r14",
+            "fs",
+            "r12",
+            "r13",
+            "r10",
+            "r11",
+            "rbx",
+            "r8",
+            "r9",
+            "eflags",
+            "rdi",
+        ]
+        for name in registers:
+            state.registers[name] = coredump.registers[name]
+        return True
+    else:
+        l.warning("RIP mismatch.")
+        arip = state.simstate.regs.rip
+        crip = hex(coredump.registers["rip"])
+        arsp = state.simstate.regs.rsp
+        crsp = hex(coredump.registers["rsp"])
+        l.warning(f"{arip} {crip} {arsp} {crsp}")
+    return False
+
+
 class Tracer:
     def __init__(
         self,
@@ -430,45 +469,6 @@ class Tracer:
     def valid_address(self, address: int) -> bool:
         return self.project.loader.find_object_containing(address)
 
-    def constrain_registers(self, state: State) -> bool:
-        # FIXME: if exception caught is omitted by hook?
-        # If same address, then give registers
-        if state.registers["rip"].value == self.coredump.registers["rip"]:
-            # don't give rbp, rsp
-            assert state.registers["rsp"].value == self.coredump.registers["rsp"]
-            registers = [
-                "gs",
-                "rip",
-                "rdx",
-                "r15",
-                "rax",
-                "rsi",
-                "rcx",
-                "r14",
-                "fs",
-                "r12",
-                "r13",
-                "r10",
-                "r11",
-                "rbx",
-                "r8",
-                "r9",
-                "eflags",
-                "rdi",
-            ]
-            for name in registers:
-                state.registers[name] = self.coredump.registers[name]
-            return True
-        else:
-            l.warning("RIP mismatch.")
-            coredump = self.coredump
-            arip = state.simstate.regs.rip
-            crip = hex(coredump.registers["rip"])
-            arsp = state.simstate.regs.rsp
-            crsp = hex(coredump.registers["rsp"])
-            l.warning(f"{arip} {crip} {arsp} {crsp}")
-        return False
-
     def run(self) -> StateManager:
         simstate = self.start_state
         states = StateManager(self, len(self.trace) + 1)
@@ -527,6 +527,6 @@ class Tracer:
                     cnt, previous_instruction, instruction, old_simstate, new_simstate
                 )
 
-        self.constrain_registers(states.major_states[-1])
+        constrain_registers(states.major_states[-1], self.coredump)
 
         return states
