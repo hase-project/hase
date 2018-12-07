@@ -68,6 +68,11 @@ def constrain_registers(state: State, coredump: Coredump) -> bool:
     return False
 
 
+def concretize_ip(step: SimSuccessors, ip: int):
+    # TODO what to do with multiple successors?
+    if len(step.successors) == 1:
+        if step.successors[0].ip.symbolic:
+            step.successors[0].ip = ip
 
 
 def repair_syscall_jump(old_state: SimState, step: SimSuccessors) -> SimState:
@@ -103,6 +108,7 @@ class Tracer:
         self.coredump = coredump
         self.debug_unsat: Optional[SimState] = None
 
+        self.instruction_idx: Optional[int] = 1
         self.trace = trace
 
         elf = ELF(executable)
@@ -143,8 +149,26 @@ class Tracer:
         self.hook_plt_idx.sort()
         self.filter.entry_check()
         self.start_state = create_start_state(self.project, self.trace, self.cdanalyzer)
+        self.start_state.inspect.b(
+            "call", when=angr.BP_BEFORE, action=self.concretize_indirect_calls
+        )
+        res = self.start_state.inspect.b(
+            "successor", when=angr.BP_AFTER, action=self.concretize_state_ip
+        )
 
-        # self.start_state.inspect.b('reg_write', when=angr.BP_BEFORE, action=breakpoint_reg)
+    def concretize_indirect_calls(self, state: SimState):
+        assert self.instruction_idx is not None
+        assert (
+            state.ip.symbolic
+            or state.ip == self.trace[self.instruction_idx].ip
+        )
+        state.inspect.function_address = self.trace[self.instruction_idx].ip
+
+    def concretize_state_ip(self, state: SimState):
+        assert self.instruction_idx is not None
+        if state.scratch.target.symbolic:
+            state.ip = self.trace[self.instruction_idx].ip
+            state.scratch.target = self.trace[self.instruction_idx].ip
 
     def desc_trace(self, start, end=None, filt=None):
         for i, inst in enumerate(self.trace[start:end]):
@@ -408,6 +432,7 @@ class Tracer:
             step = self.project.factory.successors(
                 state, num_inst=1  # , force_addr=addr
             )
+            concretize_ip(step, instruction.ip)
             step = repair_syscall_jump(state, step)
             step = self.repair_func_resolver(state, step)
             step = self.repair_exit_handler(state, step)
@@ -451,6 +476,7 @@ class Tracer:
             + repr(instruction)
             + "\n"
         )
+
         for choice in choices:
             # HACKS: if ip is symbolic
             try:
@@ -495,7 +521,8 @@ class Tracer:
         # prev_instr.ip == state.ip
         for previous_idx in range(len(trace) - 1):
             previous_instruction = trace[previous_idx]
-            instruction = trace[previous_idx + 1]
+            self.instruction_idx = previous_idx + 1
+            instruction = trace[self.instruction_idx]
             cnt += 1
             progress_log.update(cnt)
             if not cnt % 500:
