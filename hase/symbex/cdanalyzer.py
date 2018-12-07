@@ -183,19 +183,19 @@ class CoredumpAnalyzer:
         return self.coredump.argv[n]
 
     @property
-    def env(self):
+    def env(self) -> Dict[str, str]:
         return self.coredump.env
 
     @property
-    def registers(self):
+    def registers(self) -> Dict[str, int]:
         return self.coredump.registers
 
     @property
-    def stack_start(self):
+    def stack_start(self) -> int:
         return self.coredump.stack.start
 
     @property
-    def stack_stop(self):
+    def stack_stop(self) -> int:
         return self.coredump.stack.stop
 
     def call_argv(self, name: str) -> Optional[List[Optional[int]]]:

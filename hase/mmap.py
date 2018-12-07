@@ -1,4 +1,5 @@
 import ctypes as ct
+from typing import Any
 
 libc = ct.CDLL("libc.so.6", use_errno=True)
 
@@ -30,5 +31,5 @@ class MMap:
     def __enter__(self) -> "MMap":
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
         self.close()

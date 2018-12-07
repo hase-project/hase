@@ -11,7 +11,7 @@ class TraceEvent:
         self.pos = pos
         self.time = time
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         time = ""
         if self.time is not None:
             time = ", time: 0x%x" % self.time
@@ -54,7 +54,7 @@ class Instruction:
         self.size = size
         self.iclass = iclass
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<Instruction[%s] @ %x>" % (self.iclass.name, self.ip)
 
 

@@ -1,12 +1,15 @@
-from typing import Any, Dict, List, Tuple
 from copy import deepcopy
+from typing import Any, Dict, List, Tuple
+
 from angr import SimProcedure
 from angr.procedures import SIM_LIBRARIES, SIM_PROCEDURES
-from .cdanalyzer import CoredumpGDB
 
+from .cdanalyzer import CoredumpGDB
 from .procedures import (
     alias_symbols,
     all_IO_hook,
+    common_prefix,
+    common_suffix,
     file_operation,
     group_operation,
     memory_operation,
@@ -15,8 +18,6 @@ from .procedures import (
     string_operation,
     syscall,
     time_operation,
-    common_prefix,
-    common_suffix,
 )
 
 # TODO: How to deal with overload function hook?
@@ -104,7 +105,7 @@ hook_alias_procedures(all_hookable_symbols)
 
 
 def setup_project_hook(
-    project: Any, gdb: "CoredumpGDB", omit_hook=[]
+    project: Any, gdb: "CoredumpGDB", omit_hook: List[str] = []
 ) -> Tuple[Dict[str, Any], List[List[int]]]:
     hooked_syms = deepcopy(all_hookable_symbols)
     for symname in omit_hook:

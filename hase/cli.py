@@ -1,5 +1,5 @@
 import argparse
-from typing import List
+from typing import List, Any
 
 from .record import DEFAULT_LOG_DIR, record_command
 
@@ -50,14 +50,14 @@ def parse_arguments(argv: List[str]) -> argparse.Namespace:
     unpack = subparsers.add_parser("unpack")
     unpack.add_argument("report")
 
-    def lazy_import_replay_command(args):
+    def lazy_import_replay_command(args: argparse.Namespace) -> Any:
         from .replay import replay_command
 
         return replay_command(args)
 
     replay.set_defaults(func=lazy_import_replay_command)
 
-    def lazy_import_unpack_command(args):
+    def lazy_import_unpack_command(args: argparse.Namespace) -> Any:
         from .replay import unpack_command
 
         return unpack_command(args)

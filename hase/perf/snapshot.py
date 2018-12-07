@@ -87,7 +87,7 @@ class PMU:
     def __enter__(self) -> "PMU":
         return self
 
-    def __exit__(self, type, value, traceback) -> None:
+    def __exit__(self, type: Any, value: Any, traceback: Any) -> None:
         self.close()
 
     def _ioctl(self, cmd: int, arg: Any) -> int:
@@ -465,7 +465,7 @@ class Snapshot:
     def __enter__(self) -> "Snapshot":
         return self
 
-    def __exit__(self, type, value, traceback) -> None:
+    def __exit__(self, type: Any, value: Any, traceback: Any) -> None:
         self.close()
 
     def stop(self) -> None:

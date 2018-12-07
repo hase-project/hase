@@ -47,7 +47,7 @@ def process_coredump(
     json.dump(metadata, manifest_file, indent=4, sort_keys=True)
 
 
-def creat(path: str, mode="wb") -> IO[Any]:
+def creat(path: str, mode: str = "wb") -> IO[Any]:
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     return os.fdopen(os.open(path, flags), mode)
 
