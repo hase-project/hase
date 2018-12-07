@@ -215,7 +215,11 @@ class FilterTrace(FilterBase):
         previous_instr = None
         trace_len = len(self.trace)
         l.info("start analyzing")
-        progress_log = ProgressLog(name=f"analyze trace of {self.name}", total_steps=trace_len, kill_limit=60 * 20)
+        progress_log = ProgressLog(
+            name=f"analyze trace of {self.name}",
+            total_steps=trace_len,
+            kill_limit=60 * 20,
+        )
         for (idx, instruction) in enumerate(self.trace):
             progress_log.update(idx)
             if idx > 0:

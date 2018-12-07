@@ -1,16 +1,19 @@
 import logging
 import os
 import sys
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional, Union
 
+import claripy
 import pygments
 import pygments.formatters
 import pygments.lexers
+from pygments.formatters import RegexLexer
+from qtconsole.inprocess import QtInProcessKernelManager
+
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import QSize
 from PyQt5.QtGui import QIcon, QTextCursor
 from PyQt5.uic import loadUiType
-from qtconsole.inprocess import QtInProcessKernelManager
 
 from ..path import APP_ROOT
 from ..record import DEFAULT_LOG_DIR
@@ -44,7 +47,7 @@ code_template = """
 
 
 class MainWindow(form_class, QtWidgets.QMainWindow):
-    def __init__(self, *args):
+    def __init__(self, *args: Any) -> None:
         super(MainWindow, self).__init__(*args)
         self.setupUi(self)
         self.kernel_manager = QtInProcessKernelManager()
@@ -100,11 +103,13 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
         self.time_slider.setEnabled(False)
 
-        self.file_cache = {}
-        self.file_read_cache = {}
+        self.file_cache: Dict[str, Dict[int, Tuple[Optional[str], Optional[str]]]] = {}
+        self.file_read_cache: Dict[
+            str, Tuple[Optional[RegexLexer], Optional[Union[str, List[str]]], bool]
+        ] = {}
         # self.callgraph = CallGraphManager()
 
-        self.coredump_constraints = []
+        self.coredump_constraints: List[claripy.ast.bool.Bool] = []
 
     def cache_coredump_constraints(self) -> None:
         user_ns = self.kernel_client.kernel.shell.user_ns
@@ -279,7 +284,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         # fmt.setUnderlineStyle(QTextCharFormat.SingleUnderline)
         if source_file != "??":
             css, source = self.file_cache[source_file][line]
-            if css:
+            if css and source:
                 self.code_view.setHtml(
                     code_template.format(css, source.encode("utf-8"))
                 )
@@ -322,7 +327,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.var_view.resizeColumnsToContents()
 
     def set_regs(self) -> None:
-        def fix_new_regname(rname: str):
+        def fix_new_regname(rname: str) -> str:
             # HACK: angr has no access to register like r9w, r8d, r15b
             for i in range(8, 16):
                 if "r" + str(i) in rname:
@@ -378,88 +383,84 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
         shell.extension_manager.load_extension(ipython_extension.__name__)
 
-    def cache_tokens(self, addr_map: Dict[int, Tuple[str, int]]):
+    def fill_cache(self, filename: str, line: int) -> None:
+        try:
+            lexer: RegexLexer = pygments.lexers.get_lexer_for_filename(str(filename))
+            formatter_opts = dict(linenos="inline", linespans="line", hl_lines=[line])
+            html_formatter = pygments.formatters.get_formatter_by_name(
+                "html", **formatter_opts
+            )
+            css = html_formatter.get_style_defs(".highlight")
+            with open(str(filename)) as f:
+                lines = f.readlines()
+            if len(lines) < 1000:
+                content = "".join(lines)
+                tokens = lexer.get_tokens(content)
+                source = pygments.format(tokens, html_formatter)
+                self.file_cache[filename][line] = (css, source)
+                self.file_read_cache[filename] = (lexer, content, False)
+            else:
+                minl = max(0, line - 30)
+                maxl = min(len(lines), line + 30)
+                formatter_opts = dict(
+                    linenos="inline", linespans="line", hl_lines=[line]
+                )
+                html_formatter = pygments.formatters.get_formatter_by_name(
+                    "html", **formatter_opts
+                )
+                css = html_formatter.get_style_defs(".highlight")
+                source = pygments.format(
+                    lexer.get_tokens("".join(lines[minl:maxl])), html_formatter
+                )
+                self.file_cache[filename][line] = (css, source)
+                self.file_read_cache[filename] = (lexer, lines, True)
+        except Exception as e:
+            l.exception(e)
+            self.file_cache[filename][line] = (None, None)
+            self.file_read_cache[filename] = (None, None, False)
+
+    def fill_file_cache(self, filename: str, line: int) -> None:
+        lexer, content, is_largefile = self.file_read_cache[filename]
+        if lexer and content:
+            try:
+                if not is_largefile:
+                    formatter_opts = dict(
+                        linenos="inline", linespans="line", hl_lines=[line]
+                    )
+                    html_formatter = pygments.formatters.get_formatter_by_name(
+                        "html", **formatter_opts
+                    )
+                    css = html_formatter.get_style_defs(".highlight")
+                    source = pygments.format(lexer.get_tokens(content), html_formatter)
+                    self.file_cache[filename][line] = (css, source)
+                else:
+                    minl = max(0, line - 30)
+                    maxl = min(len(content), line + 30)
+                    formatter_opts = dict(
+                        linenos="inline", linespans="line", hl_lines=[line - minl]
+                    )
+                    html_formatter = pygments.formatters.get_formatter_by_name(
+                        "html", **formatter_opts
+                    )
+                    css = html_formatter.get_style_defs(".highlight")
+                    source = pygments.format(
+                        lexer.get_tokens("".join(content[minl:maxl])), html_formatter
+                    )
+                    self.file_cache[filename][line] = (css, source)
+            except Exception as e:
+                l.exception(e)
+                self.file_cache[filename][line] = (None, None)
+        else:
+            self.file_cache[filename][line] = (None, None)
+
+    def cache_tokens(self, addr_map: Dict[int, Tuple[str, int]]) -> None:
         for filename, line in addr_map.values():
             l.info("caching file: " + str(filename) + " at line: " + str(line))
             if filename != "??":
-                if filename not in self.file_read_cache.keys():
-                    self.file_cache[filename] = {}
-                    self.file_read_cache[filename] = {}
-                    try:
-                        lexer = pygments.lexers.get_lexer_for_filename(str(filename))
-                        formatter_opts = dict(
-                            linenos="inline", linespans="line", hl_lines=[line]
-                        )
-                        html_formatter = pygments.formatters.get_formatter_by_name(
-                            "html", **formatter_opts
-                        )
-                        css = html_formatter.get_style_defs(".highlight")
-                        with open(str(filename)) as f:
-                            lines = f.readlines()
-                        if len(lines) < 1000:
-                            content = "".join(lines)
-                            tokens = lexer.get_tokens(content)
-                            source = pygments.format(tokens, html_formatter)
-                            self.file_cache[filename][line] = (css, source)
-                            self.file_read_cache[filename] = (lexer, content, False)
-                        else:
-                            minl = max(0, line - 30)
-                            maxl = min(len(lines), line + 30)
-                            formatter_opts = dict(
-                                linenos="inline", linespans="line", hl_lines=[line]
-                            )
-                            html_formatter = pygments.formatters.get_formatter_by_name(
-                                "html", **formatter_opts
-                            )
-                            css = html_formatter.get_style_defs(".highlight")
-                            source = pygments.format(
-                                lexer.get_tokens("".join(lines[minl:maxl])),
-                                html_formatter,
-                            )
-                            self.file_cache[filename][line] = (css, source)
-                            self.file_read_cache[filename] = (lexer, lines, True)
-                    except Exception as e:
-                        print(e)
-                        self.file_cache[filename][line] = (None, None)
-                        self.file_read_cache[filename] = (None, None, False)
+                if filename in self.file_read_cache.keys():
+                    self.fill_file_cache(filename, line)
                 else:
-                    lexer, content, is_largefile = self.file_read_cache[filename]
-                    if content:
-                        try:
-                            if not is_largefile:
-                                formatter_opts = dict(
-                                    linenos="inline", linespans="line", hl_lines=[line]
-                                )
-                                html_formatter = pygments.formatters.get_formatter_by_name(
-                                    "html", **formatter_opts
-                                )
-                                css = html_formatter.get_style_defs(".highlight")
-                                source = pygments.format(
-                                    lexer.get_tokens(content), html_formatter
-                                )
-                                self.file_cache[filename][line] = (css, source)
-                            else:
-                                minl = max(0, line - 30)
-                                maxl = min(len(content), line + 30)
-                                formatter_opts = dict(
-                                    linenos="inline",
-                                    linespans="line",
-                                    hl_lines=[line - minl],
-                                )
-                                html_formatter = pygments.formatters.get_formatter_by_name(
-                                    "html", **formatter_opts
-                                )
-                                css = html_formatter.get_style_defs(".highlight")
-                                source = pygments.format(
-                                    lexer.get_tokens("".join(content[minl:maxl])),
-                                    html_formatter,
-                                )
-                                self.file_cache[filename][line] = (css, source)
-                        except Exception as e:
-                            print(e)
-                            self.file_cache[filename][line] = (None, None)
-                    else:
-                        self.file_cache[filename][line] = (None, None)
+                    self.fill_read_cache(filename, line)
 
     def add_states(self, states: StateManager, tracer: Tracer) -> None:
         for s in states.major_states[1:]:

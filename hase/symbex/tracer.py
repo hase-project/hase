@@ -4,7 +4,7 @@ import logging
 import time
 from collections import deque
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import angr
 import archinfo
@@ -68,7 +68,7 @@ def constrain_registers(state: State, coredump: Coredump) -> bool:
     return False
 
 
-def concretize_ip(step: SimSuccessors, ip: int):
+def concretize_ip(step: SimSuccessors, ip: int) -> None:
     # TODO what to do with multiple successors?
     if len(step.successors) == 1:
         if step.successors[0].ip.symbolic:
@@ -156,21 +156,23 @@ class Tracer:
             "successor", when=angr.BP_AFTER, action=self.concretize_state_ip
         )
 
-    def concretize_indirect_calls(self, state: SimState):
+    def concretize_indirect_calls(self, state: SimState) -> None:
         assert self.instruction_idx is not None
-        assert (
-            state.ip.symbolic
-            or state.ip == self.trace[self.instruction_idx].ip
-        )
+        assert state.ip.symbolic or state.ip == self.trace[self.instruction_idx].ip
         state.inspect.function_address = self.trace[self.instruction_idx].ip
 
-    def concretize_state_ip(self, state: SimState):
+    def concretize_state_ip(self, state: SimState) -> None:
         assert self.instruction_idx is not None
         if state.scratch.target.symbolic:
             state.ip = self.trace[self.instruction_idx].ip
             state.scratch.target = self.trace[self.instruction_idx].ip
 
-    def desc_trace(self, start, end=None, filt=None):
+    def desc_trace(
+        self,
+        start: int,
+        end: Optional[int] = None,
+        filt: Optional[Callable[[int], bool]] = None,
+    ) -> None:
         for i, inst in enumerate(self.trace[start:end]):
             if not filt or filt(inst.ip):
                 print(
@@ -180,17 +182,24 @@ class Tracer:
                     self.project.loader.describe_addr(inst.ip),
                 )
 
-    def desc_old_trace(self, start, end=None, filt=None):
+    def desc_old_trace(
+        self,
+        start: int,
+        end: Optional[int] = None,
+        filt: Optional[Callable[[int], bool]] = None,
+    ) -> None:
         for i, inst in enumerate(self.old_trace[start:end]):
             if not filt or filt(inst.ip):
                 print(
                     i + start, hex(inst.ip), self.project.loader.describe_addr(inst.ip)
                 )
 
-    def desc_addr(self, addr):
+    def desc_addr(self, addr: int) -> str:
         return self.project.loader.describe_addr(addr)
 
-    def desc_stack_inst(self, start, end=None, show_extra=True):
+    def desc_stack_inst(
+        self, start: int, end: Optional[int] = None, show_extra: bool = True
+    ) -> None:
         for i, inst in enumerate(self.trace[start:end]):
             blk = self.project.factory.block(inst.ip)
             first_ins = blk.capstone.insns[0]
@@ -218,7 +227,7 @@ class Tracer:
                 else:
                     print(str(first_ins))
 
-    def desc_callstack(self, state=None):
+    def desc_callstack(self, state: Optional[SimState] = None) -> None:
         state = self.debug_state[-1] if state is None else state
         callstack = state.callstack
         for i, c in enumerate(callstack):

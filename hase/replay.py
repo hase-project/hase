@@ -109,7 +109,7 @@ class Replay:
         self.tracer = create_tracer(self.report, self.tempdir)
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
         self.cleanup()
 
     @property
@@ -157,7 +157,8 @@ def replay_command(args: argparse.Namespace, debug_cli: bool = False) -> StateMa
         return states
 
 
-def unpack_command(args):
+def unpack_command(args: argparse.Namespace) -> None:
     replay = Replay(args.report)
-    manifest = replay.unpack()
-    json.dump(manifest, sys.stdout, sort_keys=True, indent=4)
+    with TemporaryDirectory() as tempdir:
+        manifest = unpack(args.report, Path(tempdir))
+        json.dump(manifest, sys.stdout, sort_keys=True, indent=4)

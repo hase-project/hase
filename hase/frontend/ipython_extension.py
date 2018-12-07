@@ -40,13 +40,13 @@ def op_eq(actual: Any, given: Any) -> bool:
 # only for function in Magics class
 # FIXME: inherit documentation (maybe by functools.wraps)
 # TODO: is there same way to get line_magic name instead of manually setting?
-def args(*param_names, **kwargs):
-    def func_wrapper(func):
+def args(*param_names: str, **kwargs: Any) -> Callable:
+    def func_wrapper(func: Callable) -> Callable:
         name = kwargs.pop("name", func.__name__)
         comp = kwargs.pop("comp", op_eq)
         info = kwargs.pop("usage", None)
 
-        def recv_args(inst, query):
+        def recv_args(inst: str, query: str) -> None:
             param = shsplit(query)
             if not comp(len(param), len(param_names)):
                 if not info:
@@ -56,8 +56,9 @@ def args(*param_names, **kwargs):
                 return
             func(inst, query)
 
-        recv_args.__name__ = func.__wrapped__.__name__
-        recv_args.__doc__ = func.__wrapped__.__doc__
+        # __wrapped__ is coming from functools
+        recv_args.__name__ = func.__wrapped__.__name__  # type: ignore
+        recv_args.__doc__ = func.__wrapped__.__doc__  # type: ignore
         return recv_args
 
     return func_wrapper

@@ -35,16 +35,10 @@ def call_init_offset(state: "SimState") -> int:
     return rsp_offset
 
 
-def solve_rsp_coredump(
-    state: "SimState", cdanalyzer: "CoredumpAnalyzer"
-) -> Tuple[int, int]:
+def solve_rsp(state: "SimState", cdanalyzer: "CoredumpAnalyzer") -> Tuple[int, int]:
     rsp, rbp = cdanalyzer.stack_base("main")
     if not rsp:
         l.warning("solve_rsp_coredump: failed to fetch rsp value")
         rsp = 0x7FFC68A29900  # input() ???
     rsp_offset = call_init_offset(state)
     return rsp + rsp_offset, 0
-
-
-def solve_rsp(*args, **kwargs) -> Tuple[int, int]:
-    return solve_rsp_coredump(*args, **kwargs)

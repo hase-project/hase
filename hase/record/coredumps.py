@@ -125,7 +125,8 @@ exec {python} -m hase.record.coredump_handler {fifo_path} {core_file} {manifest_
 
             return Coredump(self.core_file, self.fifo_path)
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
+        assert self.previous_pattern is not None
         with open(HANDLER_PATH, "w") as f:
             f.write(self.previous_pattern)
         if self.old_core_rlimit is not None:

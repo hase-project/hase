@@ -21,7 +21,7 @@ def which(program: str) -> Optional[Path]:
     return None
 
 
-def find_in_path(filename: AnyStr, relative_root: List[AnyStr]) -> AnyStr:
+def find_in_path(filename: str, relative_root: List[str]) -> str:
     b = os.path.basename(filename)
     collected_root = []
     for path in relative_root:
@@ -29,7 +29,7 @@ def find_in_path(filename: AnyStr, relative_root: List[AnyStr]) -> AnyStr:
             if b in files:
                 collected_root.append(root)
 
-    def intersect_judge(root):
+    def intersect_judge(root: str) -> int:
         elems_f = filename.split("/")
         elems_r = os.path.join(root, os.path.basename(filename)).split("/")
         return len([v for v in elems_f if v in elems_r])
