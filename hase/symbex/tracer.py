@@ -8,8 +8,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import angr
 import archinfo
-from angr import SimState
-from angr import sim_options as so
+from angr import Project, SimState
+from angr.engines.successors import SimSuccessors
 from capstone import x86_const
 
 from ..errors import HaseError
@@ -20,13 +20,72 @@ from ..pwn_wrapper import ELF, Coredump, Mapping
 from .cdanalyzer import CoredumpAnalyzer
 from .filter import FilterTrace
 from .hook import setup_project_hook
-from .rspsolver import solve_rsp
+from .start_state import create_start_state
 from .state import State, StateManager
 
 l = logging.getLogger(__name__)
 handler = logging.FileHandler(Path.home().joinpath("symbex-errors.log"))
 handler.setLevel(logging.ERROR)
 l.addHandler(handler)
+
+
+def constrain_registers(state: State, coredump: Coredump) -> bool:
+    # FIXME: if exception caught is omitted by hook?
+    # If same address, then give registers
+    if state.registers["rip"].value == coredump.registers["rip"]:
+        # don't give rbp, rsp
+        assert state.registers["rsp"].value == coredump.registers["rsp"]
+        registers = [
+            "gs",
+            "rip",
+            "rdx",
+            "r15",
+            "rax",
+            "rsi",
+            "rcx",
+            "r14",
+            "fs",
+            "r12",
+            "r13",
+            "r10",
+            "r11",
+            "rbx",
+            "r8",
+            "r9",
+            "eflags",
+            "rdi",
+        ]
+        for name in registers:
+            state.registers[name] = coredump.registers[name]
+        return True
+    else:
+        l.warning("RIP mismatch.")
+        arip = state.simstate.regs.rip
+        crip = hex(coredump.registers["rip"])
+        arsp = state.simstate.regs.rsp
+        crsp = hex(coredump.registers["rsp"])
+        l.warning(f"{arip} {crip} {arsp} {crsp}")
+    return False
+
+
+def concretize_ip(step: SimSuccessors, ip: int):
+    # TODO what to do with multiple successors?
+    if len(step.successors) == 1:
+        if step.successors[0].ip.symbolic:
+            step.successors[0].ip = ip
+
+
+def repair_syscall_jump(old_state: SimState, step: SimSuccessors) -> SimState:
+    capstone = old_state.block().capstone
+    first_ins = capstone.insns[0].insn
+    ins_repr = first_ins.mnemonic
+    # manually syscall will have no entry and just execute it.
+    if (
+        ins_repr.startswith("syscall")
+        and 0x3000000 <= step.successors[0].reg_concrete("rip") < 0x3002000
+    ):
+        return step.successors[0].step(num_inst=1)
+    return step
 
 
 class Tracer:
@@ -43,51 +102,25 @@ class Tracer:
         # we keep this for debugging in ipdb
         self.loader = loader
         load_options = loader.load_options()
-        self.project = angr.Project(executable, **load_options)
+        self.project = Project(executable, **load_options)
+        assert self.project.loader.main_object.os.startswith("UNIX")
 
         self.coredump = coredump
         self.debug_unsat: Optional[SimState] = None
 
+        self.instruction_idx: Optional[int] = 1
         self.trace = trace
 
-        assert self.project.loader.main_object.os.startswith("UNIX")
+        elf = ELF(executable)
 
-        self.elf = ELF(executable)
+        start = elf.symbols.get("_start")
+        main = elf.symbols.get("main")
 
-        start = self.elf.symbols.get("_start")
-        main = self.elf.symbols.get("main")
-
-        self.cdanalyzer = CoredumpAnalyzer(
-            self.elf, self.coredump, load_options["lib_opts"]
-        )
+        self.cdanalyzer = CoredumpAnalyzer(elf, self.coredump, load_options["lib_opts"])
 
         for (idx, event) in enumerate(self.trace):
             if event.ip == start or event.ip == main:
                 self.trace = trace[idx:]
-
-        add_options = {
-            so.TRACK_JMP_ACTIONS,
-            so.CONSERVATIVE_READ_STRATEGY,
-            so.CONSERVATIVE_WRITE_STRATEGY,
-            so.BYPASS_UNSUPPORTED_IRCCALL,
-            so.BYPASS_UNSUPPORTED_IRDIRTY,
-            so.CONSTRAINT_TRACKING_IN_SOLVER,
-            so.COPY_STATES,
-            so.BYPASS_UNSUPPORTED_IROP,
-            so.BYPASS_UNSUPPORTED_IREXPR,
-            so.BYPASS_UNSUPPORTED_IRSTMT,
-            so.BYPASS_UNSUPPORTED_SYSCALL,
-            so.BYPASS_ERRORED_IROP,
-            so.BYPASS_ERRORED_IRCCALL,
-            # so.DOWNSIZE_Z3,
-        }
-
-        remove_simplications = {
-            so.LAZY_SOLVES,
-            so.EFFICIENT_STATE_MERGING,
-            so.TRACK_CONSTRAINT_ACTIONS,
-            # so.ALL_FILES_EXIST, # the problem is, when having this, simfd either None or exist, no If
-        } | so.simplification
 
         self.use_hook = True
         hooked_symbols, omitted_section = setup_project_hook(
@@ -100,39 +133,42 @@ class Tracer:
             hooked_symbols,
             self.cdanalyzer.gdb,
             omitted_section,
-            self.elf.statically_linked,
+            elf.statically_linked,
             name,
         )
 
         self.old_trace = self.trace
         self.trace, self.trace_idx, self.hook_target = self.filter.filtered_trace()
-        self.hook_plt_idx = list(self.hook_target.keys())
-        self.hook_plt_idx.sort()
-        self.filter.entry_check()
-
-        start_address = self.trace[0].ip
-
-        args = [self.coredump.argc]
-        args += [self.coredump.string(argv) for argv in self.coredump.argv]
-        self.start_state = self.project.factory.call_state(
-            start_address,
-            *args,
-            add_options=add_options,
-            remove_options=remove_simplications,
-        )
-        rsp, _ = solve_rsp(self.start_state, self.cdanalyzer)
-        self.start_state.regs.rsp = rsp
-
         l.info(
             "Trace length: {} | OldTrace length: {}".format(
                 len(self.trace), len(self.old_trace)
             )
         )
 
-        self.setup_argv()
-        self.name = name
+        self.hook_plt_idx = list(self.hook_target.keys())
+        self.hook_plt_idx.sort()
+        self.filter.entry_check()
+        self.start_state = create_start_state(self.project, self.trace, self.cdanalyzer)
+        self.start_state.inspect.b(
+            "call", when=angr.BP_BEFORE, action=self.concretize_indirect_calls
+        )
+        res = self.start_state.inspect.b(
+            "successor", when=angr.BP_AFTER, action=self.concretize_state_ip
+        )
 
-        # self.start_state.inspect.b('reg_write', when=angr.BP_BEFORE, action=breakpoint_reg)
+    def concretize_indirect_calls(self, state: SimState):
+        assert self.instruction_idx is not None
+        assert (
+            state.ip.symbolic
+            or state.ip == self.trace[self.instruction_idx].ip
+        )
+        state.inspect.function_address = self.trace[self.instruction_idx].ip
+
+    def concretize_state_ip(self, state: SimState):
+        assert self.instruction_idx is not None
+        if state.scratch.target.symbolic:
+            state.ip = self.trace[self.instruction_idx].ip
+            state.scratch.target = self.trace[self.instruction_idx].ip
 
     def desc_trace(self, start, end=None, filt=None):
         for i, inst in enumerate(self.trace[start:end]):
@@ -195,21 +231,7 @@ class Tracer:
                 )
             )
 
-    def setup_argv(self) -> None:
-        # argv follows argc
-        argv_addr = self.coredump.argc_address + ctypes.sizeof(ctypes.c_int)
-        # TODO: if argv is modified by users, this won't help
-        for i in range(len(self.coredump.argv)):
-            self.start_state.memory.store(
-                argv_addr + i * 8, self.coredump.argv[i], endness=archinfo.Endness.LE
-            )
-            self.start_state.memory.store(
-                self.coredump.argv[i],
-                self.coredump.string(self.coredump.argv[i])[::-1],
-                endness=archinfo.Endness.LE,
-            )
-
-    def repair_exit_handler(self, state: SimState, step: SimState) -> SimState:
+    def repair_exit_handler(self, state: SimState, step: SimSuccessors) -> SimState:
         artifacts = getattr(step, "artifacts", None)
         if (
             artifacts
@@ -333,7 +355,7 @@ class Tracer:
             addr = self.debug_state[-2].addr
         return addr
 
-    def repair_func_resolver(self, state: SimState, step: SimState) -> SimState:
+    def repair_func_resolver(self, state: SimState, step: SimSuccessors) -> SimState:
         artifacts = getattr(step, "artifacts", None)
         if (
             artifacts
@@ -393,18 +415,6 @@ class Tracer:
         self.repair_satness(old_state, state)
         self.repair_ip_at_syscall(old_state, state)
 
-    def repair_syscall_jump(self, old_state: SimState, step: SimState) -> SimState:
-        capstone = old_state.block().capstone
-        first_ins = capstone.insns[0].insn
-        ins_repr = first_ins.mnemonic
-        # manually syscall will have no entry and just execute it.
-        if (
-            ins_repr.startswith("syscall")
-            and 0x3000000 <= step.successors[0].reg_concrete("rip") < 0x3002000
-        ):
-            return step.successors[0].step(num_inst=1)
-        return step
-
     def execute(
         self,
         state: SimState,
@@ -422,7 +432,8 @@ class Tracer:
             step = self.project.factory.successors(
                 state, num_inst=1  # , force_addr=addr
             )
-            step = self.repair_syscall_jump(state, step)
+            concretize_ip(step, instruction.ip)
+            step = repair_syscall_jump(state, step)
             step = self.repair_func_resolver(state, step)
             step = self.repair_exit_handler(state, step)
         except Exception:
@@ -465,6 +476,7 @@ class Tracer:
             + repr(instruction)
             + "\n"
         )
+
         for choice in choices:
             # HACKS: if ip is symbolic
             try:
@@ -484,45 +496,6 @@ class Tracer:
 
     def valid_address(self, address: int) -> bool:
         return self.project.loader.find_object_containing(address)
-
-    def constrain_registers(self, state: State) -> bool:
-        # FIXME: if exception caught is omitted by hook?
-        # If same address, then give registers
-        if state.registers["rip"].value == self.coredump.registers["rip"]:
-            # don't give rbp, rsp
-            assert state.registers["rsp"].value == self.coredump.registers["rsp"]
-            registers = [
-                "gs",
-                "rip",
-                "rdx",
-                "r15",
-                "rax",
-                "rsi",
-                "rcx",
-                "r14",
-                "fs",
-                "r12",
-                "r13",
-                "r10",
-                "r11",
-                "rbx",
-                "r8",
-                "r9",
-                "eflags",
-                "rdi",
-            ]
-            for name in registers:
-                state.registers[name] = self.coredump.registers[name]
-            return True
-        else:
-            l.warning("RIP mismatch.")
-            coredump = self.coredump
-            arip = state.simstate.regs.rip
-            crip = hex(coredump.registers["rip"])
-            arsp = state.simstate.regs.rsp
-            crsp = hex(coredump.registers["rsp"])
-            l.warning(f"{arip} {crip} {arsp} {crsp}")
-        return False
 
     def run(self) -> StateManager:
         simstate = self.start_state
@@ -548,7 +521,8 @@ class Tracer:
         # prev_instr.ip == state.ip
         for previous_idx in range(len(trace) - 1):
             previous_instruction = trace[previous_idx]
-            instruction = trace[previous_idx + 1]
+            self.instruction_idx = previous_idx + 1
+            instruction = trace[self.instruction_idx]
             cnt += 1
             progress_log.update(cnt)
             if not cnt % 500:
@@ -557,9 +531,7 @@ class Tracer:
                 "look for jump: 0x%x -> 0x%x"
                 % (previous_instruction.ip, instruction.ip)
             )
-            assert self.valid_address(previous_instruction.ip) and self.valid_address(
-                instruction.ip
-            )
+            assert self.valid_address(instruction.ip)
             old_simstate, new_simstate = self.execute(
                 simstate, previous_instruction, instruction, cnt
             )
@@ -582,6 +554,6 @@ class Tracer:
                     cnt, previous_instruction, instruction, old_simstate, new_simstate
                 )
 
-        self.constrain_registers(states.major_states[-1])
+        constrain_registers(states.major_states[-1], self.coredump)
 
         return states
