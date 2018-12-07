@@ -8,7 +8,7 @@ setup(
     description="Time-travel failures",
     packages=find_packages(),
     install_requires=[
-        "angr @ https://github.com/hase-project/angr/archive/a997996b2d6486e709ba09dd79cad4cd58113eb8.zip",
+        "angr @ https://github.com/hase-project/angr/archive/088affea57b1ce6d2219d9f932c8a5ff2c3fc33c.zip",
         "pwntools @ https://github.com/hase-project/pwntools/archive/74a98908a19e00df399abd4b8e956abeabbd62ae.zip",
         "monkeyhex",
         "ipython",
