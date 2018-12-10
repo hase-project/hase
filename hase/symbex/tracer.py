@@ -8,7 +8,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import angr
 import archinfo
-from angr import Project, SimState
+from angr import Project, SimState, Block
 from angr.engines.successors import SimSuccessors
 from capstone import x86_const
 
@@ -251,7 +251,7 @@ class Tracer:
                 )
         return step
 
-    def repair_alloca_ins(self, state: SimState, state_block: Any) -> None:
+    def repair_alloca_ins(self, state: SimState, state_block: Block) -> None:
         # NOTE: alloca problem, focus on sub rsp, rax
         # Typical usage: alloca(strlen(x))
         capstone = state_block.capstone
@@ -410,14 +410,14 @@ class Tracer:
                 self.debug_sat = old_state
                 self.debug_unsat = new_state
 
-    def repair_ip_at_syscall(self, old_block: Any, new_state: SimState) -> None:
+    def repair_ip_at_syscall(self, old_block: Block, new_state: SimState) -> None:
         capstone = old_block.capstone
         first_ins = capstone.insns[0].insn
         ins_repr = first_ins.mnemonic
         if ins_repr.startswith("syscall"):
             new_state.regs.ip_at_syscall = new_state.ip
 
-    def post_execute(self, old_state: SimState, old_block: Any, state: SimState) -> None:
+    def post_execute(self, old_state: SimState, old_block: Block, state: SimState) -> None:
         self.repair_satness(old_state, state)
         self.repair_ip_at_syscall(old_block, state)
 
@@ -429,7 +429,7 @@ class Tracer:
         index: int,
     ) -> Tuple[SimState, SimState]:
         self.debug_state.append(state)
-        state_block = state.block()
+        state_block: Block = state.block()
         force_jump, force_type = self.repair_jump_ins(
             state, state_block, previous_instruction, instruction
         )
