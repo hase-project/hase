@@ -68,8 +68,8 @@ def constrain_registers(state: State, coredump: Coredump) -> bool:
     return False
 
 
-def repair_syscall_jump(old_state: SimState, step: SimSuccessors) -> SimState:
-    capstone = old_state.block().capstone
+def repair_syscall_jump(state_block: Any, step: SimSuccessors) -> SimState:
+    capstone = state_block.capstone
     first_ins = capstone.insns[0].insn
     ins_repr = first_ins.mnemonic
     # manually syscall will have no entry and just execute it.
@@ -251,10 +251,10 @@ class Tracer:
                 )
         return step
 
-    def repair_alloca_ins(self, state: SimState) -> None:
+    def repair_alloca_ins(self, state: SimState, state_block: Any) -> None:
         # NOTE: alloca problem, focus on sub rsp, rax
         # Typical usage: alloca(strlen(x))
-        capstone = state.block().capstone
+        capstone = state_block.capstone
         first_ins = capstone.insns[0].insn
         if first_ins.mnemonic == "sub":
             if (
@@ -270,6 +270,7 @@ class Tracer:
     def repair_jump_ins(
         self,
         state: SimState,
+        state_block: Any,
         previous_instruction: Instruction,
         instruction: Instruction,
     ) -> Tuple[bool, str]:
@@ -278,7 +279,7 @@ class Tracer:
         if previous_instruction.iclass == InstructionClass.ptic_other:
             return False, ""
         jump_ins = ["jmp", "call"]  # currently not deal with jcc regs
-        capstone = state.block().capstone
+        capstone = state_block.capstone
         first_ins = capstone.insns[0].insn
         ins_repr = first_ins.mnemonic
         if ins_repr.startswith("ret"):
@@ -409,16 +410,16 @@ class Tracer:
                 self.debug_sat = old_state
                 self.debug_unsat = new_state
 
-    def repair_ip_at_syscall(self, old_state: SimState, new_state: SimState) -> None:
-        capstone = old_state.block().capstone
+    def repair_ip_at_syscall(self, old_block: Any, new_state: SimState) -> None:
+        capstone = old_block.capstone
         first_ins = capstone.insns[0].insn
         ins_repr = first_ins.mnemonic
         if ins_repr.startswith("syscall"):
             new_state.regs.ip_at_syscall = new_state.ip
 
-    def post_execute(self, old_state: SimState, state: SimState) -> None:
+    def post_execute(self, old_state: SimState, old_block: Any, state: SimState) -> None:
         self.repair_satness(old_state, state)
-        self.repair_ip_at_syscall(old_state, state)
+        self.repair_ip_at_syscall(old_block, state)
 
     def execute(
         self,
@@ -428,23 +429,24 @@ class Tracer:
         index: int,
     ) -> Tuple[SimState, SimState]:
         self.debug_state.append(state)
+        state_block = state.block()
         force_jump, force_type = self.repair_jump_ins(
-            state, previous_instruction, instruction
+            state, state_block, previous_instruction, instruction
         )
-        self.repair_alloca_ins(state)
+        self.repair_alloca_ins(state, state_block)
 
         try:
             step = self.project.factory.successors(
                 state, num_inst=1  # , force_addr=addr
             )
-            step = repair_syscall_jump(state, step)
+            step = repair_syscall_jump(state_block, step)
             step = self.repair_func_resolver(state, step)
             step = self.repair_exit_handler(state, step)
         except Exception:
             logging.exception(f"Error while finding successor for {self.name}")
             new_state = state.copy()
             new_state.regs.ip = instruction.ip
-            self.post_execute(state, new_state)
+            self.post_execute(state, state_block, new_state)
             return state, new_state
 
         if force_jump:
@@ -452,7 +454,7 @@ class Tracer:
             if force_type == "call":
                 if not self.project.is_hooked(instruction.ip):
                     new_state.regs.rsp -= 8
-                    ret_addr = state.addr + state.block().capstone.insns[0].size
+                    ret_addr = state.addr + state_block.capstone.insns[0].size
                     new_state.memory.store(
                         new_state.regs.rsp, ret_addr, endness="Iend_LE"
                     )
@@ -480,7 +482,7 @@ class Tracer:
                 if self.jump_match(
                     old_state, choice, previous_instruction, instruction
                 ):
-                    self.post_execute(old_state, choice)
+                    self.post_execute(old_state, state_block, choice)
                     return old_state, choice
             except angr.SimValueError:
                 logging.exception(f"Error while jumping in {self.name}")
