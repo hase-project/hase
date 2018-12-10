@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 
-pip uninstall -y cle angr claripy archinfo
+pip uninstall -y claripy cle angr claripy archinfo
 pip install -e .

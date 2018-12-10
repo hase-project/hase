@@ -2,7 +2,7 @@ import claripy
 from angr import SimProcedure
 from angr.errors import SimUnsatError
 from angr.procedures import SIM_PROCEDURES
-from angr.procedures.libc import io_file_data_for_arch
+from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 from angr.procedures.stubs.format_parser import FormatParser
 
 from .helper import minmax
