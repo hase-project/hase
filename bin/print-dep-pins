@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+
+import urllib.request
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from urllib.parse import urlparse
+
+ATOM_ENTRY = "{http://www.w3.org/2005/Atom}entry"
+ATOM_LINK = "{http://www.w3.org/2005/Atom}link"
+ATOM_UPDATED = "{http://www.w3.org/2005/Atom}updated"
+
+
+def latest_commit(owner: str, repo: str) -> str:
+    content = urllib.request.urlopen(
+        f"https://github.com/{owner}/{repo}/commits.atom"
+    ).read()
+    root = ET.fromstring(content)
+    latest_entry = root.find(ATOM_ENTRY)
+    assert latest_entry is not None
+    commit_link = latest_entry.find(ATOM_LINK)
+    assert commit_link is not None
+    url = urlparse(commit_link.get("href"))
+    return Path(url.path).name
+
+
+def main() -> None:
+    projects = [
+        "hase-project/angr",
+        "angr/cle",
+        "angr/claripy",
+        "angr/pyvex",
+        "angr/archinfo",
+    ]
+
+    for project in projects:
+        owner, repo = project.split("/")
+        commit = latest_commit(owner, repo)
+        print(f"\"{repo} @ https://github.com/{owner}/{repo}/archive/{commit}.zip\",")
+
+
+if __name__ == "__main__":
+    main()
