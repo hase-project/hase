@@ -60,7 +60,7 @@ class FilterBase:
         self.new_trace: List[Instruction] = []
         self.omitted_section = omitted_section
         self.hooked_symname = list(self.hooked_symbol.keys())
-        self.hooked_addon: List[Tuple[str, int]] = []
+        self.hooked_addon: Dict[str, int] = {}
 
         self.analyze_unsupported()
 
@@ -75,7 +75,7 @@ class FilterBase:
         l.info(f"Adding new hook: {fname} with old hook {name}")
         func = self.hooked_symbol[name]
         self.project.hook(ip, func(), length=4)
-        self.hooked_addon.append((fname, ip))
+        self.hooked_addon[fname] = ip
 
     def analyze_unsupported(self) -> None:
         for lsym in unsupported_symbols:
@@ -106,7 +106,7 @@ class FilterBase:
         return False
 
     def test_hook_name(self, fname: str, ip: int) -> bool:
-        if fname in self.hooked_addon:
+        if fname in self.hooked_addon.keys():
             return True
         is_new, name = self.find_matching_name(fname)
         if name is None:
