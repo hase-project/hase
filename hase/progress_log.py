@@ -4,9 +4,6 @@ from pathlib import Path
 from typing import Optional, Union
 
 l = logging.getLogger(__name__)
-handler = logging.FileHandler(Path.home().joinpath("progress.log"))
-handler.setLevel(logging.INFO)
-l.addHandler(handler)
 
 
 class EstimatedTimeTooLong(Exception):
