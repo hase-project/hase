@@ -148,7 +148,9 @@ class Tracer:
 
     def concretize_indirect_calls(self, state: SimState) -> None:
         assert self.instruction is not None
-        assert state.ip.symbolic or state.ip == self.instruction.ip
+        if not state.ip.symbolic:
+            ip = state.solver.eval(state.ip)
+            assert self.filter.test_plt_vdso(ip) or ip == self.instruction.ip
         state.inspect.function_address = self.instruction.ip
 
     def concretize_ip(self, state: SimState) -> None:

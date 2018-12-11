@@ -45,19 +45,15 @@ class __overflow(SimProcedure):
 
 
 class __underflow(SimProcedure):
-    def run(self, file_ptr, ch) -> claripy.BVV:
-        fputc = SIM_PROCEDURES["libc"]["fputc"]
-        ret_expr = self.inline_call(fputc, ch, file_ptr).ret_expr
-        return ret_expr
+    def run(self, file_ptr) -> claripy.BVV:
+        return self.state.solver.Unconstrained("__underflow", 32, uninitialized=False)
 
 
 # NOTE: invoked by getc
 # TODO: https://code.woboq.org/userspace/glibc/libio/genops.c.html
 class __uflow(SimProcedure):
     def run(self, file_ptr) -> claripy.BVV:
-        fgetc = SIM_PROCEDURES["libc"]["fgetc"]
-        ret_expr = self.inline_call(fgetc, file_ptr).ret_expr
-        return ret_expr
+        return self.state.solver.Unconstrained("__uflow", 32, uninitialized=False)
 
 
 class ftello(SimProcedure):
