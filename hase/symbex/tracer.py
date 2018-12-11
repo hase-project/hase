@@ -24,9 +24,6 @@ from .start_state import create_start_state
 from .state import State, StateManager
 
 l = logging.getLogger(__name__)
-handler = logging.FileHandler(Path.home().joinpath("symbex-errors.log"))
-handler.setLevel(logging.ERROR)
-l.addHandler(handler)
 
 
 def constrain_registers(state: State, coredump: Coredump) -> bool:
@@ -466,13 +463,7 @@ class Tracer:
             choices = step.successors + step.unsat_successors
 
         old_state = state
-        l.info(
-            repr(state)
-            + " "
-            + repr(previous_instruction)
-            + " "
-            + repr(instruction)
-        )
+        l.info(repr(state) + " " + repr(previous_instruction) + " " + repr(instruction))
 
         for choice in choices:
             # HACKS: if ip is symbolic
@@ -545,7 +536,11 @@ class Tracer:
                 == self.project.loader.main_object
             ):
                 states.last_main_state = State(
-                    cnt, previous_instruction, self.instruction, old_simstate, new_simstate
+                    cnt,
+                    previous_instruction,
+                    self.instruction,
+                    old_simstate,
+                    new_simstate,
                 )
 
         constrain_registers(states.major_states[-1], self.coredump)
