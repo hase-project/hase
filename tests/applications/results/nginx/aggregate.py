@@ -12,11 +12,12 @@ import numpy as np
 from scipy.stats import gmean
 
 
-def get_float(measure_string):
+def get_float(measure_string: str) -> float:
     r = re.compile(r"\d+(\.\d*)?")
     b = re.search(r, measure_string)
     if b:
         return float(b.group(0))
+    return 0.0
 
 
 def parse(file: Any) -> Tuple[List[str], List[float]]:
