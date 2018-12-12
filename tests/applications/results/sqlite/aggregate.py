@@ -26,10 +26,10 @@ def main() -> None:
     throughputs_hase = []
     throughputs_original = []
     for i in range(args.n):
-        with open(f'{args.name}_{i}.out') as file:
+        with open(f"{args.name}_{i}.out") as file:
             benchmarks, throughput = parse(file)
             throughputs_original.append(throughput)
-        with open(f'{args.name}_hase_{i}.out') as file:
+        with open(f"{args.name}_hase_{i}.out") as file:
             benchmarks, throughput = parse(file)
             throughputs_hase.append(throughput)
 
@@ -46,10 +46,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("n", type=int, help="The files to aggregate")
     parser.add_argument(
-        "--name",
-        type=str,
-        default="ycsb_a/run",
-        help="The name of the benchmark",
+        "--name", type=str, default="ycsb_a/run", help="The name of the benchmark"
     )
     args = parser.parse_args()
     main()

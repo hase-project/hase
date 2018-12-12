@@ -16,10 +16,10 @@ from hase.record import record
 def main() -> None:
 
     result_file = Path(args.outdir).joinpath("result.json").resolve()
-    results: Dict[str, Any] = {args.name: {'original': [], 'hase': []}}
+    results: Dict[str, Any] = {args.name: {"original": [], "hase": []}}
 
     for i in range(args.n):
-        results[args.name]['hase'].append(dict(run=i, result=[], valid=True))
+        results[args.name]["hase"].append(dict(run=i, result=[], valid=True))
         with TemporaryDirectory() as tempdir:
             temppath = Path(tempdir)
             recording = record(
@@ -32,16 +32,16 @@ def main() -> None:
             if recording:
                 rusage = recording.rusage
                 if rusage:
-                    results[args.name]['hase'][i]["result"].append(list(rusage))
+                    results[args.name]["hase"][i]["result"].append(list(rusage))
 
-        results[args.name]['original'].append(dict(run=i, result=[], valid=True))
+        results[args.name]["original"].append(dict(run=i, result=[], valid=True))
 
         process = subprocess.Popen(
             args.args, stdout=open(f"{args.outdir}/{args.name}_{i}.out", "w")
         )
         _, _, rusage = os.wait4(process.pid, 0)
         if rusage:
-            results[args.name]['original'][i]["result"].append(list(rusage))
+            results[args.name]["original"][i]["result"].append(list(rusage))
 
     with open(result_file, "w") as file:
         json.dump(results, file, sort_keys=True, indent=4, separators=(",", ": "))

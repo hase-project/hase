@@ -8,13 +8,13 @@ import time
 
 def main() -> None:
     if args.n:
-        output = subprocess.getoutput(f'pgrep {args.n}')
+        output = subprocess.getoutput(f"pgrep {args.n}")
         args.p = int(output.strip())
 
     result = "0"
     while True:
         time.sleep(1)
-        status, output = subprocess.getstatusoutput(f'cat /proc/{args.p}/stat')
+        status, output = subprocess.getstatusoutput(f"cat /proc/{args.p}/stat")
         if status:
             break
 
