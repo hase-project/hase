@@ -8,6 +8,7 @@ from pprint import pprint
 from typing import List, Tuple, Any
 
 import numpy as np
+from scipy.stats import gmean
 
 
 def parse(file: Any) -> Tuple[List[str], List[float]]:
@@ -21,6 +22,18 @@ def parse(file: Any) -> Tuple[List[str], List[float]]:
         throughputs.append(float(splitted[2]))
 
     return benchmarks, throughputs
+
+
+def aggregate(results: Any) -> Any:
+    if args.aggregation == "worst":
+        return results.max(axis=0)
+    if args.aggregation == "mean":
+        return results.mean(axis=0)
+    if args.aggregation == "median":
+        return np.median(results, axis=0)
+    if results.shape[0] <= 2:
+        return results.max(axis=0)
+    return np.median(results, axis=0)
 
 
 def main() -> None:
@@ -37,10 +50,12 @@ def main() -> None:
     throughputs_hase = np.array(throughputs_hase)
     throughputs_original = np.array(throughputs_original)
 
-    ratios = throughputs_hase.mean(axis=0) / throughputs_original.mean(axis=0)
+    ratios = aggregate(throughputs_hase) / aggregate(throughputs_original)
 
     for i in range(len(benchmarks)):
-        print(f"{benchmarks[i]}\t{ratios[i]:.2f}")
+        print(f"{benchmarks[i]}\t{ratios[i]:.4f}")
+
+    print("GeoMean\t" + str(gmean(ratios)))
 
 
 if __name__ == "__main__":
@@ -48,6 +63,17 @@ if __name__ == "__main__":
     parser.add_argument("n", type=int, help="The files to aggregate")
     parser.add_argument(
         "--name", type=str, default="leveldb", help="The name of the benchmark"
+    )
+    parser.add_argument(
+        "--outdir", type=str, default=".", help="The output directory"
+    )
+    parser.add_argument(
+        "-a",
+        "--aggregation",
+        type=str,
+        default="auto",
+        choices=["auto", "median", "worst", "mean"],
+        help="Choose a way to aggregate the data from different runs",
     )
     args = parser.parse_args()
     main()
