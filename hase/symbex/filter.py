@@ -72,7 +72,7 @@ class FilterBase:
             self.syms[lib].sort()
 
     def add_hook_omit_symbol(self, fname: str, name: str, ip: int) -> None:
-        l.info(f"Adding new hook: {fname} with old hook {name}")
+        l.info("Adding new hook: {} with old hook {}".format(fname, name))
         func = self.hooked_symbol[name]
         self.project.hook(ip, func(), length=4)
         self.hooked_addon[fname] = ip
@@ -216,7 +216,7 @@ class FilterTrace(FilterBase):
         trace_len = len(self.trace)
         l.info("start analyzing")
         progress_log = ProgressLog(
-            name=f"analyze trace of {self.name}",
+            name="analyze trace of {}".format(self.name),
             total_steps=trace_len,
             kill_limit=60 * 20,
         )
@@ -326,7 +326,7 @@ class FilterTrace(FilterBase):
                         instruction.ip
                     ):
                         l.debug(
-                            f"{symbol_name(parent)} -> {symbol_name(real_parent)} ->(hook) {symbol_name(sym)}"
+                            "{} -> {} ->(hook) {}".format(symbol_name(parent), symbol_name(real_parent), symbol_name(sym))
                         )
                         is_current_hooked = True
                         first_meet = False

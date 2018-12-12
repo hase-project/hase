@@ -48,10 +48,10 @@ class Loader:
     def find_location(self, ip: int) -> str:
         mapping = self.find_mapping(ip)
         if mapping is None:
-            return f"0x{ip:x} (umapped)"
+            return "0x{:x} (umapped)".format(ip)
         else:
             offset = ip - mapping.start + mapping.page_offset * 4096
-            return f"0x{ip:x} ({mapping.name}+{offset})"
+            return "0x{:x} ({}+{})".format(ip, mapping.name, offset)
 
     def load_options(self) -> Dict[str, Any]:
         """

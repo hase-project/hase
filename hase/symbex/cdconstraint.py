@@ -42,7 +42,7 @@ def apply_constraints(state: "State", constraints: List[Bool]) -> None:
             old_solver = state.simstate.solver._solver.branch()
             state.simstate.solver.add(c)
             if not state.simstate.solver.satisfiable():
-                print(f"Unsatisfiable coredump constraints: {c}")
+                print("Unsatisfiable coredump constraints: {}".format(c))
                 state.simstate.solver._stored_solver = old_solver
         state.had_coredump_constraints = True
 

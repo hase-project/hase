@@ -140,7 +140,7 @@ def sanity_check_order(instructions: List[Instruction], loader: Loader) -> None:
                         instruction_loc = loader.find_location(instruction.ip)
                         return_loc = loader.find_location(return_ip)
                         l.warning(
-                            f"unexpected call return {instruction_loc} from {previous_loc} found: expected {return_loc}"
+                            "unexpected call return {} from {} found: expected {}".format(instruction_loc, previous_loc, return_loc)
                         )
                         stack = []
 
@@ -226,7 +226,7 @@ def correlate_traces(
 
             if len(entry.chunks) == 0:
                 l.warning(
-                    f"no instructions could be correlated with this event {entry.start} -> {entry.stop} on {entry.core}?"
+                    "no instructions could be correlated with this event {} -> {} on {}?".format(entry.start, entry.stop, entry.core)
                 )
         assert len(trace) == 0
     instructions = []

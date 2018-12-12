@@ -53,7 +53,7 @@ class ProgressLog:
                 )
             )
             raise EstimatedTimeTooLong(
-                f"{self.name} would take too long: {estimated_time}"
+                "{} would take too long: {}".format(self.name, estimated_time)
             )
 
         l.warning(

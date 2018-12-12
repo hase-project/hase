@@ -61,7 +61,7 @@ def constrain_registers(state: State, coredump: Coredump) -> bool:
         crip = hex(coredump.registers["rip"])
         arsp = state.simstate.regs.rsp
         crsp = hex(coredump.registers["rsp"])
-        l.warning(f"{arip} {crip} {arsp} {crsp}")
+        l.warning("{} {} {} {}".format(arip, crip, arsp, crsp))
     return False
 
 
@@ -356,7 +356,7 @@ class Tracer:
                     if libf:
                         addr = libf.rebased_addr
         except Exception:
-            logging.exception(f"Error while repairing ip for {self.name}")
+            logging.exception("Error while repairing ip for {}".format(self.name))
             # NOTE: currently just try to repair ip for syscall
             addr = self.debug_state[-2].addr
         return addr
@@ -442,7 +442,7 @@ class Tracer:
             step = self.repair_func_resolver(state, step)
             step = self.repair_exit_handler(state, step)
         except Exception:
-            logging.exception(f"Error while finding successor for {self.name}")
+            logging.exception("Error while finding successor for {}".format(self.name))
             new_state = state.copy()
             new_state.regs.ip = instruction.ip
             self.post_execute(state, state_block, new_state)
@@ -478,7 +478,7 @@ class Tracer:
                     self.post_execute(old_state, state_block, choice)
                     return old_state, choice
             except angr.SimValueError:
-                logging.exception(f"Error while jumping in {self.name}")
+                logging.exception("Error while jumping in {}".format(self.name))
                 pass
         new_state = state.copy()
         new_state.regs.ip = instruction.ip
@@ -500,7 +500,7 @@ class Tracer:
 
         l.info("start processing trace")
         progress_log = ProgressLog(
-            name=f"process trace of {self.name}",
+            name="process trace of {}".format(self.name),
             total_steps=len(self.trace),
             log_frequency=int(1e3),
             kill_limit=60 * 60 * 24,
