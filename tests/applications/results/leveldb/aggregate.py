@@ -40,10 +40,10 @@ def main() -> None:
     throughputs_hase = []
     throughputs_original = []
     for i in range(args.n):
-        with open(f'{args.name}_{i}.out') as file:
+        with open(f"{args.name}_{i}.out") as file:
             benchmarks, throughput = parse(file)
             throughputs_original.append(throughput)
-        with open(f'{args.name}_hase_{i}.out') as file:
+        with open(f"{args.name}_hase_{i}.out") as file:
             benchmarks, throughput = parse(file)
             throughputs_hase.append(throughput)
 
@@ -64,9 +64,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--name", type=str, default="leveldb", help="The name of the benchmark"
     )
-    parser.add_argument(
-        "--outdir", type=str, default=".", help="The output directory"
-    )
+    parser.add_argument("--outdir", type=str, default=".", help="The output directory")
     parser.add_argument(
         "-a",
         "--aggregation",
