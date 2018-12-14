@@ -15,7 +15,7 @@ from capstone import x86_const
 from ..errors import HaseError
 from ..loader import Loader
 from ..progress_log import ProgressLog
-from ..pt.events import Instruction, InstructionClass
+from ..pt import Instruction, InstructionClass
 from ..pwn_wrapper import ELF, Coredump, Mapping
 from .cdanalyzer import CoredumpAnalyzer
 from .filter import FilterTrace
@@ -416,7 +416,9 @@ class Tracer:
         if ins_repr.startswith("syscall"):
             new_state.regs.ip_at_syscall = new_state.ip
 
-    def post_execute(self, old_state: SimState, old_block: Block, state: SimState) -> None:
+    def post_execute(
+        self, old_state: SimState, old_block: Block, state: SimState
+    ) -> None:
         self.repair_satness(old_state, state)
         self.repair_ip_at_syscall(old_block, state)
 

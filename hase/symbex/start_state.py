@@ -5,7 +5,7 @@ from angr import Project, SimState
 from angr import sim_options as so
 from archinfo import Endness
 
-from ..pt.events import Instruction, InstructionClass
+from ..pt import Instruction, InstructionClass
 from ..pwn_wrapper import Coredump
 from .cdanalyzer import CoredumpAnalyzer
 from .rspsolver import solve_rsp

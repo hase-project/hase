@@ -9,8 +9,7 @@ from typing import Any, Dict, List, Tuple
 
 from .gdb import GdbServer
 from .loader import Loader
-from .pt.decode import decode
-from .pt.events import Instruction, InstructionClass
+from .pt import Instruction, InstructionClass, decode
 from .pwn_wrapper import Coredump
 from .symbex.cdconstraint import general_apply
 from .symbex.evaluate import report_variable

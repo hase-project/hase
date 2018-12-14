@@ -130,7 +130,7 @@ class CPUID:
         # bug in mypy:
         # https://github.com/python/mypy/pull/4869/commits/7e804feaac6be96bde5d27027192ba24155e495d#diff-b4c2ac9ec8ee99d26b77000717c1f572R93
         # cannot be detected correctly at the moment
-        code = (ctypes.c_ubyte * size)(*opc) # type: ignore
+        code = (ctypes.c_ubyte * size)(*opc)  # type: ignore
 
         self.libc = ctypes.cdll.LoadLibrary("libc.so.6")
         self.libc.valloc.restype = ctypes.c_void_p

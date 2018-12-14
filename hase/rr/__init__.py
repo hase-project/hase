@@ -4,7 +4,7 @@ from typing import Any, Dict, List
 from pygdbmi.gdbcontroller import GdbController
 
 from ..path import APP_ROOT
-from ..pt.events import Instruction
+from ..pt import Instruction
 
 DEFAULT_RR_PATH = APP_ROOT.joinpath("/bin/rr")
 

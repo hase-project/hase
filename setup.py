@@ -20,20 +20,15 @@ setup(
         "qtconsole",
         "ipdb",
         "pygdbmi",
+        "cffi>=1.1.0",
         # how to add PyQt5 here?
         # 'pyqt5'
     ],
     tests_require=["nose"],
     test_suite="nose.collector",
+    setup_requires=["cffi>=1.1.0"],
+    cffi_modules=["pt/ffi.py:ffibuilder"],
     extras_require={"test": ["nose"]},
-    ext_modules=[
-        Extension(
-            "hase._pt",
-            sources=glob.glob("pt/*.cpp"),
-            extra_compile_args=["-std=c++17", "-Wno-register", "-fvisibility=hidden"],
-            extra_link_args=["-lipt"],
-        )
-    ],
     entry_points={
         "console_scripts": ["hase = hase:main", "hase-gui = hase.frontend:main"]
     },
