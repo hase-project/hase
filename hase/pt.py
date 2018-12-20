@@ -1,21 +1,57 @@
 import bisect
 import ctypes as ct
 import logging
-from typing import List, Optional, Union, Any, IO
+from contextlib import contextmanager
+from enum import IntEnum
+from typing import Generator, List, Optional
 
-from .. import _pt
-from ..loader import Loader
-from ..perf.consts import PerfRecord
-from ..perf.reader import perf_events
-from ..pwn_wrapper import Mapping
-from .events import (
-    AsyncDisableEvent,
-    DisableEvent,
-    EnableEvent,
-    Instruction,
-    InstructionClass,
-    TraceEvent,
-)
+from ._pt import ffi, lib
+from .errors import PtError
+from .loader import Loader
+from .perf.consts import PerfRecord
+from .perf.reader import perf_events
+from .perf.tsc import TscConversion
+
+
+class InstructionClass(IntEnum):
+    # Needs to be in sync with:
+    # https://github.com/01org/processor-trace/blob/0ff8b29b2fd2ebfcc47a747862e948e8b638a020/libipt/include/intel-pt.h.in#L1889
+    # The instruction could not be classified.
+    ptic_error = 0
+    # The instruction is something not listed below.
+    ptic_other = 1
+    # The instruction is a near (function) call.
+    ptic_call = 2
+    # The instruction is a near (function) return.
+    ptic_return = 3
+    # The instruction is a near unconditional jump.
+    ptic_jump = 4
+    # The instruction is a near conditional jump.
+    ptic_cond_jump = 5
+    # The instruction is a call-like far transfer.
+    # E.g. SYSCALL, SYSENTER, or FAR CALL.
+    ptic_far_call = 6
+    # The instruction is a return-like far transfer.
+    # E.g. SYSRET, SYSEXIT, IRET, or FAR RET.
+    ptic_far_return = 7
+    # The instruction is a jump-like far transfer.
+    # E.g. FAR JMP.
+    ptic_far_jump = 8
+    # The instruction is a PTWRITE.
+    ptic_ptwrite = 9
+
+
+class Instruction:
+    __slots__ = ["ip", "size", "iclass"]
+
+    def __init__(self, ip: int, size: int, iclass: InstructionClass) -> None:
+        self.ip = ip
+        self.size = size
+        self.iclass = iclass
+
+    def __repr__(self) -> str:
+        return "<Instruction[%s] @ %x>" % (self.iclass.name, self.ip)
+
 
 l = logging.getLogger(__name__)
 
@@ -140,7 +176,9 @@ def sanity_check_order(instructions: List[Instruction], loader: Loader) -> None:
                         instruction_loc = loader.find_location(instruction.ip)
                         return_loc = loader.find_location(return_ip)
                         l.warning(
-                            "unexpected call return {} from {} found: expected {}".format(instruction_loc, previous_loc, return_loc)
+                            "unexpected call return {} from {} found: expected {}".format(
+                                instruction_loc, previous_loc, return_loc
+                            )
                         )
                         stack = []
 
@@ -226,7 +264,9 @@ def correlate_traces(
 
             if len(entry.chunks) == 0:
                 l.warning(
-                    "no instructions could be correlated with this event {} -> {} on {}?".format(entry.start, entry.stop, entry.core)
+                    "no instructions could be correlated with this event {} -> {} on {}?".format(
+                        entry.start, entry.stop, entry.core
+                    )
                 )
         assert len(trace) == 0
     instructions = []
@@ -239,74 +279,113 @@ def correlate_traces(
     return instructions
 
 
-# def is_context_switch(event: TraceEvent, instruction: Instruction) -> bool:
-#    if isinstance(event, DisableEvent) and \
-#            instruction.iclass == InstructionClass.ptic_far_call:
-#        # syscall
-#        return event.ip != (instruction.ip + instruction.size)
-#    elif instruction.iclass == InstructionClass.ptic_other:
-#        if not isinstance(event, AsyncDisableEvent):
-#            import pdb; pdb.set_trace()
-#        assert isinstance(event, AsyncDisableEvent)
-#        return instruction.ip != event.ip
-#    return False
+def _check_error(status: int) -> int:
+    if status < 0 and status != -lib.pts_eos:
+        msg = lib.decoder_get_error(status)
+        raise PtError("decoding failed: %s" % ffi.string(msg).decode("utf-8"))
+    return status
 
 
-def chunk_trace(core: int, trace: List[Union[TraceEvent, Instruction]]) -> List[Chunk]:
-    chunks: List[Chunk] = []
+class Chunker:
+    def __init__(self, decoder: ffi.CData, conversion: TscConversion) -> None:
+        self._decoder = decoder
+        self._conversion = conversion
+        self._event = ffi.new("struct pt_event *")
+        self._instruction = ffi.new("struct pt_insn *")
+        self._status = 0
 
-    enable_event: Optional[TraceEvent] = None
-    # switch_detected = False
-    instructions: List[Instruction] = []
-    for (idx, ev) in enumerate(trace):
+    def _events(self) -> Generator[ffi.CData, None, None]:
+        while self._status & lib.pts_event_pending:
+            self._status = _check_error(
+                lib.decoder_next_event(self._decoder, self._event)
+            )
+            if self._status & lib.pts_eos:
+                self._status = -lib.pts_eos
+            yield self._event
 
-        if isinstance(ev, TraceEvent):
-            latest_event = ev
-            if isinstance(ev, EnableEvent):
-                enable_event = ev
-                # switch_detected = False
-            elif isinstance(ev, DisableEvent) or isinstance(ev, AsyncDisableEvent):
-                assert enable_event is not None
-
-                if len(instructions) == 0:
-                    enable_event = None
-                    # switch_detected = False
-                    continue
-
-                # if len(chunks) != 0:
-                #    last_instruction = chunks[-1].instructions[-1]
-                #    switch_detected = is_context_switch(ev, last_instruction)
-
-                assert enable_event.time and ev.time
-
-                # chunk = Chunk(enable_event.time, ev.time, switch_detected,
-                #              instructions)
-                chunk = Chunk(enable_event.time, ev.time, instructions)
-                chunks.append(chunk)
-                instructions = []
-                enable_event = None
-        else:
-            if enable_event is None:
-                assert latest_event is not None
-                # If a program was started on a different CPU/HW-Thread
-                # we only see a flow-update packet instead
-                # of a trace-enabled packet here.
-                enable_event = latest_event
-            instructions.append(ev)
-
-    if len(instructions) != 0:
-        assert (
-            enable_event is not None
-            and enable_event.time is not None
-            and latest_event.time is not None
+    def _fetch_instruction(self) -> ffi.CData:
+        self._status = _check_error(
+            lib.decoder_next_instruction(self._decoder, self._instruction)
         )
-        l.warning(
-            "no final disable pt event found in stream, was the stream truncated?"
-        )
-        chunk = Chunk(enable_event.time, latest_event.time, instructions)
-        chunks.append(chunk)
+        return self._instruction
 
-    return chunks
+    def _sync_forward(self) -> Generator[None, None, None]:
+        self._status = _check_error(lib.decoder_sync_forward(self._decoder))
+        if self._status != -lib.pts_eos:
+            yield
+
+    def _append_chunk(
+        self,
+        chunks: List[Chunk],
+        enable_tsc: int,
+        disable_tsc: int,
+        instructions: List[Instruction],
+    ) -> None:
+        chunks.append(
+            Chunk(
+                self._conversion.tsc_to_perf_time(enable_tsc),
+                self._conversion.tsc_to_perf_time(disable_tsc),
+                instructions,
+            )
+        )
+
+    def chunks(self) -> List[Chunk]:
+        chunks: List[Chunk] = []
+
+        enable_tsc: Optional[int] = None
+        latest_tsc: Optional[int] = None
+
+        instructions: List[Instruction] = []
+
+        for _ in self._sync_forward():
+            while self._status != lib.pts_eos:
+                for event in self._events():
+                    latest_tsc = event.tsc
+                    if event.type == lib.ptev_enabled:
+                        enable_tsc = event.tsc
+                    elif (
+                        event.type == lib.ptev_async_disabled
+                        or event.type == lib.ptev_disabled
+                    ):
+                        if len(instructions) == 0:
+                            enable_tsc = None
+                            continue
+                        assert enable_tsc and event.tsc
+                        self._append_chunk(chunks, enable_tsc, event.tsc, instructions)
+                        instructions = []
+                        enable_tsc = None
+                if self._status == -lib.pts_eos:
+                    break
+
+                pt_instr = self._fetch_instruction()
+                if pt_instr.iclass != lib.ptic_error:
+                    if enable_tsc is None:
+                        enable_tsc = latest_tsc
+                    instructions.append(
+                        Instruction(
+                            int(pt_instr.ip),
+                            int(pt_instr.size),
+                            InstructionClass(pt_instr.iclass),
+                        )
+                    )
+
+        if len(instructions) != 0:
+            assert enable_tsc is not None and latest_tsc is not None
+            l.warning(
+                "no final disable pt event found in stream, was the stream truncated?"
+            )
+            self._append_chunk(chunks, enable_tsc, latest_tsc, instructions)
+        return chunks
+
+
+@contextmanager
+def decoder(decoder_config: ffi.CData) -> Generator[ffi.CData, None, None]:
+    handle = ffi.new("struct decoder **")
+    r = _check_error(lib.decoder_new(decoder_config, handle))
+    try:
+        yield handle[0]
+    finally:
+        lib.decoder_free(handle[0])
 
 
 # TODO multiple threads
@@ -332,32 +411,39 @@ def decode(
     assert len(trace_paths) > 0
 
     traces: List[List[Chunk]] = []
-    raw_trace = []
 
-    shared_objects_ = []
-
-    for m in loader.shared_objects:
+    decoder_config = ffi.new("struct decoder_config *")
+    decoder_config.cpu_family = cpu_family
+    decoder_config.cpu_model = cpu_model
+    decoder_config.cpu_stepping = cpu_stepping
+    decoder_config.cpuid_0x15_eax = cpuid_0x15_eax
+    decoder_config.cpuid_0x15_ebx = cpuid_0x15_ebx
+    decoder_config.shared_object_count = len(loader.shared_objects)
+    shared_objects = []
+    for i, m in enumerate(loader.shared_objects):
         page_size = 4096
-        shared_objects_.append(
-            (m.path, m.page_offset * page_size, m.stop - m.start, m.start)
+        shared_object = (
+            ffi.new("char[]", m.path.encode("utf-8")),
+            m.page_offset * page_size,
+            m.stop - m.start,
+            m.start,
         )
+        shared_objects.append(shared_object)
+    shared_objects_array = ffi.new("struct decoder_shared_object[]", shared_objects)
+    decoder_config.shared_objects = ffi.cast(
+        "struct decoder_shared_object*", shared_objects_array
+    )
+
+    tsc_conversion = TscConversion(
+        time_mult=time_mult, time_shift=time_shift, time_zero=time_zero
+    )
 
     for (core, trace_path) in enumerate(trace_paths):
-        trace = _pt.decode(
-            trace_path=trace_path,
-            cpu_family=cpu_family,
-            cpu_model=cpu_model,
-            cpu_stepping=cpu_stepping,
-            cpuid_0x15_eax=cpuid_0x15_eax,
-            cpuid_0x15_ebx=cpuid_0x15_ebx,
-            time_zero=time_zero,
-            time_mult=time_mult,
-            time_shift=time_shift,
-            shared_objects=shared_objects_,
-        )
-
-        raw_trace.append(trace)
-        traces.append(chunk_trace(core, trace))
+        c_trace_path = ffi.new("char[]", trace_path.encode("utf-8"))
+        decoder_config.trace_path = c_trace_path
+        with decoder(decoder_config) as d:
+            c = Chunker(d, tsc_conversion)
+            traces.append(c.chunks())
 
     schedule = get_thread_schedule(perf_event_paths, start_thread_ids, start_times)
 

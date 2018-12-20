@@ -5,23 +5,13 @@ import os
 from typing import Any, Dict, Generator, Iterator, List, Optional
 
 from ..mmap import MMap
-from .consts import (
-    CAP_USER_TIME_ZERO,
-    PERF_COUNT_SW_DUMMY,
-    PERF_FLAG_FD_CLOEXEC,
-    PERF_TYPE_SOFTWARE,
-    AttrFlags,
-    EventStructs,
-    Ioctls,
-    Libc,
-    PerfRecord,
-    SampleFlags,
-    SYS_perf_event_open,
-    perf_event_attr,
-    perf_event_header,
-    perf_event_mmap_page,
-)
+from .consts import (CAP_USER_TIME_ZERO, PERF_COUNT_SW_DUMMY,
+                     PERF_FLAG_FD_CLOEXEC, PERF_TYPE_SOFTWARE, AttrFlags,
+                     EventStructs, Ioctls, Libc, PerfRecord, SampleFlags,
+                     SYS_perf_event_open, perf_event_attr, perf_event_header,
+                     perf_event_mmap_page)
 from .cpuid import CPUID
+from .tsc import TscConversion
 
 event_structs = EventStructs(SampleFlags.PERF_SAMPLE_MASK)
 
@@ -166,13 +156,6 @@ def open_dummy_event(cpu: int, pid: int) -> PMU:
     #    AttrFlags.WRITE_BACKWARD
 
     return PMU(attr, cpu, pid)
-
-
-class TscConversion:
-    def __init__(self, time_mult: int, time_shift: int, time_zero: int) -> None:
-        self.time_mult = time_mult
-        self.time_shift = time_shift
-        self.time_zero = time_zero
 
 
 class CpuId:

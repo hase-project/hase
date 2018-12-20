@@ -107,7 +107,9 @@ def record_child_pid(
             if pid != 0:
                 break
             elif timeout is not None and time.time() - start <= 0:
-                raise TimeoutExpired("process did not finish within {} seconds".format(timeout))
+                raise TimeoutExpired(
+                    "process did not finish within {} seconds".format(timeout)
+                )
             time.sleep(0.10)
         coredump, trace = record.result()
         return Recording(coredump, trace, exit_code, rusage)

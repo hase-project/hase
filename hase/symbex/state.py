@@ -6,7 +6,7 @@ from claripy.ast.bv import BV
 from cle import ELF
 
 from ..annotate import Addr2line
-from ..pt.events import Instruction
+from ..pt import Instruction
 
 
 class Register:

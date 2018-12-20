@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from angr import Project, SimProcedure
 
-from ..pt.events import Instruction
+from ..pt import Instruction
 from .hook import common_prefix, common_suffix, unsupported_symbols
 from ..progress_log import ProgressLog
 
@@ -326,7 +326,11 @@ class FilterTrace(FilterBase):
                         instruction.ip
                     ):
                         l.debug(
-                            "{} -> {} ->(hook) {}".format(symbol_name(parent), symbol_name(real_parent), symbol_name(sym))
+                            "{} -> {} ->(hook) {}".format(
+                                symbol_name(parent),
+                                symbol_name(real_parent),
+                                symbol_name(sym),
+                            )
                         )
                         is_current_hooked = True
                         first_meet = False
