@@ -43,7 +43,7 @@ class Recording:
         self.exit_status = exit_status
         self.rusage = rusage
         # set by the report_worker atm, should be refactored
-        self.report_path: Optional[str] = None
+        self.report_path = None  # type: Optional[str]
 
 
 class RecordProcess(ExitStack):
@@ -154,7 +154,7 @@ def _record(
             stdin=stdin,
             stdout=stdout,
             stderr=stderr,
-            cwd=working_directory,
+            cwd=None if working_directory is None else str(working_directory),
             env=extra_env,
         )
         return record_child_pid(proc.pid, record_paths, timeout)

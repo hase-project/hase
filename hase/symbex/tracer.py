@@ -8,7 +8,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import angr
 import archinfo
-from angr import Project, SimState, Block
+from angr import Block, Project, SimState
 from angr.engines.successors import SimSuccessors
 from capstone import x86_const
 
@@ -96,9 +96,9 @@ class Tracer:
         assert self.project.loader.main_object.os.startswith("UNIX")
 
         self.coredump = coredump
-        self.debug_unsat: Optional[SimState] = None
+        self.debug_unsat = None  # type: Optional[SimState]
 
-        self.instruction: Optional[Instruction] = None
+        self.instruction = None  # type: Optional[Instruction]
         self.trace = trace
 
         elf = ELF(executable)
@@ -430,7 +430,7 @@ class Tracer:
         index: int,
     ) -> Tuple[SimState, SimState]:
         self.debug_state.append(state)
-        state_block: Block = state.block()
+        state_block = state.block()  # type: Block
         force_jump, force_type = self.repair_jump_ins(
             state, state_block, previous_instruction, instruction
         )
@@ -493,9 +493,9 @@ class Tracer:
         simstate = self.start_state
         states = StateManager(self, len(self.trace) + 1)
         states.add_major(State(0, None, self.trace[0], None, simstate))
-        self.debug_unsat: Optional[SimState] = None
-        self.debug_state: deque = deque(maxlen=50)
-        self.skip_addr: Dict[int, int] = {}
+        self.debug_unsat = None  # type: Optional[SimState]
+        self.debug_state = deque(maxlen=50)  # type: deque
+        self.skip_addr = {}  # type: Dict[int, int]
         cnt = -1
         interval = max(1, len(self.trace) // 200)
         length = len(self.trace) - 1

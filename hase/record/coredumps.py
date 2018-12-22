@@ -64,9 +64,9 @@ class Handler:
         manifest_path: str,
         log_path: str = "/tmp/coredump.log",
     ) -> None:
-        self.previous_pattern: Optional[str] = None
-        self.old_core_rlimit: Optional[Tuple[int, int]] = None
-        self.handler_script: Optional[Any] = None
+        self.previous_pattern = None  # type: Optional[str]
+        self.old_core_rlimit = None  # type: Optional[Tuple[int, int]]
+        self.handler_script = None  # type: Optional[Any]
         self.core_file = core_file
         self.fifo_path = fifo_path
         self.manifest_path = manifest_path

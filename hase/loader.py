@@ -24,7 +24,7 @@ def filter_mappings(
             if not binary.exists():
                 continue
 
-        with open(binary, "rb") as f:
+        with open(str(binary), "rb") as f:
             magic = f.read(len(ELF_MAGIC))
             if magic != ELF_MAGIC:
                 continue
@@ -58,7 +58,7 @@ class Loader:
         Extract shared object memory mapping from coredump
         """
         main = self.shared_objects[0]
-        lib_opts: Dict[str, Dict[str, int]] = {}
+        lib_opts = {}  # type: Dict[str, Dict[str, int]]
         force_load_libs = []
         for m in self.shared_objects[1:]:
             # the linker puts libraries with executable bit first,

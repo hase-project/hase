@@ -10,7 +10,7 @@ from .tracer import Tracer
 def add_stack_constraints(
     state: "SimState", coredump: "Coredump", init_rsp: int, final_rsp: int
 ) -> List[Bool]:
-    coredump_constraints: List[Bool] = []
+    coredump_constraints = []  # type: List[Bool]
 
     for addr in range(final_rsp, init_rsp + 1):
         value = state.memory.load(addr, 1, endness="Iend_LE")

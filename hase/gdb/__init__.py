@@ -124,14 +124,14 @@ class GdbMemSpace:
 class GdbSharedLibrary:
     def __init__(self, active_state: State, pksize: int) -> None:
         self.active_state = active_state
-        self.libs: List[ELF] = []
+        self.libs = []  # type: List[ELF]
         self.pksize = pksize
         self.tls_object = self.active_state.simstate.project.loader.tls_object
         loader = self.active_state.simstate.project.loader
         for lib in loader.shared_objects.values():
             if lib != loader.main_object:
                 self.libs.append(lib)
-        self.xml: Optional[str] = None
+        self.xml = None  # type: Optional[str]
 
     def make_xml(self, update: Optional[bool] = False) -> str:
         if not update and self.xml:
@@ -272,7 +272,7 @@ class GdbServer:
                 if "&" in addr_comment:
                     if idr == 1:
                         ll = addr_comment.partition("&")
-                        addr: Union[str, int] = int(ll[0], 16)
+                        addr = int(ll[0], 16)  # type: Union[str, int]
                         comment = ll[2]
                 else:
                     if idr == 1:
@@ -302,7 +302,7 @@ class GdbServer:
         timeout_sec = kwargs.pop("timeout_sec", 10)
         kwargs["read_response"] = False
         self.gdb.write(req, timeout_sec=timeout_sec, **kwargs)
-        resp: List[Dict[str, Any]] = []
+        resp = []  # type: List[Dict[str, Any]]
         while True:
             try:
                 resp += self.gdb.get_gdb_response()

@@ -66,7 +66,7 @@ class ScheduleEntry:
         self.start = start
         # Can be none at the end of a trace
         self.stop = stop
-        self.chunks: List[Chunk] = []
+        self.chunks = []  # type: List[Chunk]
         self.count = 1
 
     def is_main_thread(self) -> bool:
@@ -106,11 +106,11 @@ def copy_struct(struct: ct.Structure) -> ct.Structure:
 def get_thread_schedule(
     perf_event_paths: List[str], start_thread_ids: List[int], start_times: List[int]
 ) -> List[ScheduleEntry]:
-    schedule: List[ScheduleEntry] = []
+    schedule = []  # type: List[ScheduleEntry]
 
     for (core, cpu_events) in enumerate(perf_event_paths):
         first_event = True
-        schedule_in_event: Optional[ct.Structure] = None
+        schedule_in_event = None  # type: Optional[ct.Structure]
 
         for ev in perf_events(cpu_events):
             if ev.type != PerfRecord.PERF_RECORD_SWITCH:
@@ -164,7 +164,7 @@ def sanity_check_order(instructions: List[Instruction], loader: Loader) -> None:
     """
     Check that calls matches returns and that syscalls and non-jumps do not change the control flow.
     """
-    stack: List[int] = []
+    stack = []  # type: List[int]
     for (i, instruction) in enumerate(instructions):
         if i > 0:
             previous = instructions[i - 1]
@@ -224,7 +224,7 @@ class Chunk:
 def correlate_traces(
     traces: List[List[Chunk]], schedule: List[ScheduleEntry], pid: int, tid: int
 ) -> List[Instruction]:
-    schedule_per_core: List[List[ScheduleEntry]] = []
+    schedule_per_core = []  # type: List[List[ScheduleEntry]]
     for _ in range(len(traces)):
         schedule_per_core.append([])
 
@@ -243,7 +243,7 @@ def correlate_traces(
 
         for (idx, entry) in enumerate(per_core):
             if (idx + 1) < len(per_core):
-                next_entry: Optional[ScheduleEntry] = per_core[idx + 1]
+                next_entry = per_core[idx + 1]  # type: Optional[ScheduleEntry]
             else:
                 next_entry = None
 
@@ -330,12 +330,12 @@ class Chunker:
         )
 
     def chunks(self) -> List[Chunk]:
-        chunks: List[Chunk] = []
+        chunks = []  # type: List[Chunk]
 
-        enable_tsc: Optional[int] = None
-        latest_tsc: Optional[int] = None
+        enable_tsc = None  # type: Optional[int]
+        latest_tsc = None  # type: Optional[int]
 
-        instructions: List[Instruction] = []
+        instructions = []  # type: List[Instruction]
 
         for _ in self._sync_forward():
             while self._status != lib.pts_eos:
@@ -410,7 +410,7 @@ def decode(
 
     assert len(trace_paths) > 0
 
-    traces: List[List[Chunk]] = []
+    traces = []  # type: List[List[Chunk]]
 
     decoder_config = ffi.new("struct decoder_config *")
     decoder_config.cpu_family = cpu_family

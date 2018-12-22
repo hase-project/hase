@@ -29,7 +29,7 @@ def process_coredump(
 ) -> None:
     shutil.copyfileobj(sys.stdin.buffer, core_file)
 
-    metadata: DefaultDict[str, Any] = defaultdict(dict)
+    metadata = defaultdict(dict)  # type: DefaultDict[str, Any]
     coredump = metadata["coredump"]
 
     for name, arg in zip(EXTRA_CORE_DUMP_PARAMETER.keys(), os_args):
