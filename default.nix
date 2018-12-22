@@ -33,15 +33,6 @@ stdenv.mkDerivation {
     #python36Packages.cffi
     musl-gcc
     pypy3
-    (pypy3.pkgs.pip.overrideAttrs (old: rec {
-      name = "pip-${version}";
-      version = "18.1";
-      src = pypy3.pkgs.fetchPypi {
-        inherit (old) pname;
-        inherit version;
-        sha256 = "188fclay154s520n43s7cxxlhdaiysvxf19zk8vr1xbyjyyr58n0";
-      };
-    }))
 
     qt5.qttools
     pkgconfig
