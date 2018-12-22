@@ -27,6 +27,6 @@ int decoder_new(struct decoder_config *c, struct decoder **d);
 int decoder_sync_forward(struct decoder *d);
 int decoder_next_event(struct decoder *d, struct pt_event *ev);
 int decoder_next_instruction(struct decoder *d, struct pt_insn *insn);
-const char* decoder_get_error(int code);
+const char *decoder_get_error(int code);
 void decoder_free(struct decoder *d);
 }

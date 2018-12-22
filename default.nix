@@ -1,15 +1,5 @@
 with import <nixpkgs> {};
 let
-  pip_18_1 = (python3Packages.pip.overrideAttrs (old: rec {
-    name = "pip-${version}";
-    version = "18.1";
-    src = python3Packages.fetchPypi {
-      inherit (old) pname;
-      inherit version;
-      sha256 = "188fclay154s520n43s7cxxlhdaiysvxf19zk8vr1xbyjyyr58n0";
-    };
-  }));
-
   processor-trace = (stdenv.mkDerivation rec {
     name = "processor-trace-${version}";
     version = "2.0";
@@ -30,31 +20,37 @@ let
   '');
 in
 
-(overrideCC stdenv gcc7).mkDerivation {
-  name = "angr-deps";
+stdenv.mkDerivation {
+  name = "hase-deps";
   buildInputs = [
-    meson
-    ninja
-
-    processor-trace
-
     bashInteractive
-    unicorn-emu
+    processor-trace
     git-lfs
     openssl
     # cannot be installed with pip
-    python36Packages.pyqt5
-    pip_18_1
+    #python36Packages.pyqt5
+    # does not find libffi when installed with pip
+    #python36Packages.cffi
     musl-gcc
-    # does not find ffi when installed with pip
-    python36Packages.cffi
+    pypy3
+    (pypy3.pkgs.pip.overrideAttrs (old: rec {
+      name = "pip-${version}";
+      version = "18.1";
+      src = pypy3.pkgs.fetchPypi {
+        inherit (old) pname;
+        inherit version;
+        sha256 = "188fclay154s520n43s7cxxlhdaiysvxf19zk8vr1xbyjyyr58n0";
+      };
+    }))
 
-    python36Packages.virtualenv
     qt5.qttools
     pkgconfig
     glibcLocales
   ];
-  PYTHON="python2";
+  shellHook = ''
+    export PATH=$PATH:${mypy}/bin:${python3.pkgs.flake8}/bin
+  '';
+  PYTHON="${python2.interpreter}";
   SOURCE_DATE_EPOCH="1523278946";
   # better not to use tmpfs
   TMPDIR="/tmp";

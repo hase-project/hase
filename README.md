@@ -15,10 +15,17 @@ to recover states prior to the crash.
 
 # INSTALL
 
-1. Setup virtual environment with python3.6
+1. Setup virtual environment with python3.6 or pypy6
 
 ```console
 $ python3 -m venv venv
+$ . venv/bin/activate
+```
+
+or for pypy:
+
+```
+$ pypy3 -m venv venv
 $ . venv/bin/activate
 ```
 
@@ -27,7 +34,13 @@ $ . venv/bin/activate
 3. Install project into the virtual environment
 
 ```console
-$ pip3 install -e .
+$ python3 -m pip install -e .
+```
+
+or
+
+```console
+$ pypy3 -m pip install -e .
 ```
 
 Note: you may need to upgrade your pip >= 18.1
@@ -37,7 +50,7 @@ Additionally pyqt5 is required and cannot be installed via pip.
 4. Install test dependencies
 
 ```console
-$ pip3 install -e '.[test]'
+$ python3 -m pip install -e '.[test]'
 ```
 
 5. Testing examples

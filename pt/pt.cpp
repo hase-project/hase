@@ -47,9 +47,7 @@ int decoder_next_instruction(struct decoder *d, struct pt_insn *insn) {
   return decoder->nextInstruction(*insn);
 }
 
-const char* decoder_get_error(int code) {
-    return pt_errstr(pt_errcode(code));
-}
+const char *decoder_get_error(int code) { return pt_errstr(pt_errcode(code)); }
 
 void decoder_free(struct decoder *d) {
   if (d == nullptr) {
