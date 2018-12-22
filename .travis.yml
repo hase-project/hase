@@ -1,10 +1,12 @@
 language: python
 python:
-  - "3.6"
+  - "pypy3.5"
 install:
+  - source ~/virtualenv/python3.6/bin/activate
   - pip install mypy flake8
 script:
-  - mypy hase tests/benchmark
+  - ls -la ~/virtualenv
+  - PATH=~/virtualenv/pypy3.5/bin:$PATH mypy hase tests/benchmark
   - flake8 hase
 branches:
   only:
