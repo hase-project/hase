@@ -15,16 +15,16 @@ to recover states prior to the crash.
 
 # INSTALL
 
-1. Setup virtualenv with python3.6
+1. Setup virtual environment with python3.6
 
 ```console
-$ virtualenv venv
+$ python3 -m venv venv
 $ . venv/bin/activate
 ```
 
 2. Get the [Intel processor-trace decoder library](https://github.com/01org/processor-trace)
 
-3. Install project into virtualenv
+3. Install project into the virtual environment
 
 ```console
 $ pip3 install -e .

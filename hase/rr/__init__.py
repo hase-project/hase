@@ -36,7 +36,7 @@ class RRController:
         timeout_sec = kwargs.pop("timeout_sec", 10)
         kwargs["read_response"] = False
         self.rr.write(req, timeout_sec=timeout_sec, **kwargs)
-        resp: List[Dict[str, Any]] = []
+        resp = []  # type: List[Dict[str, Any]]
         if get_resp:
             while True:
                 try:

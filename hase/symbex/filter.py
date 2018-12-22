@@ -6,9 +6,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from angr import Project, SimProcedure
 
+from ..progress_log import ProgressLog
 from ..pt import Instruction
 from .hook import common_prefix, common_suffix, unsupported_symbols
-from ..progress_log import ProgressLog
 
 if False:  # for mypy
     from .cdanalyzer import CoredumpGDB
@@ -57,15 +57,15 @@ class FilterBase:
         self.trace = trace
         self.hooked_symbol = hooked_symbol
         self.gdb = gdb
-        self.new_trace: List[Instruction] = []
+        self.new_trace = []  # type:List[Instruction]
         self.omitted_section = omitted_section
         self.hooked_symname = list(self.hooked_symbol.keys())
-        self.hooked_addon: Dict[str, int] = {}
+        self.hooked_addon = {}  # type: Dict[str, int]
 
         self.analyze_unsupported()
 
-        self.syms: Dict[Any, List[int]] = {}
-        self.syms_dict: Dict[Any, Dict[int, Any]] = {}
+        self.syms = {}  # type: Dict[Any, List[int]]
+        self.syms_dict = {}  # type: Dict[Any, Dict[int, Any]]
         for lib in self.project.loader.all_elf_objects:
             self.syms_dict[lib] = lib.symbols_by_addr.copy()
             self.syms[lib] = list(self.syms_dict[lib].keys())
@@ -169,9 +169,9 @@ class FilterTrace(FilterBase):
     ) -> None:
         super().__init__(project, trace, hooked_symbol, gdb, omitted_section)
 
-        self.trace_idx: List[int] = []
-        self.hook_target: Dict[int, int] = {}
-        self.hook_entry: List[Tuple[int, Instruction, str]] = []
+        self.trace_idx = []  # type: List[int]
+        self.hook_target = {}  # type: Dict[int, int]
+        self.hook_entry = []  # type: List[Tuple[int, Instruction, str]]
         self.static_link = static_link
         self.name = name
         self.analyze_trace()
@@ -205,10 +205,10 @@ class FilterTrace(FilterBase):
     def analyze_trace(self) -> None:
         # NOTE: assume the hooked function should have return
         self.new_trace = []
-        self.call_parent: defaultdict = defaultdict(lambda: None)
+        self.call_parent = defaultdict(lambda: None)  # type: defaultdict
         hooked_parent = None
         hook_idx = 0
-        hook_addr: List[Instruction] = []
+        hook_addr = []  # type: List[Instruction]
         is_current_hooked = False
         first_meet = False
         plt_sym = FakeSymbol("all-plt-entry", 0)

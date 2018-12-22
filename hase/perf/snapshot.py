@@ -206,7 +206,7 @@ class MmapHeader:
     # records one by one.
     def events(self) -> Iterator[ct.Structure]:
         data_head = self._header.data_head
-        events: List[ct.Structure] = []
+        events = []  # type: List[ct.Structure]
 
         data_size = self.data_size
         offset = data_head + data_size
@@ -366,7 +366,7 @@ class Cpu:
         self.event_buffer = event_buffer
         self.pt_buffer = pt_buffer
 
-        self._itrace_start_event: Optional[ct.Structure] = None
+        self._itrace_start_event = None  # type: Optional[ct.Structure]
 
     def events(self) -> Iterator[ct.Structure]:
         return self.event_buffer.events()
@@ -376,7 +376,7 @@ class Cpu:
         return self._itrace_start_event
 
     def traces(self) -> Generator[bytearray, None, None]:
-        seen: Dict[int, int] = {}
+        seen = {}  # type: Dict[int, int]
         for ev in self.pt_buffer.events():
             if ev.type == PerfRecord.PERF_RECORD_ITRACE_START:
                 self._itrace_start_event = ev
@@ -421,7 +421,7 @@ class Cpu:
 class Snapshot:
     def __init__(self, pid: int = -1) -> None:
         self.stopped = False
-        self.cpus: List[Cpu] = []
+        self.cpus = []  # type: List[Cpu]
 
         try:
             self.start(pid)
@@ -431,8 +431,8 @@ class Snapshot:
 
     def start(self, pid: int) -> None:
         assert not self.stopped
-        event_buffers: List[BackwardRingbuffer] = []
-        pt_buffers: List[AuxRingbuffer] = []
+        event_buffers = []  # type: List[BackwardRingbuffer]
+        pt_buffers = []  # type: List[AuxRingbuffer]
 
         cpu_idx = cpus_online()
         for idx in cpu_idx:

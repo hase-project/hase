@@ -19,6 +19,6 @@ def check_features() -> PtFeatures:
     if not PT_ROOT.exists():
         return PtFeatures()
 
-    with open(PT_ROOT.joinpath("caps", "ip_filtering")) as f:
+    with open(str(PT_ROOT.joinpath("caps", "ip_filtering"))) as f:
         ip_filtering = int(f.read()) != 0
         return PtFeatures(supported=True, ip_filtering=ip_filtering)

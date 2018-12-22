@@ -28,9 +28,9 @@ from .procedures import (
 addr_symbols = ["malloc", "calloc", "realloc", "free", "memalign"]
 
 
-unsupported_symbols: List[Tuple[str]] = []
+unsupported_symbols = []  # type: List[Tuple[str]]
 
-skip_hook: List[str] = []
+skip_hook = []  # type: List[str]
 
 
 def hook_angr_procedures(
@@ -94,7 +94,7 @@ def hook_alias_procedures(dct: Dict[str, Any]) -> None:
                 break
 
 
-all_hookable_symbols: Dict[str, Any] = {}
+all_hookable_symbols = {}  # type: Dict[str, Any]
 
 libs = ["libc", "glibc", "linux_kernel", "posix", "linux_loader"]
 

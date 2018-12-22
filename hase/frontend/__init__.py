@@ -1,19 +1,18 @@
 import logging
 import os
 import sys
-from typing import Any, Dict, List, Tuple, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import claripy
 import pygments
 import pygments.formatters
 import pygments.lexers
 from pygments.formatters import RegexLexer
-from qtconsole.inprocess import QtInProcessKernelManager
-
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import QSize
 from PyQt5.QtGui import QIcon, QTextCursor
 from PyQt5.uic import loadUiType
+from qtconsole.inprocess import QtInProcessKernelManager
 
 from ..path import APP_ROOT
 from ..record import DEFAULT_LOG_DIR
@@ -27,10 +26,10 @@ EXIT_REBOOT = 1
 l = logging.getLogger(__name__)
 
 
-ui_types: Tuple[Any, Any] = loadUiType(
+ui_types = loadUiType(
     str(APP_ROOT.joinpath("frontend", "mainwindow.ui"))
-)
-form_class: Any = ui_types[0]
+)  # type: Tuple[Any, Any]
+form_class = ui_types[0]  # type: Any
 
 code_template = """
 <html>
@@ -103,13 +102,15 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
         self.time_slider.setEnabled(False)
 
-        self.file_cache: Dict[str, Dict[int, Tuple[Optional[str], Optional[str]]]] = {}
-        self.file_read_cache: Dict[
-            str, Tuple[Optional[RegexLexer], Optional[Union[str, List[str]]], bool]
-        ] = {}
+        self.file_cache = (
+            {}
+        )  # type: Dict[str, Dict[int, Tuple[Optional[str], Optional[str]]]]
+        self.file_read_cache = (
+            {}
+        )  # type: Dict[str, Tuple[Optional[RegexLexer], Optional[Union[str, List[str]]], bool]]
         # self.callgraph = CallGraphManager()
 
-        self.coredump_constraints: List[claripy.ast.bool.Bool] = []
+        self.coredump_constraints = []  # type:List[claripy.ast.bool.Bool]
 
     def cache_coredump_constraints(self) -> None:
         user_ns = self.kernel_client.kernel.shell.user_ns
@@ -147,7 +148,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
                 old_solver = active_state.simstate.solver._solver.branch()
                 active_state.simstate.solver.add(c)
                 if not active_state.simstate.solver.satisfiable():
-                    print(f"Unsatisfiable coredump constraints: {c}")
+                    print("Unsatisfiable coredump constraints: {}".format(c))
                     active_state.simstate.solver._stored_solver = old_solver
             active_state.had_coredump_constraints = True
 
@@ -385,7 +386,9 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
     def fill_cache(self, filename: str, line: int) -> None:
         try:
-            lexer: RegexLexer = pygments.lexers.get_lexer_for_filename(str(filename))
+            lexer = pygments.lexers.get_lexer_for_filename(
+                str(filename)
+            )  # type: RegexLexer
             formatter_opts = dict(linenos="inline", linespans="line", hl_lines=[line])
             html_formatter = pygments.formatters.get_formatter_by_name(
                 "html", **formatter_opts
@@ -475,7 +478,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         files.sort()
         self.code_view.append("\nAvailable files:")
         for f in files:
-            self.code_view.append(os.path.basename(f))
+            self.code_view.append(f.name)
 
     def enable_buttons(self) -> None:
         # TODO: maintain a button list

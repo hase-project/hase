@@ -107,7 +107,7 @@ class PerfRecord:
 
 
 def sample_id_struct(sample_flags: int) -> Type[Any]:
-    fields: List[Tuple[str, Any]] = []
+    fields = []  # type: List[Tuple[str, Any]]
     if sample_flags & SampleFlags.PERF_SAMPLE_TID != 0:
         fields.append(("pid", ct.c_uint))
         fields.append(("tid", ct.c_uint))
@@ -137,7 +137,7 @@ def sample_id_struct(sample_flags: int) -> Type[Any]:
 def compute_string_size(
     fn: Callable[["EventStructs", int], Type[ct.Structure]]
 ) -> Callable[["EventStructs", int], Type[ct.Structure]]:
-    memo: Dict[int, Type[ct.Structure]] = {}
+    memo = {}  # type: Dict[int, Type[ct.Structure]]
 
     def wrapper(self: "EventStructs", size: int) -> Type[ct.Structure]:
         if size == -1:
@@ -162,7 +162,7 @@ def compute_string_size(
 
 class EventStructs:
     def __init__(self, sample_flags: int) -> None:
-        self.sample_id: Type[Any] = sample_id_struct(sample_flags)
+        self.sample_id = sample_id_struct(sample_flags)  # type: Type[Any]
 
     def _event_header(self, event_fields: List[Tuple[str, Any]]) -> Type[ct.Structure]:
         class event(ct.Structure):
@@ -266,7 +266,7 @@ class EventStructs:
 
     @compute_string_size
     def record_switch_event(self, size: int) -> Type[ct.Structure]:
-        base: Any = self._event_header([])
+        base = self._event_header([])  # type: Any
 
         class RecordSwitch(base):
             def is_switch_out(self) -> bool:

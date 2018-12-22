@@ -8,6 +8,12 @@ def main() -> None:
     if len(sys.argv) < 2:
         print(f"USAGE: {sys.argv[0]} branchname", file=sys.stderr)
         sys.exit(1)
+    if subprocess.call(["mypy", "--version"]) == 0:
+        subprocess.check_call(["mypy", "hase"])
+
+    if subprocess.call(["flake8", "--version"]) == 0:
+        subprocess.check_call(["flake8", "hase"])
+
     branchname = sys.argv[1]
     current_branch = subprocess.check_output(["git", "symbolic-ref", "--short", "HEAD"])
     if current_branch.strip() != b"master":

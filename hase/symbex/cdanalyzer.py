@@ -1,6 +1,8 @@
 from typing import Any, Dict, List, Optional, Tuple
-from ..pwn_wrapper import ELF, Coredump
+
 from pygdbmi.gdbcontroller import GdbController
+
+from ..pwn_wrapper import ELF, Coredump
 
 
 class CoredumpGDB:
@@ -24,7 +26,7 @@ class CoredumpGDB:
             self.write_request("y")
 
     def get_response(self) -> List[Dict[str, Any]]:
-        resp: List[Dict[str, Any]] = []
+        resp = []  # type: List[Dict[str, Any]]
         while True:
             try:
                 resp += self.gdb.get_gdb_response()
@@ -38,7 +40,7 @@ class CoredumpGDB:
         return resp
 
     def parse_frame(self, r: str) -> Dict[str, Any]:
-        attrs: Dict[str, Any] = {}
+        attrs = {}  # type: Dict[str, Any]
         # NOTE: #n  addr in func (args=args[ <name>][@entry=v]) at source_code[:line]\n
         r = r.replace("\\n", "")
         attrs["index"] = r.partition(" ")[0][1:]
@@ -201,7 +203,7 @@ class CoredumpAnalyzer:
     def call_argv(self, name: str) -> Optional[List[Optional[int]]]:
         for bt in self.backtrace:
             if bt["func"] == name:
-                args: List[Optional[int]] = []
+                args = []  # type:  List[Optional[int]]
                 for _, value, entry in bt["args"]:
                     if entry:
                         args.append(int(entry, 16))
