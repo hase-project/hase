@@ -1,3 +1,3 @@
 from setuptools import setup
 
-setup()
+setup(cffi_modules="pt/ffi.py:ffibuilder")
