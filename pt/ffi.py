@@ -5,7 +5,7 @@ from cffi import FFI
 
 DIR = Path(__file__).parent.resolve()
 
-with open(DIR.joinpath("ffi.h")) as f, open(DIR.joinpath("pt.cpp")) as f2:
+with open(str(DIR.joinpath("ffi.h"))) as f, open(str(DIR.joinpath("pt.cpp"))) as f2:
     source_files = []
     for path in DIR.glob("*.cpp"):
         if path.name != "pt.cpp":
