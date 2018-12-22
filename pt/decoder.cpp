@@ -4,7 +4,8 @@
 namespace hase::pt {
 
 Decoder::Decoder(PtImage image, PtInsnDecoder decoder, Setup setup)
-    : image(std::move(image)), decoder(std::move(decoder)), setup(std::move(setup)) {};
+    : image(std::move(image)), decoder(std::move(decoder)),
+      setup(std::move(setup)){};
 
 // add back later
 // void diagnoseError(int errcode, struct pt_insn &insn) {
@@ -48,11 +49,11 @@ int Decoder::syncForward() {
 }
 
 int Decoder::nextEvent(struct pt_event &ev) {
-    return pt_insn_event(decoder.get(), &ev, sizeof(ev));
+  return pt_insn_event(decoder.get(), &ev, sizeof(ev));
 }
 
-int Decoder::nextInstruction(struct pt_insn &insn) { 
-    return pt_insn_next(decoder.get(), &insn, sizeof(insn));
+int Decoder::nextInstruction(struct pt_insn &insn) {
+  return pt_insn_next(decoder.get(), &insn, sizeof(insn));
 }
 
 std::tuple<int, std::optional<std::unique_ptr<Decoder>>>

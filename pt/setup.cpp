@@ -57,9 +57,9 @@ std::tuple<int, std::optional<Setup>> getSetup(struct decoder_config &c) {
   config.begin = trace->begin();
   config.end = trace->end();
   Setup setup{
-      config,                                               // config
-      std::move(sharedObjects),                             // sharedObjects
-      *std::move(trace),                                    // trace
+      config,                   // config
+      std::move(sharedObjects), // sharedObjects
+      *std::move(trace),        // trace
   };
 
   return {0, std::move(setup)};

@@ -100,14 +100,14 @@ struct pt_insn {
 
 /** Decoder status flags. */
 enum pt_status_flag {
-	/** There is an event pending. */
-	pts_event_pending	= 1,
+  /** There is an event pending. */
+  pts_event_pending = 1,
 
-	/** The address has been suppressed. */
-	pts_ip_suppressed	= 2,
+  /** The address has been suppressed. */
+  pts_ip_suppressed = 2,
 
-	/** There is no more trace data available. */
-	pts_eos			= 4
+  /** There is no more trace data available. */
+  pts_eos = 4
 };
 
 /** Event types. */
@@ -478,5 +478,5 @@ int decoder_new(struct decoder_config *c, struct decoder **d);
 int decoder_sync_forward(struct decoder *d);
 int decoder_next_event(struct decoder *d, struct pt_event *ev);
 int decoder_next_instruction(struct decoder *d, struct pt_insn *insn);
-const char* decoder_get_error(int code);
+const char *decoder_get_error(int code);
 void decoder_free(struct decoder *d);
