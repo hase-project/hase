@@ -33,10 +33,10 @@ $ . venv/bin/activate
 
 3. Install project into the virtual environment
 
-Make sure you pip is version >= 18.1:
+Make sure you pip is version >= 18.1 and setuptools >= 38.3:
 
 ```
-$ ./venv/bin/pip install "pip>=18.1"
+$ ./venv/bin/pip install "pip>=18.1" "setuptools>=38.3"
 ```
 
 ```console
