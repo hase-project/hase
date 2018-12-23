@@ -41,10 +41,10 @@ stdenv.mkDerivation {
   shellHook = ''
     export PATH=$PATH:${mypy}/bin:${python3.pkgs.flake8}/bin
   '';
-  PYTHON="${python2.interpreter}";
-  SOURCE_DATE_EPOCH="1523278946";
+  PYTHON = "${python2.interpreter}";
+  SOURCE_DATE_EPOCH = "1523278946";
   # better not to use tmpfs
-  TMPDIR="/tmp";
+  TMPDIR = "/tmp";
 
   hardeningDisable = ["all"];
 }
