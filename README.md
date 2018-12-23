@@ -33,17 +33,15 @@ $ . venv/bin/activate
 
 3. Install project into the virtual environment
 
-```console
-$ python3 -m pip install -e .
+Make sure you pip is version >= 18.1:
+
+```
+$ ./venv/bin/pip install "pip>=18.1"
 ```
 
-or
-
 ```console
-$ pypy3 -m pip install -e .
+$ ./venv/bin/pip install -e .
 ```
-
-Note: you may need to upgrade your pip >= 18.1
 
 Additionally pyqt5 is required and cannot be installed via pip. 
 
