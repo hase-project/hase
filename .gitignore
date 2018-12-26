@@ -123,3 +123,4 @@ tests/benchmark/results
 tests/bin/*
 .gdb_history
 unconn
+pvenv/
