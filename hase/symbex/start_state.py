@@ -56,7 +56,7 @@ def create_start_state(
         start_address,
         *args,
         add_options=ADD_OPTIONS,
-        remove_options=REMOVE_SIMPLIFICATIONS,
+        remove_options=REMOVE_SIMPLIFICATIONS
     )
     rsp, _ = solve_rsp(state, cdanalyzer)
     state.regs.rsp = rsp

@@ -381,7 +381,7 @@ class Chunker:
 @contextmanager
 def decoder(decoder_config: ffi.CData) -> Generator[ffi.CData, None, None]:
     handle = ffi.new("struct decoder **")
-    r = _check_error(lib.decoder_new(decoder_config, handle))
+    _check_error(lib.decoder_new(decoder_config, handle))
     try:
         yield handle[0]
     finally:
