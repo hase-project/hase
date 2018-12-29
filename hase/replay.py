@@ -157,7 +157,6 @@ def replay_command(args: argparse.Namespace, debug_cli: bool = False) -> StateMa
 
 
 def unpack_command(args: argparse.Namespace) -> None:
-    replay = Replay(args.report)
     with TemporaryDirectory() as tempdir:
         manifest = unpack(args.report, Path(tempdir))
         json.dump(manifest, sys.stdout, sort_keys=True, indent=4)

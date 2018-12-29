@@ -142,7 +142,7 @@ class Tracer:
         self.start_state.inspect.b(
             "call", when=angr.BP_BEFORE, action=self.concretize_indirect_calls
         )
-        res = self.start_state.inspect.b(
+        self.start_state.inspect.b(
             "successor", when=angr.BP_AFTER, action=self.concretize_ip
         )
 
