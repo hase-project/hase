@@ -1,0 +1,192 @@
+\documentclass{article}
+    % General document formatting
+    \usepackage[margin=0.7in]{geometry}
+    % \usepackage[parfill]{parskip}
+    \usepackage[utf8]{inputenc}
+    
+    % Related to math
+    \usepackage{amsmath,amssymb,amsfonts,amsthm}
+
+    \usepackage{algpseudocode,algorithm}
+    
+
+    \makeatletter
+    % use larger font size for line number
+	\algrenewcommand\alglinenumber[1]{\normalsize #1:}
+	% remove number of algorithm from caption
+	\renewcommand\thealgorithm{}
+	\makeatother
+
+	% make font of the caption of algorithm larger
+	\usepackage{caption}
+	\captionsetup[algorithm]{font=normalsize} 
+
+\begin{document}
+
+
+\begin{algorithm}
+  \normalsize
+
+  \caption{Fully symbolic memory: naive implementation}
+  \begin{algorithmic}
+  	\State Immutable objects:
+  	\State $~~M_c~~~~~~~~~~~~~~~~~~~:= \{(e_c,v)\}$ 
+  	\State $~~~e_c~~~~~~~~~~~~~~~~~~~~:=$ an expression over concrete values
+  	\State $~~M_s~~~~~~~~~~~~~~~~~~~:= \{(e,v)\}$ 
+  	\State $~~~e~~~~~~~~~~~~~~~~~~~\,~:=$ an expression over symbols and concrete values
+  	\State $~~~v~~~~~~~~~~~~~~~~~~~~\,:=$ a 1-byte expression over symbols and concrete values
+  	\State $~~~V~~~~~~~~~~~~~~~~~~~\,:=$ ordered set of $v$
+  	\State $~~~\pi~~~~~~~~~~~~~~~~~~~~\,:=$ set of assumptions
+  	\State $~~~equiv(e, \widetilde{e}, \pi)~~~~~\,:= (e \not = \widetilde{e} \wedge \pi) == UNSAT$ 
+  	\State $~~~disjoint(e, \widetilde{e}, \pi)~~:=  (e = \widetilde{e} \wedge \pi) == UNSAT$ 
+  	\State $~~~intersect(e, \widetilde{e}, \pi)~:=  (e = \widetilde{e} \wedge \pi) == SAT$ 
+
+  \end{algorithmic}
+
+  \bigskip
+  
+  \begin{algorithmic}[1]
+	\Function{store}{$e$, $v$, $size$}:
+		\For {$k = 0~\text{to}~size - 1$} 
+			\State \Call{\_STORE}{$e + k$, $v_k$}
+		\EndFor
+	\EndFunction
+  \end{algorithmic}
+
+
+  \bigskip
+
+  \begin{algorithmic}[1]
+	\Function{\_store}{$e$, $V$}:
+		
+		\State $min_e = min(e$)
+		\State $max_e = max(e$)
+		\State $flag = false$
+		\State $constant = false$
+
+		\State ${M_c}' \leftarrow {M_c}$
+	    \State ${M_s}' \leftarrow {M_s}$
+
+		\If {$min_e == max_e$}
+			\State $constant = true$
+			\State ${M_c}' \leftarrow {M_c}'\vert_{e \mapsto v}$
+		\EndIf
+
+		\For {$(\widetilde{e}, \widetilde{v}) \in M_s$}
+			\If {$disjoint(\widetilde{e}, e, \pi)$}
+				\State {\bf continue}
+			\ElsIf {$equiv(\widetilde{e}, e, \pi)$}
+				\If {$constant$}
+					\State ${M_s}' \leftarrow {M_s}' - (\widetilde{e}, v)$
+				\Else
+	    			\State ${M_s}' \leftarrow {M_s}'\vert_{\widetilde{e} \mapsto v}$
+	    		\EndIf
+	    		\State $flag = true$
+	    	\Else
+	    		\State ${M_s}' \leftarrow {M_s}'\vert_{\widetilde{e} \mapsto ite(\widetilde{e} = e, v, \widetilde{v})}$
+	    	\EndIf
+	    \EndFor
+
+	    \If {$\neg flag \wedge \neg constant$}
+	    	\State ${M_s}' \leftarrow {M_s}'\vert_{e \mapsto v}$
+	    \EndIf
+
+	    \State ${M_c} \leftarrow {M_c}'$
+	    \State ${M_s} \leftarrow {M_s}'$
+	\EndFunction
+  \end{algorithmic}
+
+\end{algorithm}
+  
+\begin{algorithm}
+  \begin{algorithmic}[1]
+	\Function{load}{$e$, $size$}:
+		\State $V = \left\langle \right\rangle$ 
+		\For {$k = 0~\text{to}~size - 1$} 
+			\State $v_k = $ \Call{\_LOAD}{$e + k$}
+			\State $V = V \cdot v_k$
+		\EndFor
+		\State \Return $V$
+	\EndFunction
+  \end{algorithmic}
+
+  \bigskip
+
+  \begin{algorithmic}[1]
+	\Function{\_load}{$e$}:
+		\State $v = \bot$ 
+
+		\State $min_e = min(e$)
+		\State $max_e = max(e$)
+
+		\If {$min_e == max_e$}
+			\If {$(min_e, \widetilde{v}) \in M_c$}
+				\State ${v} = \widetilde{v}$
+			\EndIf
+		\Else
+			\For {$e_c = min_e~\text{to}~max_e$}
+				\If {$(e_c, \widetilde{v}) \in M_c$}
+					\State $v = ite(e_c = e, \widetilde{v}, v)$
+				\EndIf
+			\EndFor
+		\EndIf
+
+		\For {$(\widetilde{e}, \widetilde{v}) \in M_s$} 
+			\If {$intersect(\widetilde{e}, e, \pi)$}
+				\State $v = ite(\widetilde{e} = e, \widetilde{v}, v)$
+			\EndIf
+		\EndFor
+		\State \Return $v$
+	\EndFunction
+  \end{algorithmic}
+  
+\end{algorithm}
+
+\begin{algorithm}
+  \begin{algorithmic}[1]
+	\Function{merge}{$({{M}^1}_c, {{M}^1}_s, \pi^1)$, $({{M}^2}_c, {{M}^2}_s, \pi^2)$, ..., $({{M}^n}_s, {{M}^n}_s, \pi^n)$}:
+		\State $M_c \leftarrow \{\},~M_s \leftarrow \{\}$
+		\State $\pi \leftarrow \bigvee\limits_{i} pi^i $
+		\State
+
+		\For {$i \in \{1, n\}$}
+			\For {$(e, v) \in {{M}^i}_c$} 
+				\If {$(e, v') \in M_c$}
+					\State $M_c \leftarrow {M_c}\vert_{e \mapsto ite(\pi^i, v, v')}$
+				\Else
+					\State $M_c \leftarrow {M_c}\vert_{e \mapsto ite(\pi^i, v, \bot)}$
+				\EndIf
+			\EndFor
+		
+			\State
+
+			\For {$(e, v) \in {{M}^i}_s$} 
+				%\State $M_s \leftarrow {M_s}\vert_{e \mapsto ite(\pi^i, v, \bot)}$
+				\State $flag = false$
+				\For {$(\widetilde{e}, \widetilde{v}) \in {M}_s$} 
+					\If {$disjoint(\widetilde{e}, e, \pi)$}
+						\State {\bf continue}
+					\ElsIf {$equiv(\widetilde{e}, e, \pi)$}
+						\State ${M_s} \leftarrow {M_s}\vert_{\widetilde{e} \mapsto ite(\pi^i, v, \widetilde{v})}$
+			    		\State $flag = true$
+			    	\Else
+			    		\State ${M_s} \leftarrow {M_s}\vert_{\widetilde{e} \mapsto ite(\pi^i \wedge~e~=~\widetilde{e}, v, \widetilde{v})}$
+			    		\State $flag = true$
+			    	\EndIf
+			    \EndFor
+
+			    \If {$\neg flag$}
+			    	\State $M_s \leftarrow {M_s}\vert_{e \mapsto ite(\pi^i, v, \bot)}$
+			    \EndIf
+			\EndFor
+
+		\EndFor
+
+		\State
+		\State \Return $(M_c, M_s, \pi)$
+	\EndFunction
+  \end{algorithmic}
+\end{algorithm}
+
+
+\end{document}

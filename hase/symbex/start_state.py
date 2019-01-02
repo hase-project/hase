@@ -9,6 +9,7 @@ from ..pt import Instruction, InstructionClass
 from ..pwn_wrapper import Coredump
 from .cdanalyzer import CoredumpAnalyzer
 from .rspsolver import solve_rsp
+from ..memsight import factory
 
 ADD_OPTIONS = {
     so.TRACK_JMP_ACTIONS,
@@ -24,6 +25,8 @@ ADD_OPTIONS = {
     so.BYPASS_UNSUPPORTED_SYSCALL,
     so.BYPASS_ERRORED_IROP,
     so.BYPASS_ERRORED_IRCCALL,
+    so.ZERO_FILL_UNCONSTRAINED_MEMORY,
+    so.SYMBOLIC_WRITE_ADDRESSES
     # so.DOWNSIZE_Z3,
 }
 
@@ -52,11 +55,14 @@ def create_start_state(
     coredump = cdanalyzer.coredump
     args = [coredump.argc]
     args += [coredump.string(argv) for argv in coredump.argv]
+    mem = factory.get_range_fully_symbolic_memory(project)
+    plugins = {'memory': mem}
     state = project.factory.call_state(
         start_address,
         *args,
         add_options=ADD_OPTIONS,
-        remove_options=REMOVE_SIMPLIFICATIONS
+        remove_options=REMOVE_SIMPLIFICATIONS,
+        plugins=plugins,
     )
     rsp, _ = solve_rsp(state, cdanalyzer)
     state.regs.rsp = rsp

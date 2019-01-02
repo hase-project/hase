@@ -1,0 +1,11 @@
+--- /usr/local/lib/python2.7/dist-packages/angr/exploration_techniques/veritesting.py	2016-06-18 21:41:27.000000000 +0000
++++ veritesting.py	2017-04-18 15:56:06.000000000 +0000
+@@ -17,5 +17,7 @@
+             pg = vt.final_path_group
+             pg.stash(from_stash='deviated', to_stash='active')
+             pg.stash(from_stash='successful', to_stash='active')
+-            return pg.active, pg.stashes.get('unconstrained', []), pg.stashes.get('unsat', []), [], []
++            #return pg.active, pg.stashes.get('unconstrained', []), pg.stashes.get('unsat', []), [], []
++            return pg.active, pg.stashes.get('unconstrained', []), pg.stashes.get('unsat', []), \
++                   pg.stashes.get('pruned', []), pg.stashes.get('errored', [])
+         return None

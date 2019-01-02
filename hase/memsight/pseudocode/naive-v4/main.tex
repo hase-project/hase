@@ -1,0 +1,163 @@
+\documentclass{article}
+    % General document formatting
+    \usepackage[margin=0.7in]{geometry}
+    % \usepackage[parfill]{parskip}
+    \usepackage[utf8]{inputenc}
+    
+    % Related to math
+    \usepackage{amsmath,amssymb,amsfonts,amsthm}
+
+    \usepackage{algpseudocode,algorithm}
+
+    \let\emptyset\varnothing
+    
+
+    \makeatletter
+    % use larger font size for line number
+	\algrenewcommand\alglinenumber[1]{\normalsize #1:}
+	% remove number of algorithm from caption
+	\renewcommand\thealgorithm{}
+	\makeatother
+
+	% make font of the caption of algorithm larger
+	\usepackage{caption}
+	\captionsetup[algorithm]{font=normalsize} 
+
+\begin{document}
+
+
+\begin{algorithm}
+  \normalsize
+
+  \caption{Fully symbolic memory: naive implementation}
+  \begin{algorithmic}
+  	\State Immutable objects:
+  	%\State $~~M_s~~~~~~~~~~~~~~~~~~~:= \{(e,v)\}$ 
+  	\State $~~~t_{pos}~~~~~~~~~~~~~~~\,\,~:=$ timestamp (initially, set to 0)
+  	\State $~~~t_{neg}~~~~~~~~~~~~~~~\,\,~:=$ timestamp (initially, set to 0)
+  	\State $~~~e~~~~~~~~~~~~~~~~~~~\,~:=$ an expression over symbols and concrete values
+  	\State $~~~v~~~~~~~~~~~~~~~~~~~~\,:=$ a 1-byte expression over symbols and concrete values
+  	\State $~~~V~~~~~~~~~~~~~~~~~~~\,:=$ ordered set of $v$
+  	\State $~~~\pi~~~~~~~~~~~~~~~~~~~~\,:=$ set of assumptions
+  	\State $~~~equiv(e, \widetilde{e}, \pi)~~~~~\,:= (e \not = \widetilde{e} \wedge \pi) == UNSAT$ 
+  	\State $~~~disjoint(e, \widetilde{e}, \pi)~~:=  (e = \widetilde{e} \wedge \pi) == UNSAT$ 
+  	\State $~~~intersect(e, \widetilde{e}, \pi)~:=  (e = \widetilde{e} \wedge \pi) == SAT$ 
+
+  \end{algorithmic}
+
+  \bigskip
+  
+  \begin{algorithmic}[1]
+	\Function{store}{$e$, $V$, $size$}:
+		\For {$k = 0~\text{to}~size - 1$} 
+			\State \Call{\_STORE}{$e + k$, $v_k$}
+		\EndFor
+	\EndFunction
+  \end{algorithmic}
+
+  \bigskip
+
+  \begin{algorithmic}[1]
+	\Function{\_store}{$e$, $v$}:
+		
+		\State $a = min(e$)
+		\State $b = max(e$)
+		\State $t_{pos} \leftarrow t_{pos} + 1$
+		\State \Call{insert}{($a, b), (e, v, t_{pos}, true)$)}
+
+	\EndFunction
+  \end{algorithmic}
+
+  \bigskip
+
+  \begin{algorithmic}[1]
+	\Function{insert}{($a, b), (e, v, t, \delta)$)}:
+		
+		\For {$x \in\,$\Call{search}{$a, b$}:} 
+			\If {$equiv\_sup(e, x(e))$}
+				\State $x(v) \leftarrow v$
+				\State $x(t) \leftarrow t$
+				\State $x(\delta) \leftarrow \delta$
+				\State \Return
+			\EndIf
+		\EndFor
+		\State $M_s.$\Call{add}{($a, b), (e, v, t, \delta)$)}
+	\EndFunction
+  \end{algorithmic}
+
+  \bigskip
+
+  \begin{algorithmic}[1]
+	\Function{search}{$a, b$)}:
+		\State \Return $\{x \in M_s~|~x(a,b)~\cap~[a, b] \neq \emptyset\}$
+	\EndFunction
+  \end{algorithmic}
+
+\end{algorithm}
+  
+\begin{algorithm}
+
+  \begin{algorithmic}[1]
+	\Function{load}{$e$, $size$}:
+		\State $V = \left\langle \right\rangle$ 
+		\For {$k = 0~\text{to}~size - 1$} 
+			\State $v_k = $ \Call{\_LOAD}{$e + k$}
+			\State $V = V \cdot v_k$
+		\EndFor
+		\State \Return $V$
+	\EndFunction
+  \end{algorithmic}
+
+  \bigskip
+
+  \begin{algorithmic}[1]
+	\Function{\_load}{e}:
+
+		\State $a = min(e$)
+		\State $b = max(e$)
+
+		\State $P \leftarrow \{ (\widetilde{e}, \widetilde{v}, \widetilde{t}, \widetilde{\delta})~|~(\widetilde{e}, \widetilde{v}, \widetilde{t}, \widetilde{\delta}) \in \Call{search}{a, b}\}$
+
+		\State $P' \leftarrow \Call{sort\_by\_increasing\_timestamp}{P}$
+
+		\State $v \leftarrow \bot$
+		\State $t_{neg} \leftarrow t_{neg} - 1$
+		\State $M_s.$\Call{add}{($a, b), (e, v, t_{neg}, true)$} \Comment{implicit store}
+
+		\For {$(\widetilde{e}, \widetilde{v}, \widetilde{t}, \widetilde{\delta}) \in P'$} 
+			\State $v \leftarrow ite(e = \widetilde{e}~\wedge~\widetilde{\delta}, \widetilde{v}, v) $
+		\EndFor
+
+		\State \Return $v$
+	\EndFunction
+  \end{algorithmic}
+  
+  \bigskip
+
+  \begin{algorithmic}[1]
+	\Function{merge}{$(S_1, \delta_1), (S_2, \delta_2), S_{ancestor}$}: \Comment{$S_1 := self$}
+
+		\State $t_{pos}^{anc} = S_{ancestor}.t_{pos}$ 
+		\State $t_{neg}^{anc} = S_{ancestor}.t_{neg}$ 
+
+		\State $M_s \leftarrow S_{ancestor}.M_s$
+		
+		\For {$\{x \in S_{1}.M_s~|~(x(t) > 0 \wedge x(t) > t_{pos}^{anc}) \vee (x(t) < 0 \wedge x(t) < t_{neg}^{anc})\}$} 
+			\State $x(\delta) = x(\delta) \wedge \delta_1$
+			\State $M_s.$\Call{add}{($x(a), x(b)), x$)}
+		\EndFor
+		
+		\For {$\{x \in S_{2}.M_s~|~(x(t) > 0 \wedge x(t) > t_{pos}^{anc}) \vee (x(t) < 0 \wedge x(t) < t_{neg}^{anc})\}$}
+			\State $x(\delta) = x(\delta) \wedge \delta_2$
+			\State $M_s.$\Call{add}{($x(a), x(b)), x$)}
+		\EndFor
+
+		\State $t_{pos} = max(S_1.t_{pos}, S_2.t_{pos})$ 
+		\State $t_{neg} = min(S_1.t_{neg}, S_2.t_{neg})$ 
+
+	\EndFunction
+  \end{algorithmic}
+
+\end{algorithm}
+
+\end{document}

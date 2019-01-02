@@ -110,7 +110,7 @@ class Tracer:
 
         for (idx, event) in enumerate(self.trace):
             if event.ip == start or event.ip == main:
-                self.trace = trace[idx:]
+               self.trace = trace[idx:]
 
         self.use_hook = True
         hooked_symbols, omitted_section = setup_project_hook(
@@ -125,7 +125,7 @@ class Tracer:
             omitted_section,
             elf.statically_linked,
             name,
-        )
+       )
 
         self.old_trace = self.trace
         self.trace, self.trace_idx, self.hook_target = self.filter.filtered_trace()

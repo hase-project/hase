@@ -1,0 +1,97 @@
+\documentclass{article}
+    % General document formatting
+    \usepackage[margin=0.7in]{geometry}
+    % \usepackage[parfill]{parskip}
+    \usepackage[utf8]{inputenc}
+    
+    % Related to math
+    \usepackage{amsmath,amssymb,amsfonts,amsthm}
+
+    \usepackage{algpseudocode,algorithm}
+    
+
+    \makeatletter
+    % use larger font size for line number
+	\algrenewcommand\alglinenumber[1]{\normalsize #1:}
+	% remove number of algorithm from caption
+	\renewcommand\thealgorithm{}
+	\makeatother
+
+	% make font of the caption of algorithm larger
+	\usepackage{caption}
+	\captionsetup[algorithm]{font=normalsize} 
+
+\begin{document}
+
+
+\begin{algorithm}
+  \normalsize
+
+  \caption{Fully symbolic memory: naive implementation}
+  \begin{algorithmic}
+  	\State Immutable objects:
+  	\State $~~M~~~~~~~~~~~~~~~~~~~\,:= \{(e,v)\}$ 
+  	\State $~~~e~~~~~~~~~~~~~~~~~~~\,~:=$ an expression over symbols and concrete values
+  	\State $~~~v~~~~~~~~~~~~~~~~~~~~\,:=$ an expression over symbols and concrete values
+  	\State $~~~\pi~~~~~~~~~~~~~~~~~~~~\,:=$ set of assumptions
+  	\State $~~~equiv(e, \widetilde{e}, \pi)~~~~\,:= (e \not = \widetilde{e} \wedge \pi) == UNSAT$ 
+  	\State $~~~disjoint(e, \widetilde{e}, \pi)~:=  (e = \widetilde{e} \wedge \pi) == UNSAT$ 
+  	\State $~~~intersect(e, \widetilde{e}, \pi)~:=  (e = \widetilde{e} \wedge \pi) == SAT$ 
+
+  \end{algorithmic}
+  \bigskip
+  \begin{algorithmic}[1]
+	\Function{store}{$e$, $v$}:
+		\State $M'  \leftarrow M$
+		\For {$(\widetilde{e}, \widetilde{v}) \in M$}
+			\If {$disjoint(\widetilde{e}, e, \pi)$}
+				\State {\bf continue}
+			\ElsIf {$equiv(\widetilde{e}, e, \pi)$}
+	    		\State $M' \leftarrow M'\vert_{\widetilde{e} \mapsto v}$
+	    		\State $flag = true$
+	    	\Else
+	    		\State $M' \leftarrow M'\vert_{\widetilde{e} \mapsto ite(\widetilde{e} = e \wedge \pi, v, \widetilde{v})}$
+	    	\EndIf
+	    \EndFor
+	    \If {$\neg flag$}
+	    	\State $M' \leftarrow M'\vert_{e \mapsto v}$
+	    \EndIf
+	    \State $M  \leftarrow M'$
+	\EndFunction
+  \end{algorithmic}
+  \bigskip
+  \begin{algorithmic}[1]
+	\Function{load}{$e$}:
+		\State $v = \bot$ 
+		\For {$(\widetilde{e}, \widetilde{v}) \in M$} 
+			\If {$intersect(\widetilde{e}, e, \pi)$}
+				\State $v = ite(\widetilde{e} = e \wedge \pi, \widetilde{v}, v)$
+			\EndIf
+		\EndFor
+		\State \Return $v$
+	\EndFunction
+  \end{algorithmic}
+  \bigskip
+  \begin{algorithmic}[1]
+	\Function{branch}{$e$}:
+		\State $used = false$
+		\If {$(e \wedge \pi)$}
+			\State $\pi' = e \wedge \pi$
+			\State $used = true$
+		\EndIf
+		\If {$(\neg e \wedge \pi)$}
+			\State $\pi'' = \neg e \wedge \pi$
+			\If {$used$}
+				\State fork execution using $(\pi'', M)$
+			\Else
+				\State $\pi' = \pi''$
+			\EndIf
+		\EndIf
+		\State $\pi = \pi'$
+	\EndFunction
+  \end{algorithmic}
+\end{algorithm}
+
+
+
+\end{document}
