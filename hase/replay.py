@@ -150,13 +150,14 @@ def replay_command(args: argparse.Namespace, debug_cli: bool = False) -> StateMa
             gdbs.active_state = states.last_main_state
             gdbs.update_active()
 
-            import ipdb
+            # import ipdb
 
-            ipdb.set_trace()
+            # ipdb.set_trace()
         return states
 
 
 def unpack_command(args: argparse.Namespace) -> None:
-    with TemporaryDirectory() as tempdir:
-        manifest = unpack(args.report, Path(tempdir))
-        json.dump(manifest, sys.stdout, sort_keys=True, indent=4)
+    with Replay(args.report):
+        with TemporaryDirectory() as tempdir:
+            manifest = unpack(args.report, Path(tempdir))
+            json.dump(manifest, sys.stdout, sort_keys=True, indent=4)
