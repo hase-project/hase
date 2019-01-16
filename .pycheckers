@@ -1,0 +1,4 @@
+[DEFAULT]
+checkers = mypy3,flake8
+mypy_config_file=setup.cfg
+ignore_codes = E501,E741,W503,E203,E261,F401,F841,E266

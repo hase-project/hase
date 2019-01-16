@@ -1,6 +1,7 @@
 import copy
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from angr import Project
 
 from .pwn_wrapper import ELF, Coredump, Mapping
 
@@ -36,7 +37,10 @@ def filter_mappings(
 
 
 class Loader:
-    def __init__(self, mappings: List[Mapping], sysroot: Path, vdso_x64: Path):
+    def __init__(
+        self, executable: str, mappings: List[Mapping], sysroot: Path, vdso_x64: Path
+    ):
+        self.executable = executable
         self.shared_objects = filter_mappings(mappings, sysroot, vdso_x64)
 
     def find_mapping(self, ip: int) -> Optional[Mapping]:
@@ -52,6 +56,9 @@ class Loader:
         else:
             offset = ip - mapping.start + mapping.page_offset * 4096
             return "0x{:x} ({}+{})".format(ip, mapping.name, offset)
+
+    def angr_project(self) -> Project:
+        return Project(self.executable, **self.load_options())
 
     def load_options(self) -> Dict[str, Any]:
         """
