@@ -1,9 +1,12 @@
 import bisect
 import ctypes as ct
+import functools
 import logging
 from contextlib import contextmanager
 from enum import IntEnum
-from typing import Generator, List, Optional
+from typing import Any, Dict, Generator, List, Optional, Set, Tuple, Union
+
+from intervaltree import IntervalTree
 
 from ._pt import ffi, lib
 from .errors import PtError
@@ -41,6 +44,7 @@ class InstructionClass(IntEnum):
     ptic_ptwrite = 9
 
 
+@functools.total_ordering
 class Instruction:
     __slots__ = ["ip", "size", "iclass"]
 
@@ -49,8 +53,22 @@ class Instruction:
         self.size = size
         self.iclass = iclass
 
+    def __lt__(self, other: "Instruction") -> bool:
+        return self.ip < other.ip
+
+    def __eq__(self, other: Any) -> bool:
+        return (
+            isinstance(other, Instruction)
+            and self.ip == other.ip
+            and self.size == other.size
+            and self.iclass == other.iclass
+        )
+
+    def __hash__(self) -> int:
+        return hash(self.ip)
+
     def __repr__(self) -> str:
-        return "<Instruction[%s] @ %x>" % (self.iclass.name, self.ip)
+        return "<Instruction[%s] @ 0x%x>" % (self.iclass.name, self.ip)
 
 
 l = logging.getLogger(__name__)
@@ -158,16 +176,130 @@ def get_thread_schedule(
     return schedule
 
 
-# In future this should become a warning, since bugs can smash the stack! For
-# now we rely on this to figure out if we re-assemble the trace incorrectly
-def sanity_check_order(instructions: List[Instruction], loader: Loader) -> None:
+class CFG:
+    def __init__(self, basic_blocks: IntervalTree) -> None:
+        self.basic_blocks = basic_blocks
+
+
+class JumpTarget:
+    def __init__(self, instr: Instruction):
+        self.instr = instr
+
+    def __eq__(self, other: Any) -> bool:
+        return isinstance(other, JumpTarget) and self.instr.ip == other.instr.ip
+
+    def __hash__(self) -> int:
+        return hash(self.instr.ip)
+
+    def __repr__(self) -> str:
+        return "<JumpTarget @ 0x%x>" % self.instr.ip
+
+
+class JumpSource:
+    def __init__(self, instr: Instruction, target_instr: Instruction):
+        self.instr = instr
+        self.target_instr = target_instr
+
+    def __eq__(self, other: Any) -> bool:
+        return (
+            isinstance(other, JumpSource)
+            and self.instr.ip == other.instr.ip
+            and self.target_instr.ip == other.target_instr.ip
+        )
+
+    def __hash__(self) -> int:
+        return hash((self.instr.ip, self.target_instr.ip))
+
+    def __repr__(self) -> str:
+        return "<JumpSource 0x%x -> 0x%x >" % (self.instr.ip, self.target_instr.ip)
+
+
+def sort_edges(edge: Union[JumpSource, JumpTarget]) -> Tuple[int, int]:
+    return (edge.instr.ip, 0 if isinstance(edge, JumpTarget) else 1)
+
+
+class CfgBuilder:
+    def __init__(self, instructions: List[Instruction]) -> None:
+        self.instructions = instructions
+        self.edges = set()  # type: Set[Union[JumpSource, JumpTarget]]
+        # also add edges for first/last instruction
+        self.edges.add(JumpTarget(self.instructions[0]))
+        self.edges.add(JumpSource(self.instructions[-1], self.instructions[-1]))
+
+    def add_edge(self, from_instr: Instruction, to_instr: Instruction) -> None:
+        self.edges.add(JumpSource(from_instr, to_instr))
+        self.edges.add(JumpTarget(to_instr))
+
+    def append_basic_block(
+        self,
+        basic_blocks: IntervalTree,
+        leader: Instruction,
+        terminator: Optional[Instruction],
+        instr: Instruction,
+        successors: List[Instruction],
+    ) -> None:
+        if terminator is None:
+            size = instr.ip
+            successors.append(instr)
+        else:
+            size = terminator.ip + terminator.size
+        basic_blocks[leader.ip : size] = successors
+
+    def cfg(self) -> CFG:
+        basic_blocks = IntervalTree()  # type: IntervalTree
+        leader = None  # type: Optional[Instruction]
+        terminator = None  # type: Optional[Instruction]
+        successors = []  # type: List[Instruction]
+        edges = list(sorted(self.edges, key=sort_edges))
+        for i, edge in enumerate(edges):
+            if isinstance(edge, JumpTarget):
+                if leader is not None:
+                    self.append_basic_block(
+                        basic_blocks, leader, terminator, edge.instr, successors
+                    )
+                leader = edge.instr
+                terminator = None
+                successors = []
+            else:
+                # we should not see jump originating from code that we not jumped to before
+                if terminator is not None and terminator != edge.instr:
+                    print("foo")
+                terminator = edge.instr
+                successors.append(edge.target_instr)
+
+        if terminator is not None and leader is not None:
+            self.append_basic_block(
+                basic_blocks, leader, terminator, edge.instr, successors
+            )
+        return CFG(basic_blocks)
+
+
+BLOCK_TERMINATORS = [
+    InstructionClass.ptic_call,
+    InstructionClass.ptic_return,
+    InstructionClass.ptic_jump,
+    InstructionClass.ptic_cond_jump,
+    InstructionClass.ptic_far_call,
+    InstructionClass.ptic_far_return,
+    InstructionClass.ptic_far_jump,
+]
+
+
+def build_cfg(instructions: List[Instruction], loader: Loader) -> CFG:
     """
     Check that calls matches returns and that syscalls and non-jumps do not change the control flow.
     """
     stack = []  # type: List[int]
+    builder = CfgBuilder(instructions)
     for (i, instruction) in enumerate(instructions):
         if i > 0:
             previous = instructions[i - 1]
+            if (
+                previous.iclass in BLOCK_TERMINATORS
+                or previous.ip + previous.size != instruction.ip
+            ):
+                builder.add_edge(previous, instruction)
+
             if previous.iclass == InstructionClass.ptic_return:
                 if len(stack) != 0:
                     return_ip = stack.pop()
@@ -185,6 +317,10 @@ def sanity_check_order(instructions: List[Instruction], loader: Loader) -> None:
         if instruction.iclass == InstructionClass.ptic_call:
             return_ip = instruction.ip + instruction.size
             stack.append(return_ip)
+    from ipdb import launch_ipdb_on_exception
+
+    with launch_ipdb_on_exception():
+        return builder.cfg()
 
 
 def merge_same_core_switches(schedule: List[ScheduleEntry]) -> List[ScheduleEntry]:
@@ -388,6 +524,16 @@ def decoder(decoder_config: ffi.CData) -> Generator[ffi.CData, None, None]:
         lib.decoder_free(handle[0])
 
 
+def check_cfg(cfg: CFG, instructions: List[Instruction]) -> None:
+    blocks = cfg.basic_blocks
+    block = next(iter(blocks[instructions[0].ip]))
+    for instruction in instructions[1:]:
+        end = instruction.ip + instruction.size
+        if not (block.begin < end <= block.end):
+            assert instruction in block.data
+            block = next(iter(blocks[instruction.ip]))
+
+
 # TODO multiple threads
 def decode(
     trace_paths: List[str],
@@ -450,5 +596,6 @@ def decode(
     schedule = merge_same_core_switches(schedule)
 
     instructions = correlate_traces(traces, schedule, pid, tid)
-    sanity_check_order(instructions, loader)
+    cfg = build_cfg(instructions, loader)
+    check_cfg(cfg, instructions)
     return instructions

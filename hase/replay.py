@@ -91,10 +91,10 @@ def create_tracer(report: str, archive_root: Path) -> Tracer:
     with open(str(vdso_x64), "wb+") as f:
         f.write(coredump.vdso.data)
     sysroot = archive_root.joinpath("binaries")
-    loader = Loader(coredump.mappings, sysroot, vdso_x64)
+    executable = manifest["coredump"]["executable"]
+    loader = Loader(executable, coredump.mappings, sysroot, vdso_x64)
     trace = decode_trace(manifest, loader)
 
-    executable = manifest["coredump"]["executable"]
     return Tracer(executable, trace, coredump, loader, name=report)
 
 
