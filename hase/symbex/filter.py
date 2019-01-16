@@ -52,8 +52,6 @@ class FilterBase:
     ) -> None:
 
         self.project = project
-        self.main_cfg = self.project.analyses.CFGFast(show_progressbar=True)
-        self.main_object = project.loader.main_object
         self.trace = trace
         self.hooked_symbol = hooked_symbol
         self.gdb = gdb
@@ -281,8 +279,7 @@ class FilterTrace(FilterBase):
                         is_current_hooked
                         and not self.test_plt_vdso(instruction.ip)
                         and not self.test_ld(instruction.ip)
-                        and self.project.loader.find_object_containing(instruction.ip)
-                        == self.main_object
+                        and self.project.loader.find_object_containing(instruction.ip) == self.project.loader.main_object
                     ):
                         is_current_hooked = False
                         hooked_parent = None
