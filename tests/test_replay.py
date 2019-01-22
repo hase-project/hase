@@ -31,3 +31,12 @@ def test_control_flow() -> None:
             str(TEST_TRACES.joinpath("control_flow-20181003T145029.tar.gz")),
         ]
     )
+
+def test_vdso() -> None:
+    state = main(
+        [
+            "hase",
+            "replay",
+            str(TEST_TRACES.joinpath("vdso-20190122T125134.tar.gz")),
+        ]
+    )
