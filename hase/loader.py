@@ -1,6 +1,8 @@
 import copy
+import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
 from angr import Project
 
 from .pwn_wrapper import ELF, Coredump, Mapping
@@ -56,6 +58,19 @@ class Loader:
         else:
             offset = ip - mapping.start + mapping.page_offset * 4096
             return "0x{:x} ({}+{})".format(ip, mapping.name, offset)
+
+    def radare2(self, ip: int) -> None:
+        mapping = self.find_mapping(ip)
+        if mapping is None:
+            print("Could not mapped code for memory")
+            return
+        if mapping.name != self.executable:
+            ip = ip - mapping.start + mapping.page_offset * 4096
+        cmd = ["r2", "-s", str(ip), mapping.name]
+
+        assert ip > 0
+        print(" ".join(cmd))
+        subprocess.run(cmd)
 
     def angr_project(self) -> Project:
         return Project(self.executable, **self.load_options())
