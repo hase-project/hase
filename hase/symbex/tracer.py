@@ -106,7 +106,7 @@ class Tracer:
         main = elf.symbols.get("main")
 
         self.cdanalyzer = CoredumpAnalyzer(
-            elf, self.coredump, self.loader.load_options()["lib_opts"]
+            elf, self.coredump, self.loader.libraries
         )
 
         for (idx, event) in enumerate(self.trace):

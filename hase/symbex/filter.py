@@ -2,9 +2,12 @@ import logging
 import time
 from bisect import bisect
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from angr import Project, SimProcedure
+from cle.backends.elf.elf import ELF
+from cle.backends.elf.regions import ELFSection
+from cle.backends.externs import KernelObject
 
 from ..progress_log import ProgressLog
 from ..pt import Instruction
@@ -41,6 +44,10 @@ def symbol_name(symbol: Optional[FakeSymbol]) -> str:
         return symbol.name
 
 
+def object_contains(obj: Union[ELFSection, ELF], addr: int) -> bool:
+    return obj.min_addr <= addr < obj.max_addr
+
+
 class FilterBase:
     def __init__(
         self,
@@ -59,6 +66,8 @@ class FilterBase:
         self.omitted_section = omitted_section
         self.hooked_symname = list(self.hooked_symbol.keys())
         self.hooked_addon = {}  # type: Dict[str, int]
+        self.last_section = None  # type: Optional[ELFSection]
+        self.ld = self.project.loader.linux_loader_object  # type: Optional[ELF]
 
         self.analyze_unsupported()
 
@@ -85,17 +94,22 @@ class FilterBase:
             self.omitted_section.append(r)
 
     def test_plt_vdso(self, addr: int) -> bool:
-        # NOTE: .plt or .plt.got
-        section = self.project.loader.find_section_containing(addr)
-        if section:
-            return section.name.startswith(".plt")
-        else:
-            # NOTE: unrecognizable section, regard as vDSO
+        if self.last_section is not None and object_contains(self.last_section, addr):
+            return self.last_section.name.startswith(".plt")
+
+        obj = self.project.loader.find_object_containing(addr)
+        assert obj is not None
+        if isinstance(obj, KernelObject):
+            # we stub out vdso syscalls such as gettimeofday
             return True
+        section = self.project.loader.find_section_containing(addr)
+        assert section is not None
+        # covers .plt and .plt.got
+        self.last_section = section
+        return section.name.startswith(".plt")
 
     def test_ld(self, addr: int) -> bool:
-        o = self.project.loader.find_object_containing(addr)
-        return o == self.project.loader.linux_loader_object
+        return self.ld is not None and object_contains(self.ld, addr)
 
     def test_omit(self, addr: int) -> bool:
         for sec in self.omitted_section:
@@ -277,9 +291,9 @@ class FilterTrace(FilterBase):
                 if not self.static_link:
                     if (
                         is_current_hooked
+                        and object_contains(self.project.loader.main_object, instruction.ip)
                         and not self.test_plt_vdso(instruction.ip)
                         and not self.test_ld(instruction.ip)
-                        and self.project.loader.find_object_containing(instruction.ip) == self.project.loader.main_object
                     ):
                         is_current_hooked = False
                         hooked_parent = None

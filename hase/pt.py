@@ -14,6 +14,7 @@ from .loader import Loader
 from .perf.consts import PerfRecord
 from .perf.reader import perf_events
 from .perf.tsc import TscConversion
+from .pwn_wrapper import Mapping
 
 
 class InstructionClass(IntEnum):
@@ -564,9 +565,10 @@ def decode(
     decoder_config.cpu_stepping = cpu_stepping
     decoder_config.cpuid_0x15_eax = cpuid_0x15_eax
     decoder_config.cpuid_0x15_ebx = cpuid_0x15_ebx
-    decoder_config.shared_object_count = len(loader.shared_objects)
+    decoder_config.shared_object_count = len(loader.libraries) + 2
+
     shared_objects = []
-    for i, m in enumerate(loader.shared_objects):
+    for m in loader.libraries + [loader.executable, loader.vdso]:
         page_size = 4096
         shared_object = (
             ffi.new("char[]", m.path.encode("utf-8")),
@@ -575,6 +577,7 @@ def decode(
             m.start,
         )
         shared_objects.append(shared_object)
+
     shared_objects_array = ffi.new("struct decoder_shared_object[]", shared_objects)
     decoder_config.shared_objects = ffi.cast(
         "struct decoder_shared_object*", shared_objects_array
