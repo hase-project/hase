@@ -1,5 +1,5 @@
 import ctypes as ct
-from typing import List
+from typing import Any, Dict, List, Tuple
 
 from angr import Project, SimState
 from angr import sim_options as so
@@ -9,6 +9,7 @@ from ..pt import Instruction, InstructionClass
 from ..pwn_wrapper import Coredump
 from .cdanalyzer import CoredumpAnalyzer
 from .rspsolver import solve_rsp
+from .memory import SymbolicMemory
 
 ADD_OPTIONS = {
     so.TRACK_JMP_ACTIONS,
@@ -49,6 +50,8 @@ def create_start_state(
 ) -> SimState:
     start_address = trace[0].ip
 
+    plugins = dict(memory=SymbolicMemory(memory_backer=project.loader.memory))
+
     coredump = cdanalyzer.coredump
     args = [coredump.argc]
     args += [coredump.string(argv) for argv in coredump.argv]
@@ -56,7 +59,8 @@ def create_start_state(
         start_address,
         *args,
         add_options=ADD_OPTIONS,
-        remove_options=REMOVE_SIMPLIFICATIONS
+        remove_options=REMOVE_SIMPLIFICATIONS,
+        plugins=plugins
     )
     rsp, _ = solve_rsp(state, cdanalyzer)
     state.regs.rsp = rsp
