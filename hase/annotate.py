@@ -1,6 +1,6 @@
 import os.path
 import subprocess
-from typing import DefaultDict, Dict, Set, Tuple
+from typing import DefaultDict, Dict, List, Set, Tuple
 
 from cle import ELF
 
@@ -33,13 +33,16 @@ class Addr2line:
                 ["addr2line", "-e", dso.binary],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
+                universal_newlines=True
             )
             (stdoutdata, _) = subproc.communicate("\n".join(relative_addrs))
             lines = stdoutdata.strip().split("\n")
             if len(lines) < len(addresses):
                 raise HaseError("addr2line didn't output enough lines")
 
-            relative_root = os.environ["HASESRC"].split(":")
+            relative_root = []  # type: List[str]
+            if "HASESRC" in os.environ:
+                relative_root += os.environ["HASESRC"].split(":")
 
             for addr, line in zip(addresses, lines):
                 if line:
