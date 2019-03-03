@@ -1,5 +1,5 @@
 CC 		= gcc
-CFLAGS = -g # -fno-plt
+CFLAGS = -g -no-pie # -fno-plt
 SRCS	= ./src
 BINS	= ./bin
 HASEBIN	= ../bin/hase
@@ -8,7 +8,7 @@ C_TARGETS = control_flow long_trace core_constraint heap_location cpu_switch rep
 all: $(C_TARGETS) loopy
 
 loopy: src/loopy/loopy.S
-	$(CC) -nostdlib $(SRCS)/loopy/loopy.S -o $(BINS)/$@
+	$(CC) -nostdlib -no-pie $(SRCS)/loopy/loopy.S -o $(BINS)/$@
 
 $(C_TARGETS): 
 	$(CC) $(CFLAGS) $(SRCS)/$@/$@.c -o $(BINS)/$@

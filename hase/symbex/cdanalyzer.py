@@ -111,7 +111,7 @@ class CoredumpGDB:
         for r in resp:
             payload = r["payload"]
             if payload and payload[0] == "#":
-                print(payload)
+                print(payload.replace("\\n", ""))
                 bt.append(self.parse_frame(payload))
         return bt
 

@@ -5,7 +5,7 @@ msg: .ascii "AAAAAAAA\0"
 .global _start
 .intel_syntax noprefix
 
-## gcc -g -nostdlib loopy.S -o loop
+## gcc -g -nostdlib -no-pie loopy.S -o loopy
 ## hase record ./loopy a b c d e
 
 _start:

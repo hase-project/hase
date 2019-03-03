@@ -57,14 +57,14 @@ The integration test needs root.
 
 ```console
 make -C tests
-sudo nosetests -w tests/test_record.py
+sudo nosetests tests/test_record.py
 ```
 
 The other tests work without root:
 Note that the test traces are stored via [git-lfs](https://git-lfs.github.com/)
 
 ```console
-nosetests -w tests/test_replay.py
+nosetests tests/test_replay.py
 ```
 
 # Record crashes
@@ -76,7 +76,7 @@ $ sudo ./bin/hase record <some crash program> <args>
 Example crash:
 
 ```console
-$ sudo ./bin/hase record ./tests/bin/loopy/loopy
+$ sudo ./bin/hase record ./tests/bin/loopy
 $ ls -la /var/lib/hase
 .rw-rw-rw- 244 root  9 May  3:22 coredump.log
 .rw-r--r--   4 root  9 May  3:22 hase-record.pid

@@ -139,7 +139,7 @@ class HaseMagics(Magics):
         user_ns["active_state"] = self.active_state
 
         for k, v in addr_map.items():
-            if not Path(v[0]).exists():
+            if v[0] != "??" and not Path(v[0]).exists():
                 origin_f = v[0]
                 print("\nCannot resolve filename: {} at {}".format(origin_f, hex(k)))
                 d = input(

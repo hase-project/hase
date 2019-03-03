@@ -1,13 +1,14 @@
 import logging
 import os
 import sys
-from typing import Any, Dict, List, Optional, Tuple, Union
+from collections import defaultdict
+from typing import Any, DefaultDict, Dict, List, Optional, Tuple, Union
 
 import claripy
 import pygments
 import pygments.formatters
 import pygments.lexers
-from pygments.formatters import RegexLexer
+from pygments.lexer import RegexLexer
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import QSize
 from PyQt5.QtGui import QIcon, QTextCursor
@@ -103,8 +104,8 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.time_slider.setEnabled(False)
 
         self.file_cache = (
-            {}
-        )  # type: Dict[str, Dict[int, Tuple[Optional[str], Optional[str]]]]
+            DefaultDict(dict)
+        )  # type: DefaultDict[str, Dict[int, Tuple[Optional[str], Optional[str]]]]
         self.file_read_cache = (
             {}
         )  # type: Dict[str, Tuple[Optional[RegexLexer], Optional[Union[str, List[str]]], bool]]
@@ -287,7 +288,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
             css, source = self.file_cache[source_file][line]
             if css and source:
                 self.code_view.setHtml(
-                    code_template.format(css, source.encode("utf-8"))
+                    code_template.format(css, source)
                 )
                 cursor = self.code_view.textCursor()
                 cursor.movePosition(QTextCursor.Start)
@@ -384,7 +385,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
 
         shell.extension_manager.load_extension(ipython_extension.__name__)
 
-    def fill_cache(self, filename: str, line: int) -> None:
+    def fill_read_cache(self, filename: str, line: int) -> None:
         try:
             lexer = pygments.lexers.get_lexer_for_filename(
                 str(filename)
@@ -491,7 +492,7 @@ class MainWindow(form_class, QtWidgets.QMainWindow):
         self.switch_button.setEnabled(True)
 
     def clear_cache(self) -> None:
-        self.file_cache = {}
+        self.file_cache = DefaultDict(dict)
         self.coredump_constraints = []
         # self.callgraph.clear_cache()
 
