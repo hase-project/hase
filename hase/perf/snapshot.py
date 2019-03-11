@@ -264,6 +264,14 @@ class MmapHeader:
                 raise Exception("failed to get perf_event_mmap_page lock")
 
     @property
+    def aux_head(self) -> int:
+        return self._header.aux_head
+
+    @property
+    def aux_tail(self) -> int:
+        return self._header.aux_tail
+
+    @property
     def aux_offset(self) -> int:
         return self._header.aux_offset
 
@@ -332,7 +340,7 @@ class AuxRingbuffer:
         self.aux_buf = MMap(
             self.pmu.fd,
             self.header.aux_size,
-            mmap.PROT_READ | mmap.PROT_WRITE,
+            mmap.PROT_READ,
             mmap.MAP_SHARED,
             offset=self.header.aux_offset,
         )
@@ -375,31 +383,24 @@ class Cpu:
         assert self._itrace_start_event is not None
         return self._itrace_start_event
 
-    def traces(self) -> Generator[bytearray, None, None]:
+    def traces(self) -> bytearray:
         aux_begin = self.pt_buffer.aux_buf.addr
         aux_end = self.pt_buffer.aux_buf.addr + self.pt_buffer.aux_buf.size
         for ev in self.pt_buffer.events():
             if ev.type == PerfRecord.PERF_RECORD_ITRACE_START:
                 self._itrace_start_event = ev
+                break
 
-            if ev.type != PerfRecord.PERF_RECORD_AUX:
-                continue
-            begin = aux_begin + ev.aux_offset
-            end = begin + ev.aux_size
+        tail = aux_begin + self.pt_buffer.header.aux_tail
+        head = aux_begin + self.pt_buffer.header.aux_head
+        assert tail == aux_begin
+        assert head < aux_end
+        length = head - tail
+        buf = bytearray(length)
+        c_buf = (ct.c_byte * length).from_buffer(buf)
+        ct.memmove(c_buf, tail, length)
 
-            buf = bytearray(ev.aux_size)
-            c_buf = (ct.c_byte * ev.aux_size).from_buffer(buf)
-            # trace wraps around in aux ring buffer
-            if end > aux_end:
-                length = aux_end - begin
-                ct.memmove(c_buf, begin, length)
-                ct.memmove(
-                    ct.addressof(c_buf) + length, aux_begin, ev.aux_size - length
-                )
-            else:
-                ct.memmove(c_buf, aux_begin, ct.sizeof(c_buf))
-
-            yield buf
+        return buf
 
     def stop(self) -> None:
         self.pt_buffer.stop()

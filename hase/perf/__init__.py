@@ -81,8 +81,7 @@ class Perf:
                 continue
             trace_path = os.path.join(directory, "cpu-%d.trace" % cpu.idx)
             with open(trace_path, "wb") as trace_file:
-                for trace in cpu.traces():
-                    trace_file.write(trace)
+                trace_file.write(cpu.traces())
 
             itrace = cpu.itrace_start_event()
             cpu_trace = CpuTrace(
