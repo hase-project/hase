@@ -2,7 +2,7 @@ import ctypes as ct
 import fcntl
 import mmap
 import os
-from typing import Any, Dict, Generator, Iterator, List, Optional
+from typing import Any, Generator, Iterator, List, Optional
 
 from ..mmap import MMap
 from .consts import (CAP_USER_TIME_ZERO, PERF_COUNT_SW_DUMMY,
@@ -332,7 +332,7 @@ class AuxRingbuffer:
         self.aux_buf = MMap(
             self.pmu.fd,
             self.header.aux_size,
-            mmap.PROT_READ,
+            mmap.PROT_READ | mmap.PROT_WRITE,
             mmap.MAP_SHARED,
             offset=self.header.aux_offset,
         )
@@ -376,21 +376,14 @@ class Cpu:
         return self._itrace_start_event
 
     def traces(self) -> Generator[bytearray, None, None]:
-        seen = {}  # type: Dict[int, int]
+        aux_begin = self.pt_buffer.aux_buf.addr
+        aux_end = self.pt_buffer.aux_buf.addr + self.pt_buffer.aux_buf.size
         for ev in self.pt_buffer.events():
             if ev.type == PerfRecord.PERF_RECORD_ITRACE_START:
                 self._itrace_start_event = ev
 
             if ev.type != PerfRecord.PERF_RECORD_AUX:
                 continue
-            aux_begin = self.pt_buffer.aux_buf.addr
-            aux_end = self.pt_buffer.aux_buf.addr + self.pt_buffer.aux_buf.size
-            if aux_begin in seen:
-                assert seen[aux_begin] == aux_end
-                continue
-            else:
-                seen[aux_begin] = aux_end
-
             begin = aux_begin + ev.aux_offset
             end = begin + ev.aux_size
 
