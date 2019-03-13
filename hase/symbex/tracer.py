@@ -10,6 +10,7 @@ import angr
 import archinfo
 from angr import Block, Project, SimState
 from angr.engines.successors import SimSuccessors
+from cle.backends.elf.metaelf import MetaELF
 from capstone import x86_const
 
 from ..errors import HaseError
@@ -105,8 +106,13 @@ class Tracer:
         start = elf.symbols.get("_start")
         main = elf.symbols.get("main")
 
+        lib_text_addrs = {}  # type: Dict[str, int]
+        lib_opts = self.loader.load_options()["lib_opts"]
+        for lib in lib_opts:
+            lib_text_addrs[lib] = lib_opts[lib]['base_addr'] + MetaELF.get_text_offset(lib)
+
         self.cdanalyzer = CoredumpAnalyzer(
-            elf, self.coredump, self.loader.load_options()["lib_opts"]
+            elf, self.coredump, lib_text_addrs
         )
 
         for (idx, event) in enumerate(self.trace):
