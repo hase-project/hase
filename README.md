@@ -43,6 +43,9 @@ $ ./venv/bin/pip install "pip>=18.1" "setuptools>=38.3"
 $ ./venv/bin/pip install -e .
 ```
 
+Trouble Shooting:
+New version of `make` may break the installation of pyvex, consult this [upstream commit](https://github.com/angr/pyvex/commit/5ed27fc213a20e2e9bec0131058ec4795c644d0f) to resolve the issue manually.
+
 Additionally pyqt5 is required and cannot be installed via pip. 
 
 4. Install test dependencies
